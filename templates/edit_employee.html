@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile - Township Clinic{% endblock %}
+{% block content %}
+    <section class="dashboard-content">
+        <h2>Edit Profile</h2>
+        <form id="edit-profile-form" method="POST" action="{{ url_for('edit_employee') }}" enctype="multipart/form-data" class="card">
+            <div class="form-group">
+                <label for="first_name">First Name</label>
+                <input type="text" id="first_name" name="first_name" value="{{ user_details.get('first_name', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="last_name">Last Name</label>
+                <input type="text" id="last_name" name="last_name" value="{{ user_details.get('last_name', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="{{ user_details.get('email', '') }}" required>
+            </div>
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" name="phone" value="{{ user_details.get('phone', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="profile_image">Profile Image</label>
+                <input type="file" id="profile_image" name="profile_image" accept="image/*" onchange="previewImage(event)">
+                <img id="imagePreview" src="{{ url_for('static', filename='profile_images/' + user_details.get('profile_image', 'default.jpg')) }}" alt="Profile Preview" style="max-width: 200px; max-height: 200px; display: block; margin-top: 10px;">
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save Changes</button>
+            </div>
+            <!--<div class="form-actions">
+                <button type="submit" class="btn">Save Changes</button>
+                {% if session.get('role') == 'admin' %}
+                    <a href="{{ url_for('admin_dashboard') }}" class="btn">Back to Dashboard</a>
+                {% elif session.get('role') == 'doctor' %}
+                    <a href="{{ url_for('doctor_dashboard') }}" class="btn">Back to Dashboard</a>
+                {% elif session.get('role') == 'nurse' %}
+                    <a href="{{ url_for('nurse_dashboard') }}" class="btn">Back to Dashboard</a>
+                {% elif session.get('role') == 'receptionist' %}
+                    <a href="{{ url_for('reception_dashboard') }}" class="btn">Back to Dashboard</a>
+                {% else %}
+                    <a href="{{ url_for('login_page') }}" class="btn">Back to Login</a>
+                {% endif %}
+            </div>-->
+        </form>
+    </section>
+    <script>
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                const preview = document.getElementById('imagePreview');
+                preview.src = reader.result;
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+    </script>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Worksite Setup - Township Clinic{% endblock %}
+{% block content %}
+    <h1>Worksite Setup</h1>
+    <p>Configure clinic worksite settings. Only available to admins.</p>
+    <form method="POST" action="{{ url_for('worksite_setup') }}">
+        <label>Clinic Name: <input type="text" name="clinic_name" value="Clinic A"></label>
+        <button type="submit">Save</button>
+    </form>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Nurse Overview - Township Clinic{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/nurseOverview.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="overview-panel">
+
+  <div class="intro-card">
+    <h1>Hello, Nurse {{ user_details.first_name }}!</h1>
+    <p>Here's a quick glance at your shift progress and patient needs.</p>
+  </div>
+
+  <div class="overview-grid">
+
+    <div class="stat-block vitals-today">
+      <h4>Vitals Recorded Today</h4>
+      <span class="stat-number">{{ vitals_recorded_today or 0 }}</span>
+      <small>of {{ total_patients_today or 0 }} patients</small>
+    </div>
+
+    <div class="stat-block meds-administered">
+      <h4>Medications Administered</h4>
+      <span class="stat-number">{{ meds_administered or 0 }}</span>
+    </div>
+
+    <div class="stat-block alerts-pending">
+      <h4>Alerts to Address</h4>
+      <span class="stat-number alert">{{ alerts_pending or 0 }}</span>
+      <a href="{{ url_for('edit_employee') }}" class="link-btn">Review Alerts</a>
+    </div>
+
+    <div class="stat-block shift-hours">
+      <h4>Shift Hours Left</h4>
+      <span class="stat-number">{{ shift_hours_left or 0 }}</span>
+      <small>hours</small>
+    </div>
+
+  </div>
+
+  <section class="patients-card">
+    <h3>Active Patients</h3>
+    {% if active_patients %}
+      <table class="patient-table" aria-label="Active patients">
+        <thead>
+          <tr>
+            <th>Name</th><th>Bed</th><th>Condition</th><th>Last Vitals</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for patient in active_patients %}
+          <tr>
+            <td>{{ patient.name }}</td>
+            <td>{{ patient.bed_number }}</td>
+            <td>{{ patient.condition_status }}</td>
+            <td>{{ patient.last_vitals_time }}</td>
+            <td><a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn">Details</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No active patients assigned yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="reminder-card">
+    <h3>Reminders for Today</h3>
+    <ul>
+      {% for reminder in reminders %}
+        <li>{{ reminder }}</li>
+      {% else %}
+        <li>No reminders scheduled.</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+</div>
+{% endblock %}

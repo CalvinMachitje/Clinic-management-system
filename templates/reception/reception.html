@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Reception Dashboard - Township Clinic{% endblock %}
+{% block content %}
+<div class="dashboard-content reception-dashboard">
+    <h2>Reception Dashboard</h2>
+    <details class="overview-panel" open>
+        <summary>System Overview</summary>
+        <div class="panel-content">
+            <ul>
+                <li><strong>Appointments Today:</strong> {{ patients_today|length }}</li>
+                <li><strong>Total Visits (This Month):</strong> {{ all_visits|length }}</li>
+                <li><strong>Available Staff:</strong> {{ available_staff|length }}</li>
+                <li><strong>Walk-in Patients Waiting:</strong> {{ walkins_waiting|length }}</li>
+                <li><strong>Missed Appointments:</strong> {{ missed_appointments|length }}</li>
+                <li><strong>Pending Patient Registrations:</strong> {{ pending_registrations|length }}</li>
+                <li><a href="{{ url_for('appointment_homepage') }}">Manage Appointments</a></li>
+                <li><a href="{{ url_for('search_patient') }}">Search Patients</a></li>
+            </ul>
+        </div>
+    </details>
+    <div class="action-cards">
+        <div class="action-card">
+            <h3>Appointments</h3>
+            <p>View, create, and update patient appointments.</p>
+            <p><a href="{{ url_for('appointment_homepage') }}" class="btn">Manage Appointments</a></p>
+        </div>
+        <div class="action-card">
+            <h3>Patient Registration</h3>
+            <p>Register new patients quickly and efficiently.</p>
+            <p><a href="{{ url_for('add_patient') }}" class="btn btn-secondary">Add Patient</a></p>
+        </div>
+        <div class="action-card">
+            <h3>Check-in Desk</h3>
+            <p>Manage daily check-ins and monitor the waitlist.</p>
+            <p><a href="{{ url_for('check_in_page') }}" class="btn btn-primary">Open Check-in</a></p>
+        </div>
+    </div>
+    <div class="card daily-summary">
+        <h3>Today's Summary</h3>
+        <ul>
+            <li><strong>Patients Checked-in:</strong> {{ checked_in_patients }}</li>
+            <li><strong>Walk-ins Processed:</strong> {{ walkins_processed }}</li>
+            <li><strong>Appointments Rescheduled:</strong> {{ appointments_rescheduled }}</li>
+            <li><strong>Payments Processed:</strong> {{ payments_processed }}</li>
+        </ul>
+    </div>
+    <details class="notifications-panel" open>
+        <summary>Notifications</summary>
+        <div class="panel-content">
+        {% if notifications %}
+            <ul>
+                {% for note in notifications %}
+                    <li><strong>{{ note.title }}</strong> - {{ note.message }} <small>({{ note.timestamp.strftime('%b %d, %H:%M') }})</small></li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No new notifications.</p>
+        {% endif %}
+        </div>
+    </details>
+</div>
+{% endblock %}

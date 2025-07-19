@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Search Patient - Township Clinic{% endblock %}
+{% block content %}
+    <main class="main-content" role="main" aria-label="Search Patient Main Content">
+        <section class="dashboard-content">
+            <h2>Search Patient</h2>
+            <div class="card search-bar">
+                <form action="{{ url_for('search_patient') }}" method="POST">
+                    <input type="text" name="search_term" placeholder="Search by ID, First Name, or Last Name" required>
+                    <button type="submit" class="btn">Search</button>
+                </form>
+            </div>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+{% endblock %}

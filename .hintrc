@@ -1,0 +1,50 @@
+{
+  "extends": [
+    "development"
+  ],
+  "hints": {
+    "axe/structure": [
+      "default",
+      {
+        "list": "off"
+      }
+    ],
+    "css/compat": [
+      "warning",
+      {
+        "browsers": [
+          "last 2 versions",
+          "> 1%",
+          "not dead",
+          "ie 11"
+        ]
+      }
+    ],
+    "html/validate": [
+      "error",
+      {
+        "doctype": true,
+        "charset": true,
+        "lang": true
+      }
+    ],
+    "js/check-line-endings": "warning",
+    "js/compat": [
+      "warning",
+      {
+        "browsers": [
+          "last 2 versions",
+          "> 1%",
+          "not dead"
+        ]
+      }
+    ],
+    "accessibility/aria": "error",
+    "accessibility/color-contrast": "error",
+    "accessibility/landmarks": "error",
+    "disown-opener": "off"
+  },
+  "formatters": [
+    "stylish"
+  ]
+}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Nurse Dashboard - Township Clinic{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+    <h2>Nurse Dashboard</h2>
+    <!-- Overview Panel -->
+    <details class="overview-panel">
+        <summary>System Overview</summary>
+        <div class="panel-content">
+            <ul>
+                <li>Pending Vitals: <strong>{{ pending_vitals }}</strong></li>
+                <li>Today's Patients: <strong>{{ todays_patients }}</strong></li>
+                <li>Total Assigned: <strong>{{ patients|length }}</strong></li>
+                <li>Emergency Requests: <strong>{{ emergency_requests }}</strong></li>
+                <li>New Messages: <strong>{{ new_messages }}</strong></li>
+                <li>Current Shift: <strong>{{ shift_start }} - {{ shift_end }}</strong></li>
+                <li>Hours Left in Shift: <strong>{{ shift_hours_left }}</strong></li>
+                <li><a href="{{ url_for('patients_list') }}">View Patients</a></li>
+            </ul>
+        </div>
+    </details>
+    <div class="card">
+        <h3>Patient Care</h3>
+        <p>
+            <a href="{{ url_for('patients_list') }}" class="btn">View Patients</a>
+            {% if emergency_requests > 0 %}
+            <a href="{{ url_for('emergency_homepage') }}" class="btn btn-alert">Emergency Requests ({{ emergency_requests }})</a>
+            {% endif %}
+        </p>
+    </div>
+    <div class="card">
+        <h3>Vital Records</h3>
+        <p>
+            <a href="{{ url_for('edit_employee') }}" class="btn">Record Vitals</a>
+            {% if pending_vitals > 0 %}
+            <span class="badge badge-warning">{{ pending_vitals }} Pending</span>
+            {% endif %}
+        </p>
+    </div>
+    <div class="card">
+        <h3>Messages & Shift</h3>
+        <ul>
+            <li>New Messages: <strong>{{ new_messages }}</strong> <a href="{{ url_for('edit_employee') }}">Inbox</a></li>
+            <li>Next Shift Ends: <strong>{{ shift_end }}</strong></li>
+            <li>Hours Left: <strong>{{ shift_hours_left }}</strong></li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

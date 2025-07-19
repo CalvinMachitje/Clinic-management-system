@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Doctor Overview - Township Clinic{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/doctorOverview.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pap3ihcsf/faqjQAW2uHI1QNHeBR6i6/ZI+RyWoneIBzO4NXfJoNc3+VdFeZjNxNvEebZxPGA1hImhR+7hP5Bw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
+{% block content %}
+<div class="overview-container">
+
+  <!-- Welcome Section -->
+  <section class="welcome-section">
+    <h1>Hello, Dr. {{ user_details.first_name }}! <span class="wave">👋</span></h1>
+    <p class="date">{{ now.strftime('%A, %B %d, %Y') }}</p>
+  </section>
+
+  <!-- Key Metrics -->
+  <section class="metrics-section">
+    <article class="metric-card">
+      <i class="fas fa-user-injured metric-icon primary"></i>
+      <div class="metric-data">
+        <p class="metric-title">Total Patients</p>
+        <p class="metric-value">{{ total_patients }}</p>
+      </div>
+    </article>
+
+    <article class="metric-card">
+      <i class="fas fa-calendar-check metric-icon success"></i>
+      <div class="metric-data">
+        <p class="metric-title">Today's Appointments</p>
+        <p class="metric-value">{{ patients_today|length }}</p>
+      </div>
+    </article>
+
+    <article class="metric-card">
+      <i class="fas fa-exclamation-triangle metric-icon warning"></i>
+      <div class="metric-data">
+        <p class="metric-title">Urgent Patient Alerts</p>
+        <p class="metric-value">{{ urgent_flags }}</p>
+      </div>
+    </article>
+
+    <article class="metric-card">
+      <i class="fas fa-envelope metric-icon info"></i>
+      <div class="metric-data">
+        <p class="metric-title">Unread Messages</p>
+        <p class="metric-value">{{ unread_messages }}</p>
+      </div>
+    </article>
+  </section>
+
+  <!-- Upcoming Appointments -->
+  <section class="appointments-section card">
+    <header>
+      <h2>Upcoming Appointments</h2>
+      <a href="{{ url_for('book_appointment') }}" class="view-all">View All <i class="fas fa-arrow-right"></i></a>
+    </header>
+    {% if patients_today %}
+    <ul class="appointments-list">
+      {% for patient in patients_today %}
+      <li>
+        <div class="time">{{ patient.appointment_time.strftime('%I:%M %p') if patient.appointment_time else "TBD" }}</div>
+        <div class="patient-info">
+          <p class="name">{{ patient.first_name }} {{ patient.last_name }}</p>
+          <p class="reason">{{ patient.appointment_reason or "General check-up" }}</p>
+        </div>
+        {% if patient.urgent_flag %}
+          <span class="alert-badge" title="Urgent Attention"><i class="fas fa-exclamation-circle"></i></span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="no-appointments">No appointments scheduled for today.</p>
+    {% endif %}
+  </section>
+
+  <!-- Patient Health Alerts -->
+  <section class="alerts-section card">
+    <header>
+      <h2>Patient Health Alerts</h2>
+      <a href="{{ url_for('calendar') }}" class="view-all">Manage Alerts <i class="fas fa-arrow-right"></i></a>
+    </header>
+    {% if health_alerts %}
+    <ul class="alerts-list">
+      {% for alert in health_alerts %}
+      <li>
+        <i class="fas fa-bell alert-icon"></i>
+        <div>
+          <strong>{{ alert.patient_name }}</strong> - {{ alert.alert_type }}
+          <p class="alert-message">{{ alert.message }}</p>
+          <small class="alert-date">{{ alert.date_reported.strftime('%b %d, %Y') }}</small>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No patient health alerts at the moment.</p>
+    {% endif %}
+  </section>
+
+  <!-- Recent Messages -->
+  <section class="messages-section card">
+    <header>
+      <h2>Recent Messages</h2>
+      <a href="{{ url_for('calendar') }}" class="view-all">View Inbox <i class="fas fa-arrow-right"></i></a>
+    </header>
+    {% if recent_messages %}
+    <ul class="messages-list">
+      {% for msg in recent_messages %}
+      <li>
+        <img class="avatar" src="{{ url_for('static', filename='profile_images/' + msg.sender_profile) }}" alt="{{ msg.sender_name }}'s avatar" />
+        <div class="message-content">
+          <p><strong>{{ msg.sender_name }}</strong> <span class="time">{{ msg.timestamp.strftime('%I:%M %p') }}</span></p>
+          <p class="preview">{{ msg.preview }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No recent messages.</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Township Clinic</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <header class="header">
+        <div class="logo">Township Clinic</div>
+        <div class="nav-menu">
+            <ul class="nav-links">
+                <li><a href="{{ url_for('default_page') }}">Home</a></li>
+                <li><a href="{{ url_for('about') }}">About</a></li>
+                <li class="dropdown">
+                    <span class="dropbtn">Services</span>
+                    <div class="dropdown-content">
+                        <a href="#">Service 1</a>
+                        <a href="#">Service 2</a>
+                    </div>
+                </li>
+            </ul>
+            <span class="current-time"></span>
+        </div>
+    </header>
+    <div class="login-container">
+        <div class="login-panel">
+            <div class="login-image">
+                <img src="{{ url_for('static', filename='uploads/login.jpeg') }}" alt="Login Image">
+            </div>
+            <div class="login-content">
+                <h2>Login</h2>
+                <form action="{{ url_for('login') }}" method="post">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <div class="form-group remember-me">
+                        <input type="checkbox" id="remember" name="remember">
+                        <label for="remember">Remember Me</label>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn">Login</button>
+                    </div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <p class="flash-message {{ category }}">{{ message }}</p>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                </form>
+                <a href="{{ url_for('register') }}" class="register-link">Need an account? Register</a>
+            </div>
+        </div>
+    </div>
+    <footer class="register-footer">
+        <div class="footer-logo">🌿 Township Clinic</div>
+        <p>Contact us: info@townshipclinic.org | (012) 345-6789</p>
+    </footer>
+    <script>
+        // Update current time
+        function updateTime() {
+            const timeElement = document.querySelector('.current-time');
+            const now = new Date();
+            timeElement.textContent = now.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', hour12: true });
+        }
+        setInterval(updateTime, 1000);
+        updateTime(); // Initial call
+    </script>
+</body>
+</html>
