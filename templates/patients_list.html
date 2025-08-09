@@ -1,34 +1,142 @@
 {% extends "base.html" %}
 {% block title %}Patients List - Township Clinic{% endblock %}
 {% block content %}
-    <main class="main-content" role="main" aria-label="Patients List Main Content">
-        <section class="dashboard-content">
-            <h2>Patients List</h2>
-            <a href="{{ url_for('add_patient') }}" class="btn">Add New Patient</a>
-            <table class="card">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>First Name</th>
-                        <th>Last Name</th>
-                        <th>Date of Birth</th>
-                        <th>Gender</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for patient in patients %}
-                    <tr>
-                        <td>{{ patient.id }}</td>
-                        <td>{{ patient.first_name }}</td>
-                        <td>{{ patient.last_name }}</td>
-                        <td>{{ patient.date_of_birth }}</td>
-                        <td>{{ patient.gender }}</td>
-                    </tr>
+<main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Patients List Main Content">
+    <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Patients List</h2>
+        </div>
+
+        <!-- Search and Filter Bar -->
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <input type="text" id="searchInput" placeholder="Search patients by name or ID..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600" onkeyup="searchPatients()">
+            <select id="sortSelect" onchange="sortPatients()" class="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
+                <option value="name-asc">Sort by Name (A-Z)</option>
+                <option value="name-desc">Sort by Name (Z-A)</option>
+                <option value="id-asc">Sort by ID (Low to High)</option>
+                <option value="id-desc">Sort by ID (High to Low)</option>
+            </select>
+        </div>
+
+        <!-- Patients Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="patientGrid">
+            {% for patient in patients %}
+            <div class="patient-card bg-gray-50 p-5 rounded-lg shadow hover:shadow-lg transition">
+                <div class="flex justify-between items-center mb-3">
+                    {% if session.get('role') in ['nurse', 'doctor', 'receptionist'] %}
+                    <a href="{{ url_for('view_patient', id=patient.id) }}" class="text-lg font-medium text-blue-600 hover:underline">{{ patient.first_name }} {{ patient.last_name }}</a>
                     {% else %}
-                    <tr><td colspan="5">No patients found.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-    </main>
+                    <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
+                    {% endif %}
+                    <span class="text-sm text-gray-500">ID: {{ patient.id }}</span>
+                </div>
+                <p class="text-gray-600"><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Gender:</strong> {{ patient.gender or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Address:</strong> {{ patient.address or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Phone:</strong> {{ patient.phone or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Email:</strong> {{ patient.email or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Emergency Contact:</strong> {{ patient.emergency_contact_name or 'N/A' }} ({{ patient.emergency_contact_phone or 'N/A' }})</p>
+                <p class="text-gray-600"><strong>Medical History:</strong> {{ patient.medical_history or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Allergies:</strong> {{ patient.allergies or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Current Medications:</strong> {{ patient.current_medications or 'N/A' }}</p>
+                <p class="text-gray-600"><strong>Assigned Doctor:</strong> {{ patient.assigned_doctor or 'N/A' }}</p>
+                <div class="mt-4 flex space-x-2">
+                    <a href="{{ url_for('edit_patient', id=patient.id) }}" class="bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition">Edit</a>
+                    <button onclick="confirmDelete('{{ patient.id }}')" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition">Delete</button>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-span-full text-center text-gray-500 py-10">
+                No patients found.
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-6 flex justify-center items-center space-x-4">
+            <button id="prevPage" class="bg-gray-200 px-4 py-2 rounded-md disabled:opacity-50" disabled>Previous</button>
+            <span id="pageInfo" class="text-gray-600">Page 1</span>
+            <button id="nextPage" class="bg-gray-200 px-4 py-2 rounded-md">Next</button>
+        </div>
+    </section>
+</main>
+
+<!-- JavaScript for Interactivity -->
+<script>
+    let currentPage = 1;
+    const itemsPerPage = 6;
+
+    function searchPatients() {
+        const input = document.getElementById('searchInput').value.toLowerCase();
+        const cards = document.getElementsByClassName('patient-card');
+        Array.from(cards).forEach(card => {
+            const name = card.querySelector('h3, a').textContent.toLowerCase();
+            const id = card.querySelector('span').textContent.toLowerCase();
+            card.style.display = (name.includes(input) || id.includes(input)) ? '' : 'none';
+        });
+        updatePagination();
+    }
+
+    function sortPatients() {
+        const sortValue = document.getElementById('sortSelect').value;
+        const cards = Array.from(document.getElementsByClassName('patient-card'));
+        cards.sort((a, b) => {
+            const aName = a.querySelector('h3, a').textContent;
+            const bName = b.querySelector('h3, a').textContent;
+            if (sortValue === 'name-asc') {
+                return aName.localeCompare(bName);
+            } else if (sortValue === 'name-desc') {
+                return bName.localeCompare(aName);
+            } else if (sortValue === 'id-asc') {
+                return parseInt(a.querySelector('span').textContent.replace('ID: ', '')) - parseInt(b.querySelector('span').textContent.replace('ID: ', ''));
+            } else if (sortValue === 'id-desc') {
+                return parseInt(b.querySelector('span').textContent.replace('ID: ', '')) - parseInt(a.querySelector('span').textContent.replace('ID: ', ''));
+            }
+        });
+        const grid = document.getElementById('patientGrid');
+        grid.innerHTML = '';
+        cards.forEach(card => grid.appendChild(card));
+        updatePagination();
+    }
+
+    function updatePagination() {
+        const cards = Array.from(document.getElementsByClassName('patient-card')).filter(card => card.style.display !== 'none');
+        const totalPages = Math.ceil(cards.length / itemsPerPage);
+        currentPage = Math.min(currentPage, totalPages || 1);
+        cards.forEach((card, index) => {
+            card.style.display = (index >= (currentPage - 1) * itemsPerPage && index < currentPage * itemsPerPage) ? '' : 'none';
+        });
+        document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages || 1}`;
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage === totalPages || totalPages === 0;
+    }
+
+    function confirmDelete(patientId) {
+        if (confirm('Are you sure you want to delete this patient?')) {
+            window.location.href = `/delete_patient/${patientId}`;
+        }
+    }
+
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            updatePagination();
+        }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+        const cards = Array.from(document.getElementsByClassName('patient-card')).filter(card => card.style.display !== 'none');
+        const totalPages = Math.ceil(cards.length / itemsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            updatePagination();
+        }
+    });
+
+    // Initial pagination setup
+    updatePagination();
+</script>
+
+<!-- Tailwind CSS CDN -->
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 {% endblock %}

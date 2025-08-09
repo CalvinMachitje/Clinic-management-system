@@ -836,6 +836,108 @@ def add_patient():
     finally:
         if conn:
             conn.close()
+            
+@app.route('/edit_patient/<int:id>', methods=['GET', 'POST'])
+def edit_patient(id):
+    if 'username' not in session or session.get('role') not in ['receptionist', 'nurse', 'doctor']:
+        flash('Access restricted to receptionists, nurses, and doctors.', 'error')
+        return redirect(url_for('login_page'))
+    conn = None
+    try:
+        conn = sqlite3.connect('clinicinfo.db')
+        c = conn.cursor()
+        c.execute("""
+            SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender, p.address, p.phone, p.email,
+                   p.emergency_contact_name, p.emergency_contact_phone, p.medical_history, p.allergies,
+                   p.current_medications, p.employee_id
+            FROM patients p
+            WHERE p.id = ?
+        """, (id,))
+        patient = c.fetchone()
+        if not patient:
+            flash('Patient not found.', 'error')
+            return redirect(url_for('patients_list'))
+        patient_data = {
+            'id': patient[0],
+            'first_name': patient[1],
+            'last_name': patient[2],
+            'date_of_birth': patient[3],
+            'gender': patient[4],
+            'address': patient[5],
+            'phone': patient[6],
+            'email': patient[7],
+            'emergency_contact_name': patient[8],
+            'emergency_contact_phone': patient[9],
+            'medical_history': patient[10],
+            'allergies': patient[11],
+            'current_medications': patient[12],
+            'employee_id': patient[13]
+        }
+        if request.method == 'POST':
+            first_name = request.form.get('first_name')
+            last_name = request.form.get('last_name')
+            date_of_birth = request.form.get('date_of_birth') or None
+            gender = request.form.get('gender') or None
+            address = request.form.get('address') or None
+            phone = request.form.get('phone') or None
+            email = request.form.get('email') or None
+            emergency_contact_name = request.form.get('emergency_contact_name') or None
+            emergency_contact_phone = request.form.get('emergency_contact_phone') or None
+            medical_history = request.form.get('medical_history') or None
+            allergies = request.form.get('allergies') or None
+            current_medications = request.form.get('current_medications') or None
+            employee_id = request.form.get('employee_id') or None
+            if session.get('role') not in ['nurse', 'doctor']:
+                medical_history = patient_data['medical_history']
+                allergies = patient_data['allergies']
+                current_medications = patient_data['current_medications']
+                employee_id = patient_data['employee_id']
+            c.execute("""
+                UPDATE patients
+                SET first_name = ?, last_name = ?, date_of_birth = ?, gender = ?, address = ?, phone = ?, email = ?,
+                    emergency_contact_name = ?, emergency_contact_phone = ?, medical_history = ?, allergies = ?,
+                    current_medications = ?, employee_id = ?
+                WHERE id = ?
+            """, (first_name, last_name, date_of_birth, gender, address, phone, email,
+                  emergency_contact_name, emergency_contact_phone, medical_history, allergies,
+                  current_medications, employee_id, id))
+            conn.commit()
+            flash('Patient updated successfully!', 'success')
+            return redirect(url_for('patients_list'))
+        c.execute("SELECT id, first_name, last_name FROM employees WHERE role = 'doctor'")
+        doctors = [{'id': row[0], 'first_name': row[1], 'last_name': row[2]} for row in c.fetchall()]
+        user_details = get_user_details(conn, session['username'])
+        return render_template('edit_patient.html', patient=patient_data, doctors=doctors, user_details=user_details)
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('patients_list'))
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/delete_patient/<int:id>')
+def delete_patient(id):
+    if 'username' not in session or session.get('role') not in ['receptionist', 'nurse', 'doctor']:
+        flash('Access restricted to receptionists, nurses, and doctors.', 'error')
+        return redirect(url_for('login_page'))
+    conn = None
+    try:
+        conn = sqlite3.connect('clinicinfo.db')
+        c = conn.cursor()
+        c.execute("SELECT id FROM patients WHERE id = ?", (id,))
+        if not c.fetchone():
+            flash('Patient not found.', 'error')
+            return redirect(url_for('patients_list'))
+        c.execute("DELETE FROM patients WHERE id = ?", (id,))
+        conn.commit()
+        flash('Patient deleted successfully!', 'success')
+        return redirect(url_for('patients_list'))
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('patients_list'))
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/userManagement.html')
 def user_management():
@@ -1167,6 +1269,61 @@ def record_visit():
     except Exception as e:
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('reception_dashboard'))
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/view_patient/<int:id>')
+def view_patient(id):
+    if 'username' not in session or session.get('role') not in ['nurse', 'doctor', 'receptionist']:
+        flash('Access restricted to nurses, doctors, and receptionists.', 'error')
+        return redirect(url_for('login_page'))
+    conn = None
+    try:
+        conn = sqlite3.connect('clinicinfo.db')
+        c = conn.cursor()
+        c.execute("""
+            SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender, p.address, p.phone, p.email,
+                   p.emergency_contact_name, p.emergency_contact_phone, p.medical_history, p.allergies,
+                   p.current_medications, e.first_name || ' ' || e.last_name AS assigned_doctor
+            FROM patients p
+            LEFT JOIN employees e ON p.employee_id = e.id
+            WHERE p.id = ?
+        """, (id,))
+        patient = c.fetchone()
+        if not patient:
+            flash('Patient not found.', 'error')
+            return redirect(url_for('patients_list'))
+        patient_data = {
+            'id': patient[0],
+            'first_name': patient[1],
+            'last_name': patient[2],
+            'date_of_birth': patient[3],
+            'gender': patient[4],
+            'address': patient[5],
+            'phone': patient[6],
+            'email': patient[7],
+            'emergency_contact_name': patient[8],
+            'emergency_contact_phone': patient[9],
+            'medical_history': patient[10],
+            'allergies': patient[11],
+            'current_medications': patient[12],
+            'assigned_doctor': patient[13]
+        }
+        appointments = []
+        if session.get('role') == 'receptionist':
+            c.execute("""
+                SELECT id, appointment_date, status
+                FROM appointments
+                WHERE patient_id = ?
+                ORDER BY appointment_date DESC
+            """, (id,))
+            appointments = [{'id': row[0], 'appointment_date': row[1], 'status': row[2]} for row in c.fetchall()]
+        user_details = get_user_details(conn, session['username'])
+        return render_template('view_patient.html', patient=patient_data, appointments=appointments, user_details=user_details)
+    except Exception as e:
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('patients_list'))
     finally:
         if conn:
             conn.close()
