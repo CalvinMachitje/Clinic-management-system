@@ -1,16 +1,193 @@
 {% extends "base.html" %}
-{% block title %}Search Patient - Township Clinic{% endblock %}
+{% block title %}Search Patients - Township Clinic{% endblock %}
+{% block head %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .alert { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .alert-success { background-color: #d4edda; color: #155724; }
+        .alert-error { background-color: #f8d7da; color: #721c24; }
+        .alert-info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+{% endblock %}
 {% block content %}
-    <main class="main-content" role="main" aria-label="Search Patient Main Content">
-        <section class="dashboard-content">
-            <h2>Search Patient</h2>
-            <div class="card search-bar">
-                <form action="{{ url_for('search_patient') }}" method="POST">
-                    <input type="text" name="search_term" placeholder="Search by ID, First Name, or Last Name" required>
-                    <button type="submit" class="btn">Search</button>
-                </form>
-            </div>
-        </section>
-    </main>
-    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+<div class="dashboard-content search-patient">
+    <h2>Search Patients</h2>
+    <form method="POST" action="{{ url_for('search_patient') }}">
+        <label for="search_term">Search by ID, First Name, or Last Name:</label>
+        <input type="text" id="search_term" name="search_term" placeholder="Enter search term" required>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+    
+    <div id="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    
+    {% if patients %}
+        <h3>Search Results</h3>
+        <table id="patient-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Current Appointment</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="patient-table-body">
+                {% for patient in patients %}
+                    <tr data-patient-id="{{ patient.id }}">
+                        <td>{{ patient.id }}</td>
+                        <td>{{ patient.first_name }}</td>
+                        <td>{{ patient.last_name }}</td>
+                        <td class="appointment-cell">
+                            {% if patient.appointment %}
+                                {{ patient.appointment.appointment_date }} (Reason: {{ patient.appointment.reason or 'N/A' }})
+                                <form onsubmit="cancelAppointment(event, '{{ patient.appointment.id }}')" style="display: inline;">
+                                    <input type="hidden" name="appointment_id" value="{{ patient.appointment.id }}">
+                                    <button type="submit" class="btn btn-danger">Cancel</button>
+                                </form>
+                            {% else %}
+                                None
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-link" onclick="toggleAppointmentForm('{{ patient.id }}')">Book Appointment</button>
+                            <form id="appointment-form-{{ patient.id }}" method="POST" action="{{ url_for('search_patient') }}" style="display: none; margin-top: 10px;" onsubmit="bookAppointment(event, '{{ patient.id }}')">
+                                <input type="hidden" name="patient_id" value="{{ patient.id }}">
+                                <input type="hidden" name="action" value="book_appointment">
+                                <div class="form-group">
+                                    <label for="appointment_time_{{ patient.id }}">Appointment Date and Time:</label>
+                                    <input type="datetime-local" id="appointment_time_{{ patient.id }}" name="appointment_time" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="reason_{{ patient.id }}">Reason (Optional):</label>
+                                    <input type="text" id="reason_{{ patient.id }}" name="reason" placeholder="Enter reason">
+                                </div>
+                                <button type="submit" class="btn btn-primary">Confirm Appointment</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAppointmentForm('{{ patient.id }}')">Cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+<script>
+function toggleAppointmentForm(patientId) {
+    const form = document.getElementById(`appointment-form-${patientId}`);
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function bookAppointment(event, patientId) {
+    event.preventDefault();
+    const form = document.getElementById(`appointment-form-${patientId}`);
+    const formData = new FormData(form);
+    const flashMessages = document.getElementById('flash-messages');
+
+    fetch('/search_patient', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        flashMessages.innerHTML = `<div class="alert alert-${data.category}">${data.message}</div>`;
+        if (data.success) {
+            form.style.display = 'none';
+            form.reset();
+            const appointmentCell = document.querySelector(`tr[data-patient-id="${patientId}"] .appointment-cell`);
+            if (appointmentCell) {
+                appointmentCell.innerHTML = `
+                    ${data.appointment.appointment_date} (Reason: ${data.appointment.reason || 'N/A'})
+                    <form onsubmit="cancelAppointment(event, '${data.appointment.id}')" style="display: inline;">
+                        <input type="hidden" name="appointment_id" value="${data.appointment.id}">
+                        <button type="submit" class="btn btn-danger">Cancel</button>
+                    </form>
+                `;
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error booking appointment:', error);
+        flashMessages.innerHTML = '<div class="alert alert-error">Error booking appointment. Please try again.</div>';
+    });
+}
+
+function cancelAppointment(event, appointmentId) {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.append('appointment_id', appointmentId);
+    const flashMessages = document.getElementById('flash-messages');
+
+    fetch('/cancel_appointment', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        flashMessages.innerHTML = `<div class="alert alert-${data.category}">${data.message}</div>`;
+        if (data.success) {
+            const appointmentCell = document.querySelector(`tr[data-appointment-id="${appointmentId}"] .appointment-cell`);
+            if (appointmentCell) {
+                appointmentCell.innerHTML = 'None';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error cancelling appointment:', error);
+        flashMessages.innerHTML = '<div class="alert alert-error">Error cancelling appointment. Please try again.</div>';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const source = new EventSource('/stream_appointments');
+
+    source.onmessage = function(event) {
+        try {
+            const appointment = JSON.parse(event.data);
+            console.log('New appointment:', appointment);
+            const patientRow = document.querySelector(`tr[data-patient-id="${appointment.patient_id}"]`);
+            if (patientRow) {
+                const appointmentCell = patientRow.querySelector('.appointment-cell');
+                if (appointmentCell) {
+                    if (appointment.status === 'cancelled') {
+                        appointmentCell.innerHTML = 'None';
+                    } else if (appointment.status === 'scheduled' || appointment.status === 'rescheduled') {
+                        appointmentCell.innerHTML = `
+                            ${appointment.appointment_date} (Reason: ${appointment.reason || 'N/A'})
+                            <form onsubmit="cancelAppointment(event, '${appointment.id}')" style="display: inline;">
+                                <input type="hidden" name="appointment_id" value="${appointment.id}">
+                                <button type="submit" class="btn btn-danger">Cancel</button>
+                            </form>
+                        `;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error processing SSE data:', e);
+        }
+    };
+
+    source.onerror = function() {
+        console.warn('SSE connection error. Reconnecting in 5 seconds...');
+        source.close();
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    };
+
+    window.addEventListener('beforeunload', () => {
+        source.close();
+    });
+});
+</script>
 {% endblock %}

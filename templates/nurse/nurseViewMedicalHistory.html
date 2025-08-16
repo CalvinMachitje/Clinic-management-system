@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medical History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <h1>Medical History: {{ patient.first_name }} {{ patient.last_name }}</h1>
+    <h2>Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <h3>Patient Details</h3>
+    <p><strong>Medical History:</strong> {{ patient.medical_history }}</p>
+    <p><strong>Allergies:</strong> {{ patient.allergies }}</p>
+    <p><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
+    <h3>Prescription History</h3>
+    {% if prescriptions %}
+        <ul>
+        {% for prescription in prescriptions %}
+            <li>
+                {{ prescription.medication_name }} ({{ prescription.dosage }}) - 
+                {{ prescription.instructions }} (Prescribed: {{ prescription.prescribed_date }})
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No prescriptions recorded.</p>
+    {% endif %}
+    <a href="{{ url_for('nurse_prescribe_medication', patient_id=patient.id) }}">Prescribe Medication</a> |
+    <a href="{{ url_for('nurse_assess_patient', patient_id=patient.id) }}">Assess Patient</a> |
+    <a href="{{ url_for('nurse_dashboard') }}">Back to Dashboard</a>
+</body>
+</html>

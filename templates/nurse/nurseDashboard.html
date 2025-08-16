@@ -1,15 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Nurse Dashboard - Township Clinic{% endblock %}
-
 {% block content %}
-<div class="dashboard-content">
-    <h2>Nurse Dashboard</h2>
-    <!-- Overview Panel -->
+<div class="dashboard-content nurse-wrapper">
+    <h2 class="nurse-welcome">Nurse Dashboard</h2>
+
+    <!-- System Overview -->
     <details class="overview-panel">
         <summary>System Overview</summary>
         <div class="panel-content">
             <ul>
-                <li>Pending Vitals: <strong>{{ pending_vitals }}</strong></li>
                 <li>Today's Patients: <strong>{{ todays_patients }}</strong></li>
                 <li>Total Assigned: <strong>{{ patients|length }}</strong></li>
                 <li>Emergency Requests: <strong>{{ emergency_requests }}</strong></li>
@@ -19,6 +18,52 @@
             </ul>
         </div>
     </details>
+
+    <!-- Today's Appointments -->
+    <div class="card">
+        <header>
+            <h2>Today's Appointments</h2>
+            <span class="text-gray-600">Total: {{ appointments|length }}</span>
+        </header>
+        {% if appointments %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Name</th>
+                    <th>Appointment Time</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="appointments-table-body">
+                {% for appt in appointments %}
+                <tr data-appointment-id="{{ appt.id }}">
+                    <td>{{ appt.patient_id }}</td>
+                    <td>{{ appt.patient_name }}</td>
+                    <td>{{ appt.appointment_date }}</td>
+                    <td>{{ appt.reason or 'N/A' }}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <form onsubmit="markHelped(event, '{{ appt.id }}')" style="display: inline;">
+                                <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                                <button type="submit" class="btn btn-success">Mark as Helped</button>
+                            </form>
+                            <a href="{{ url_for('nurse_assess_patient', patient_id=appt.patient_id) }}" class="btn btn-primary">Assess</a>
+                            <a href="{{ url_for('nurse_view_medical_history', patient_id=appt.patient_id) }}" class="btn btn-info">History</a>
+                            <a href="{{ url_for('nurse_prescribe_medication', patient_id=appt.patient_id) }}" class="btn btn-warning">Prescribe</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-appointments">No appointments scheduled for today.</p>
+        {% endif %}
+    </div>
+
+    <!-- Patient Care -->
     <div class="card">
         <h3>Patient Care</h3>
         <p>
@@ -27,6 +72,8 @@
             {% endif %}
         </p>
     </div>
+
+    <!-- Messages & Shift -->
     <div class="card">
         <h3>Messages & Shift</h3>
         <ul>
@@ -35,5 +82,81 @@
             <li>Hours Left: <strong>{{ shift_hours_left }}</strong></li>
         </ul>
     </div>
+
+    <!-- Flash Messages -->
+    <div id="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
 </div>
+
+<script>
+function markHelped(event, appointmentId) {
+    event.preventDefault();
+    const formData = new FormData();
+    formData.append('appointment_id', appointmentId);
+    const flashMessages = document.getElementById('flash-messages');
+
+    fetch('/mark_helped', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        flashMessages.innerHTML = `<div class="alert alert-${data.category}">${data.message}</div>`;
+        if (data.success) {
+            const row = document.querySelector(`tr[data-appointment-id="${appointmentId}"]`);
+            if (row) {
+                row.remove();
+                const tbody = document.getElementById('appointments-table-body');
+                if (tbody.children.length === 0) {
+                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments">No appointments scheduled for today.</p>');
+                }
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error marking patient as helped:', error);
+        flashMessages.innerHTML = '<div class="alert alert-error">Error marking patient as helped. Please try again.</div>';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const source = new EventSource('/stream_waiting_patients');
+
+    source.onmessage = function(event) {
+        try {
+            const update = JSON.parse(event.data);
+            console.log('Appointment update:', update);
+            const row = document.querySelector(`tr[data-appointment-id="${update.id}"]`);
+            if (update.status === 'helped' && row) {
+                row.remove();
+                const tbody = document.getElementById('appointments-table-body');
+                if (tbody.children.length === 0) {
+                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments">No appointments scheduled for today.</p>');
+                }
+            }
+        } catch (e) {
+            console.error('Error processing SSE data:', e);
+        }
+    };
+
+    source.onerror = function() {
+        console.warn('SSE connection error. Reconnecting in 5 seconds...');
+        source.close();
+        setTimeout(() => {
+            window.location.reload();
+        }, 5000);
+    };
+
+    window.addEventListener('beforeunload', () => {
+        source.close();
+    });
+});
+</script>
 {% endblock %}

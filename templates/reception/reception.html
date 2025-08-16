@@ -7,27 +7,66 @@
         <summary>System Overview</summary>
         <div class="panel-content">
             <ul>
-                <li><strong>Appointments Today:</strong> {{ patients_today|length }}</li>
+                <li><strong>Appointments Today:</strong> <span id="appointments-today">{{ patients_today|length }}</span></li>
                 <li><strong>Total Visits (This Month):</strong> {{ all_visits|length }}</li>
                 <li><strong>Available Staff:</strong> {{ available_staff|length }}</li>
                 <li><strong>Walk-in Patients Waiting:</strong> {{ walkins_waiting|length }}</li>
                 <li><strong>Missed Appointments:</strong> {{ missed_appointments|length }}</li>
                 <li><strong>Pending Patient Registrations:</strong> {{ pending_registrations|length }}</li>
-                <li><a href="{{ url_for('appointment_homepage') }}">Manage Appointments</a></li>
-                <li><a href="{{ url_for('search_patient') }}">Search Patients</a></li>
             </ul>
         </div>
     </details>
+
+    <div class="card appointments-table">
+        <h3>Today's Appointments</h3>
+        {% if patients_today %}
+        <table id="appointments-table" class="table">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Patient Name</th>
+                    <th>Appointment Time</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Helped By</th>
+                    <th>Role</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="waiting-patients-table-body">
+                {% for patient in waiting_patients %}
+                <tr data-appointment-id="{{ patient.id }}">
+                    <td>{{ patient.patient_id }}</td>
+                    <td>{{ patient.first_name }} {{ patient.last_name }}</td>
+                    <td>{{ patient.appointment_date }}</td>
+                    <td>{{ patient.reason|default('Not specified') }}</td>
+                    <td>{{ patient.status }}</td>
+                    <td>{{ patient.helper_name or 'N/A' }}</td>
+                    <td>{{ patient.helper_role or 'N/A' }}</td>
+                    <td>
+                        {% if patient.status == 'scheduled' %}
+                        <form action="{{ url_for('cancel_appointment') }}" method="POST" style="display:inline;">
+                            <input type="hidden" name="appointment_id" value="{{ patient.id }}">
+                            <button type="submit" class="btn btn-danger">Cancel</button>
+                        </form>
+                        {% else %}
+                        <span>{{ patient.status|capitalize }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No appointments today.</p>
+        {% endif %}
+    </div>
+
     <div class="action-cards">
         <div class="action-card">
             <h3>Appointments</h3>
             <p>View, create, and update patient appointments.</p>
             <p><a href="{{ url_for('appointment_homepage') }}" class="btn">Manage Appointments</a></p>
-        </div>
-        <div class="action-card">
-            <h3>Patient Registration</h3>
-            <p>Register new patients quickly and efficiently.</p>
-            <p><a href="{{ url_for('add_patient') }}" class="btn btn-secondary">Add Patient</a></p>
         </div>
         <div class="action-card">
             <h3>Check-in Desk</h3>
@@ -59,4 +98,39 @@
         </div>
     </details>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const source = new EventSource('/stream_waiting_patients');
+
+    source.onmessage = function(event) {
+        try {
+            const update = JSON.parse(event.data);
+            console.log('Waiting patient update:', update);
+            const row = document.querySelector(`tr[data-appointment-id="${update.id}"]`);
+            if (update.status === 'helped' && row) {
+                row.cells[4].textContent = update.status;
+                row.cells[5].textContent = update.helper_name;
+                row.cells[6].textContent = update.helper_role;
+                // Optionally remove row after a delay
+                setTimeout(() => row.remove(), 3000);
+                const tbody = document.getElementById('waiting-patients-table-body');
+                if (tbody.children.length === 0) {
+                    tbody.insertAdjacentHTML('afterend', '<p>No waiting patients.</p>');
+                }
+            }
+        } catch (e) {
+            console.error('Error processing SSE data:', e);
+        }
+    };
+
+    source.onerror = function() {
+        console.warn('SSE connection error. Reconnecting in 5 seconds...');
+        source.close();
+        setTimeout(() => window.location.reload(), 5000);
+    };
+
+    window.addEventListener('beforeunload', () => source.close());
+});
+</script>
 {% endblock %}

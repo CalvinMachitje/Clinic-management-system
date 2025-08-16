@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Assess Patient</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <h1>Assess Patient: {{ patient.first_name }} {{ patient.last_name }}</h1>
+    <h2>Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <p class="{{ category }}">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="POST">
+        <label for="vitals">Vitals (e.g., BP, Temp):</label><br>
+        <textarea id="vitals" name="vitals" rows="4" cols="50" required></textarea><br>
+        <label for="notes">Notes:</label><br>
+        <textarea id="notes" name="notes" rows="4" cols="50"></textarea><br>
+        <button type="submit">Record Assessment</button>
+    </form>
+    <a href="{{ url_for('nurse_dashboard') }}">Back to Dashboard</a>
+</body>
+</html>

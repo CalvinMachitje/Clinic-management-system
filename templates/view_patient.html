@@ -6,7 +6,6 @@
         {% if patient %}
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-semibold text-gray-800">Patient Details: {{ patient.first_name }} {{ patient.last_name }}</h2>
-            <a href="{{ url_for('patients_list') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">Back to Patients List</a>
         </div>
 
         <div class="bg-gray-50 p-5 rounded-lg shadow">

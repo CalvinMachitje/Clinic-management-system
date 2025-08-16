@@ -24,25 +24,16 @@
             <div class="patient-card bg-gray-50 p-5 rounded-lg shadow hover:shadow-lg transition">
                 <div class="flex justify-between items-center mb-3">
                     {% if session.get('role') in ['nurse', 'doctor', 'receptionist'] %}
-                    <a href="{{ url_for('view_patient', id=patient.id) }}" class="text-lg font-medium text-blue-600 hover:underline">{{ patient.first_name }} {{ patient.last_name }}</a>
+                    <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
                     {% else %}
                     <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
                     {% endif %}
                     <span class="text-sm text-gray-500">ID: {{ patient.id }}</span>
                 </div>
-                <p class="text-gray-600"><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Gender:</strong> {{ patient.gender or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Address:</strong> {{ patient.address or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Phone:</strong> {{ patient.phone or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Email:</strong> {{ patient.email or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Emergency Contact:</strong> {{ patient.emergency_contact_name or 'N/A' }} ({{ patient.emergency_contact_phone or 'N/A' }})</p>
-                <p class="text-gray-600"><strong>Medical History:</strong> {{ patient.medical_history or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Allergies:</strong> {{ patient.allergies or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Current Medications:</strong> {{ patient.current_medications or 'N/A' }}</p>
-                <p class="text-gray-600"><strong>Assigned Doctor:</strong> {{ patient.assigned_doctor or 'N/A' }}</p>
-                <div class="mt-4 flex space-x-2">
-                    <a href="{{ url_for('edit_patient', id=patient.id) }}" class="bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition">Edit</a>
-                    <button onclick="confirmDelete('{{ patient.id }}')" class="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition">Delete</button>
+                <div class="mt-4">
+                    {% if session.get('role') in ['nurse', 'doctor', 'receptionist'] %}
+                    <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-emerald-600 transition">View Details</a>
+                    {% endif %}
                 </div>
             </div>
             {% else %}
@@ -54,9 +45,9 @@
 
         <!-- Pagination -->
         <div class="mt-6 flex justify-center items-center space-x-4">
-            <button id="prevPage" class="bg-gray-200 px-4 py-2 rounded-md disabled:opacity-50" disabled>Previous</button>
+            <button id="prevPage" class="btn bg-gray-200 text-gray-800 px-3 py-1 rounded-md disabled:opacity-50" disabled>Previous</button>
             <span id="pageInfo" class="text-gray-600">Page 1</span>
-            <button id="nextPage" class="bg-gray-200 px-4 py-2 rounded-md">Next</button>
+            <button id="nextPage" class="btn bg-gray-200 text-gray-800 px-3 py-1 rounded-md">Next</button>
         </div>
     </section>
 </main>
@@ -70,7 +61,7 @@
         const input = document.getElementById('searchInput').value.toLowerCase();
         const cards = document.getElementsByClassName('patient-card');
         Array.from(cards).forEach(card => {
-            const name = card.querySelector('h3, a').textContent.toLowerCase();
+            const name = card.querySelector('h3').textContent.toLowerCase();
             const id = card.querySelector('span').textContent.toLowerCase();
             card.style.display = (name.includes(input) || id.includes(input)) ? '' : 'none';
         });
@@ -81,8 +72,8 @@
         const sortValue = document.getElementById('sortSelect').value;
         const cards = Array.from(document.getElementsByClassName('patient-card'));
         cards.sort((a, b) => {
-            const aName = a.querySelector('h3, a').textContent;
-            const bName = b.querySelector('h3, a').textContent;
+            const aName = a.querySelector('h3').textContent;
+            const bName = b.querySelector('h3').textContent;
             if (sortValue === 'name-asc') {
                 return aName.localeCompare(bName);
             } else if (sortValue === 'name-desc') {
@@ -109,12 +100,6 @@
         document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages || 1}`;
         document.getElementById('prevPage').disabled = currentPage === 1;
         document.getElementById('nextPage').disabled = currentPage === totalPages || totalPages === 0;
-    }
-
-    function confirmDelete(patientId) {
-        if (confirm('Are you sure you want to delete this patient?')) {
-            window.location.href = `/delete_patient/${patientId}`;
-        }
     }
 
     document.getElementById('prevPage').addEventListener('click', () => {
