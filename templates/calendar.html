@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Calendar - Township Clinic{% endblock %}
+{% block content %}
+    <h1>Monthly Clinic Calendar</h1>
+    <p>Today is <strong>{{ now.strftime('%A, %B %d, %Y') }}</strong>.</p>
+
+    <div class="calendar-nav">
+        <a href="{{ url_for('calendar', year=prev_year, month=prev_month) }}">&laquo; Previous</a>
+        <span>{{ calendar_month_name }} {{ calendar_year }}</span>
+        <a href="{{ url_for('calendar', year=next_year, month=next_month) }}">Next &raquo;</a>
+    </div>
+
+    <table class="calendar">
+        <thead>
+            <tr>
+                <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th>
+                <th>Thu</th><th>Fri</th><th>Sat</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for week in calendar_weeks %}
+            <tr>
+            {% for day in week %}
+                <td class="{% if day.is_today %}today{% endif %}{% if day.has_appointments %} has-appointments{% endif %}{% if day.has_events %} has-events{% endif %}">
+                    {% if day.day %}
+                        <div class="date-num">{{ day.day }}</div>
+                        {% if day.has_appointments %}
+                            <span class="badge appointments">{{ day.appointment_count }} Appt.</span>
+                        {% endif %}
+                        {% if day.has_events %}
+                            <span class="badge events">{{ day.event_count }} Event(s)</span>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <hr>
+
+    {% if session.get('role') == 'receptionist' %}
+        <h3>Today's Appointments ({{ patients_today|length }})</h3>
+        {% if patients_today %}
+            <ul>
+            {% for patient in patients_today %}
+                <li>
+                    <strong>{{ patient.first_name }} {{ patient.last_name }}</strong> –
+                    ID: {{ patient.patient_id }},
+                    Time: {{ patient.appointment_time }},
+                    Reason: {{ patient.reason }},
+                    Doctor: Dr. {{ patient.doctor_last_name }}
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No patients scheduled for today.</p>
+        {% endif %}
+
+        <h3>Upcoming Clinic Events</h3>
+        {% if events_this_month %}
+            <ul>
+            {% for event in events_this_month %}
+                <li>
+                    <strong>{{ event.title }}</strong> –
+                    {{ event.date.strftime('%b %d') }}:
+                    {{ event.description }}
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No special events this month.</p>
+        {% endif %}
+
+    {% elif session.get('role') in ['doctor', 'nurse'] %}
+        <h3>Your Upcoming Appointments</h3>
+        {% if user_appointments %}
+            <ul>
+            {% for appt in user_appointments %}
+                <li>
+                    {{ appt.date.strftime('%A, %B %d at %H:%M') }} –
+                    {{ appt.patient_first_name }} {{ appt.patient_last_name }},
+                    Reason: {{ appt.reason }}
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No appointments assigned to you this month.</p>
+        {% endif %}
+    {% endif %}
+{% endblock %}

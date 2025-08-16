@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Announcements - Township Clinic{% endblock %}
+{% block content %}
+    <h1>Announcements</h1>
+    <p>Latest updates from the clinic as of {{ now.strftime('%Y-%m-%d') }}:</p>
+    <ul>
+        <li>New vaccination campaign launched.</li>
+        <li>System updates completed by July 15, 2025.</li>
+    </ul>
+{% endblock %}

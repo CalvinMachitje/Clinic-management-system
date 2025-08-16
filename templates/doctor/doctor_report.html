@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Doctor Report - Township Clinic{% endblock %}
+{% block content %}
+    <main class="main-content" role="main" aria-label="Doctor Report Main Content">
+        <section class="dashboard-content">
+            <div class="panels" aria-label="Doctor Statistics">
+                <div class="card">
+                    <h3>Total Patients Seen</h3>
+                    <p>{{ total_patients_seen }}</p>
+                </div>
+                <div class="card">
+                    <h3>Pending Appointments</h3>
+                    <p>{{ pending_appointments }}</p>
+                </div>
+                <div class="card">
+                    <h3>Monthly Consultations</h3>
+                    <p>{{ monthly_consultations }}</p>
+                </div>
+            </div>
+
+            <!-- Appointment Preview -->
+            <section aria-labelledby="appointment-preview-title">
+                <h2 id="appointment-preview-title">Recent Appointments</h2>
+                <a href="{{ url_for('book_appointment') }}" class="btn" aria-label="Go to full appointments page">View All Appointments</a>
+                <table aria-describedby="appointment-preview-description" role="grid">
+                    <caption id="appointment-preview-description">Recent appointments for the doctor</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Patient Name</th>
+                            <th scope="col">Appointment Time</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appointment in recent_appointments %}
+                        <tr>
+                            <td>{{ appointment.patient_name }}</td>
+                            <td>{{ appointment.appointment_time }}</td>
+                            <td>{{ appointment.status }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3">No appointments found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+        </section>
+    </main>
+{% endblock %}

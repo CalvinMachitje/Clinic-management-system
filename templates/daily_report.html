@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Daily Report - Township Clinic{% endblock %}
+{% block content %}
+    <div class="sidebar">
+        <div class="logo">Township Clinic</div>
+        <ul>
+            <li><a href="{{ url_for('reception_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <header class="header">
+            <div class="user-info">
+                Welcome, {{ username }} <img src="{{ url_for('static', filename='profile.png') }}" alt="Profile">
+            </div>
+        </header>
+        <section>
+            <h2>Daily Patient Assistance Report - {{ date }}</h2>
+            <div class="report-section">
+                {% if visits_today %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Patient ID</th>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Visit Time</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for visit in visits_today %}
+                        <tr>
+                            <td>{{ visit.patient_id }}</td>
+                            <td>{{ visit.patient_first_name }}</td>
+                            <td>{{ visit.patient_last_name }}</td>
+                            <td>{{ visit.visit_time }}</td>
+                            <td>{{ visit.notes|default('N/A', true) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No patients assisted today.</p>
+                {% endif %}
+            </div>
+            <div class="form-actions">
+                <!-- Fix later-->>
+                <!--<button type="button" class="back-btn" onclick="window.location.href='{{ url_for('reception_dashboard') }}'">Back to Dashboard</button> -->
+            </div>
+        </section>
+    </div>
+{% endblock %}

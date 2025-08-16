@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Doctor Dashboard - Township Clinic{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/doctor_dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="doctor-dash-container">
+
+  <header class="doctor-dash-header">
+    <h2>👨‍⚕️ Dr. {{ user_details.first_name }}'s Dashboard</h2>
+    <p>Welcome back! Here's your overview for today.</p>
+  </header>
+
+  <section class="doctor-dash-top">
+    <div class="doctor-card schedule-card">
+      <h3>Today's Appointments ({{ now.strftime('%B %d, %Y') }})</h3>
+      {% if patients_today %}
+      <ul class="appointments-list">
+        {% for patient in patients_today %}
+          <li>
+            <strong>{{ patient.first_name }} {{ patient.last_name }}</strong>
+            (ID: {{ patient.id }}) at {{ patient.appointment_time if patient.appointment_time else "Time TBD" }}
+            <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">View Profile</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p>No appointments for today. Enjoy your day!</p>
+      {% endif %}
+    </div>
+
+    <div class="doctor-card quick-stats-card">
+      <h3>Quick Stats</h3>
+      <ul>
+        <li><strong>Total Patients:</strong> {{ total_patients }}</li>
+        <li><strong>Chronic Cases:</strong> {{ chronic_patients }}</li>
+        <li><strong>Pending Lab Results:</strong> {{ pending_lab_results }}</li>
+        <li><strong>Unread Messages:</strong> {{ unread_messages }}</li>
+      </ul>
+      <a href="{{ url_for('edit_employee') }}" class="btn btn-primary btn-block">View Messages</a>
+    </div>
+  </section>
+
+  <section class="doctor-dash-patients">
+    <h3>Patient Directory</h3>
+    <input type="text" id="searchInput" placeholder="🔍 Search patients by name or ID..." onkeyup="filterPatients()" autocomplete="off">
+
+    <table id="patientsTable" class="table">
+      <thead>
+        <tr>
+          <th>ID</th><th>First Name</th><th>Last Name</th><th>DOB</th><th>Gender</th><th>Last Visit</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for patient in patients %}
+        <tr>
+          <td>{{ patient.id }}</td>
+          <td>{{ patient.first_name }}</td>
+          <td>{{ patient.last_name }}</td>
+          <td>{{ patient.date_of_birth }}</td>
+          <td>{{ patient.gender }}</td>
+          <td>{{ patient.last_visit_date }}</td>
+          <td>
+            <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">Profile</a>
+            <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-sm btn-alt">Prescription</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="doctor-dash-reminders">
+    <h3>Reminders & Alerts</h3>
+    {% if reminders %}
+    <ul class="reminder-list">
+      {% for reminder in reminders %}
+      <li>
+        <strong>{{ reminder.title }}</strong> — <em>{{ reminder.date }}</em><br>
+        {{ reminder.description }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p>No reminders or alerts at the moment.</p>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+  function filterPatients() {
+    const input = document.getElementById("searchInput").value.toLowerCase();
+    const table = document.getElementById("patientsTable");
+    const rows = table.tBodies[0].rows;
+
+    for (let row of rows) {
+      const firstName = row.cells[1].textContent.toLowerCase();
+      const lastName = row.cells[2].textContent.toLowerCase();
+      const id = row.cells[0].textContent.toLowerCase();
+      const searchText = input.trim();
+      row.style.display =
+        (firstName.includes(searchText) ||
+        lastName.includes(searchText) ||
+        id.includes(searchText))
+        ? '' : 'none';
+    }
+  }
+</script>
+{% endblock %}

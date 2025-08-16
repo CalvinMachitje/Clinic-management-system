@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Township Clinic{% endblock %}
+
+{% block content %}
+<div class="admin-dash-container">
+    <h2 class="admin-dash-header">Admin Dashboard</h2>
+
+    <!-- Welcome Section -->
+    <section class="admin-dash-welcome">
+        <p>👋 Welcome back</p>
+    </section>
+
+    <!-- Key Metrics Cards -->
+    <section class="admin-dash-metrics">
+        <div class="admin-dash-card metric-users">
+            <h3>Total Registered Users</h3>
+            <p class="metric-number">{{ total_users }}</p>
+            <small>Includes patients and staff</small>
+        </div>
+        <div class="admin-dash-card metric-staff">
+            <h3>Active Staff Today</h3>
+            <p class="metric-number">{{ active_staff }}</p>
+            <small>Doctors, nurses, receptionists on duty</small>
+        </div>
+        <div class="admin-dash-card metric-alerts">
+            <h3>System Alerts</h3>
+            <p class="metric-number">{{ system_alerts }}</p>
+            <small>Unread critical notifications</small>
+        </div>
+    </section>
+
+    <!-- System Health & Recent Activity -->
+    <section class="admin-dash-system-health">
+        <details open>
+            <summary><h3>System Health & Recent Activity</h3></summary>
+            <div class="panel-content">
+                <ul>
+                    <li><strong>Server Uptime:</strong> {{ uptime_days }} days, {{ uptime_hours }} hours</li>
+                    <li><strong>Database Status:</strong> {{ db_status }}</li>
+                    <li><strong>Recent Logins:</strong> {{ recent_login_count }}</li>
+                    <li><strong>Last Backup:</strong> {{ last_backup_time }}</li>
+                    <li><strong>Security Warnings:</strong> {{ security_warnings }}</li>
+                </ul>
+                <p><small>Ensure system stability by regularly checking alerts and logs.</small></p>
+            </div>
+        </details>
+    </section>
+
+    <!-- Pending Tasks & Quick Actions -->
+    <section class="admin-dash-tasks">
+        <details>
+            <summary><h3>Pending Tasks & Quick Actions</h3></summary>
+            <div class="panel-content">
+
+                {% if system_alerts > 0 %}
+                <p class="alert alert-danger">There are {{ system_alerts }} unresolved system alerts!</p>
+                <a href="{{ url_for('system_alerts') }}" class="btn admin-btn-danger">View Alerts & Resolve</a>
+                {% else %}
+                <p>All system alerts have been addressed.</p>
+                {% endif %}
+            </div>
+        </details>
+    </section>
+
+    <!-- Admin Notes -->
+    <section class="admin-dash-notes">
+        <h3>Administrator Notes</h3>
+        <p>📝 Remember to:</p>
+        <ul>
+            <li>Audit user activity logs weekly to ensure compliance.</li>
+            <li>Verify staff certifications and credentials regularly.</li>
+            <li>Schedule maintenance during off-peak hours to minimize disruptions.</li>
+            <li>Keep software and security patches up-to-date.</li>
+            <li>Review feedback from staff to optimize workflows.</li>
+        </ul>
+    </section>
+</div>
+{% endblock %}

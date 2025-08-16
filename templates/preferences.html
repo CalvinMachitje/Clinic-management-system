@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Preferences - Township Clinic{% endblock %}
+{% block content %}
+    <div class="dashboard-content">
+        <h2>Preferences</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="POST" action="{{ url_for('preferences') }}">
+            <label for="theme">Select Theme:</label>
+            <select name="theme" id="theme">
+                <option value="dark" {% if current_theme == 'dark' %}selected{% endif %}>Dark</option>
+                <option value="light" {% if current_theme == 'light' %}selected{% endif %}>Light</option>
+            </select>
+            <button type="submit" class="btn">Save Preferences</button>
+        </form>
+    </div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Add Patient - Township Clinic{% endblock %}
+{% block content %}
+    <main class="main-content" role="main" aria-label="Add Patient Main Content">
+        <section class="dashboard-content">
+            <h2>Add New Patient</h2>
+            <a href="{{ url_for('patients_list') }}" class="btn">Back to Patients</a>
+            <form method="POST" action="{{ url_for('add_patient') }}" class="card">
+                <div class="form-group">
+                    <label for="first_name">First Name *</label>
+                    <input type="text" id="first_name" name="first_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Last Name *</label>
+                    <input type="text" id="last_name" name="last_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="date_of_birth">Date of Birth</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth">
+                </div>
+                <div class="form-group">
+                    <label for="gender">Gender</label>
+                    <select id="gender" name="gender">
+                        <option value="" selected>--Select--</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="address">Address</label>
+                    <textarea id="address" name="address"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone</label>
+                    <input type="tel" id="phone" name="phone">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email">
+                </div>
+                <div class="form-group">
+                    <label for="emergency_contact_name">Emergency Contact Name</label>
+                    <input type="text" id="emergency_contact_name" name="emergency_contact_name">
+                </div>
+                <div class="form-group">
+                    <label for="emergency_contact_phone">Emergency Contact Phone</label>
+                    <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone">
+                </div>
+                <div class="form-group">
+                    <label for="medical_history">Medical History</label>
+                    <textarea id="medical_history" name="medical_history"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="allergies">Allergies</label>
+                    <textarea id="allergies" name="allergies"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="current_medications">Current Medications</label>
+                    <textarea id="current_medications" name="current_medications"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="insurance_provider">Insurance Provider</label>
+                    <input type="text" id="insurance_provider" name="insurance_provider">
+                </div>
+                <div class="form-group">
+                    <label for="insurance_policy_number">Insurance Policy Number</label>
+                    <input type="text" id="insurance_policy_number" name="insurance_policy_number">
+                </div>
+                <button type="submit" class="btn">Add Patient</button>
+            </form>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+{% endblock %}

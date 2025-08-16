@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Overview - Township Clinic{% endblock %}
+{% block content %}
+<h1>Overview</h1>
+<p>Welcome to your personalized dashboard, where you can track your performance, discover insights, and take quick actions tailored to your clinic role.</p>
+
+{% if session.get('role') == 'admin' %}
+    <h2>Clinic Administration</h2>
+    <ul>
+        <li><strong>Total Users Registered:</strong> {{ total_users }}</li>
+        <li><strong>Active Staff on Duty:</strong> {{ active_staff }}</li>
+        <li><strong>System Uptime (days):</strong> {{ system_uptime }}</li>
+        <li><strong>Open Support Tickets:</strong> {{ open_tickets }}</li>
+    </ul>
+    <p>
+      <em>Manage clinic users, assign roles, view usage analytics, and monitor daily operations. 
+      <br>
+      <span style="color: #388e3c;">Tip: Review recent audit logs for policy violations.</span></em>
+    </p>
+
+{% elif session.get('role') == 'doctor' %}
+    <h2>Doctor’s Dashboard</h2>
+    <ul>
+        <li><strong>Total Patients Under Your Care:</strong> {{ total_patients }}</li>
+        <li><strong>Today's Appointments:</strong> {{ today_appointments }}</li>
+        <li><strong>Critical Cases Awaiting Review:</strong> {{ critical_cases }}</li>
+        <li><strong>Prescriptions Written This Month:</strong> {{ prescriptions_this_month }}</li>
+    </ul>
+    <div>
+      <em>Your patient panel for today is ready.<br>
+      <span style="color: #1976d2;">Remember: Add notes after each consultation for better patient continuity.</span></em>
+    </div>
+    <p>
+      <a href="{{ url_for('view_appointments') }}" class="btn btn-success">Start Consultations</a>
+      <a href="{{ url_for('lab_results') }}" class="btn btn-outline-info">Review Lab Results</a>
+    </p>
+
+{% elif session.get('role') == 'nurse' %}
+    <h2>Nurse’s Hub</h2>
+    <ul>
+        <li><strong>Pending Vitals to Collect:</strong> {{ pending_vitals }}</li>
+        <li><strong>Patients to Medicate Today:</strong> {{ medicating_today }}</li>
+        <li><strong>Immunizations Scheduled:</strong> {{ immunizations_today }}</li>
+        <li><strong>Supplies Running Low:</strong> {{ supplies_low|join(", ") if supplies_low else 'All stocked' }}</li>
+    </ul>
+    <div>
+      <em>Organize your ward rounds and ensure patient comfort.<br>
+      <span style="color: #c2185b;">Quick Link: Double-check high-priority cases for vital monitoring.</span></em>
+    </div>
+    <p>
+      <a href="{{ url_for('vital_tasks') }}" class="btn btn-warning">Begin Vital Collection</a>
+      <a href="{{ url_for('inventory') }}" class="btn btn-outline-primary">Manage Supplies</a>
+    </p>
+
+{% elif session.get('role') == 'receptionist' %}
+    <h2>Front Desk Overview</h2>
+    <ul>
+        <li><strong>Today's Scheduled Patients:</strong> {{ patients_today|length }}</li>
+        <li><strong>Total Check-ins So Far:</strong> {{ checkins_today }}</li>
+        <li><strong>Walk-ins Waiting:</strong> {{ walkins_waiting }}</li>
+        <li><strong>Missed Appointments:</strong> {{ missed_appointments }}</li>
+    </ul>
+    <div>
+      <em>Greet patients, manage appointments, and keep things flowing smoothly.<br>
+      <span style="color: #ff7043;">Hint: Send SMS reminders to upcoming appointments.</span></em>
+    </div>
+    <p>
+      <a href="{{ url_for('appointments') }}" class="btn btn-info">Manage Appointments</a>
+      <a href="{{ url_for('patient_register') }}" class="btn btn-outline-success">Add Walk-in Patient</a>
+    </p>
+{% endif %}
+
+{% endblock %}
