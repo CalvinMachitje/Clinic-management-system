@@ -1,0 +1,16 @@
+{
+  "configurations": [
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Launch Flask App",
+      "program": "${workspaceFolder}/script.py",
+      "env": {
+        "FLASK_APP": "${workspaceFolder}/script.py",
+        "FLASK_ENV": "development"
+      },
+      "args": [],
+      "jinja": true
+    }
+  ]
+}
