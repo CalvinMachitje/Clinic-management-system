@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"name": "Clinic-management-system",
+			"path": "../../Clinic-management-system"
+		}
+	],
+	"settings": {}
+}
