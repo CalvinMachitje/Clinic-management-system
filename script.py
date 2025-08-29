@@ -11,16 +11,26 @@ import re
 from queue import Queue
 from threading import Lock
 import time
+from flask_caching import Cache
+import requests  # Added missing import for NewsAPI
+
+# Initialize Flask app before using it (cache and routes)
+app = Flask(__name__, static_folder='static')
+app.config['CACHE_TYPE'] = 'simple'
+cache = Cache(app)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder='static')
 app.secret_key = secrets.token_hex(32)
 UPLOAD_FOLDER = 'static/profile_images'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+#Newsapi configuration
+NEWS_API_KEY = "72214206cfad4127b56da4904509603f"  # Replace with your API key
+NEWS_API_URL = "https://newsapi.org/v2/top-headlines"
 
 # In-memory queue for new appointment notifications
 appointment_queue = Queue()
@@ -55,6 +65,11 @@ def init_db():
     try:
         conn = sqlite3.connect('clinicinfo.db')
         c = conn.cursor()
+        
+        # Enable foreign key support
+        c.execute('PRAGMA foreign_keys = ON;')
+        
+        # Create employees table
         c.execute('''CREATE TABLE IF NOT EXISTS employees
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       first_name TEXT NOT NULL,
@@ -68,6 +83,8 @@ def init_db():
                       availability TEXT DEFAULT 'available',
                       profile_image TEXT DEFAULT 'default.jpg',
                       staff_number TEXT UNIQUE NOT NULL DEFAULT 'TEMPSTAFF')''')
+        
+        # Create patients table
         c.execute('''CREATE TABLE IF NOT EXISTS patients
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       first_name TEXT NOT NULL,
@@ -85,6 +102,8 @@ def init_db():
                       employee_id INTEGER,
                       clinic TEXT DEFAULT 'Clinic A',
                       FOREIGN KEY (employee_id) REFERENCES employees(id))''')
+        
+        # Create appointments table with helper_id
         c.execute('''CREATE TABLE IF NOT EXISTS appointments
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       patient_id INTEGER NOT NULL,
@@ -92,13 +111,19 @@ def init_db():
                       status TEXT DEFAULT 'scheduled',
                       reason TEXT,
                       created_by_role TEXT DEFAULT 'receptionist',
-                      FOREIGN KEY (patient_id) REFERENCES patients(id))''')
+                      helper_id INTEGER,
+                      FOREIGN KEY (patient_id) REFERENCES patients(id),
+                      FOREIGN KEY (helper_id) REFERENCES employees(id))''')
+        
+        # Create visits table
         c.execute('''CREATE TABLE IF NOT EXISTS visits
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       patient_id INTEGER NOT NULL,
                       visit_time TEXT NOT NULL,
                       notes TEXT,
                       FOREIGN KEY (patient_id) REFERENCES patients(id))''')
+        
+        # Create emergency_requests table
         c.execute('''CREATE TABLE IF NOT EXISTS emergency_requests
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       patient_id INTEGER NOT NULL,
@@ -106,19 +131,27 @@ def init_db():
                       request_time TEXT DEFAULT CURRENT_TIMESTAMP,
                       status TEXT DEFAULT 'pending',
                       FOREIGN KEY (patient_id) REFERENCES patients(id))''')
+        
+        # Create messages table
         c.execute('''CREATE TABLE IF NOT EXISTS messages
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       title TEXT NOT NULL,
                       content TEXT NOT NULL,
                       date TEXT DEFAULT CURRENT_TIMESTAMP,
                       sender TEXT NOT NULL)''')
+        
+        # Create system_settings table
         c.execute('''CREATE TABLE IF NOT EXISTS system_settings
                      (id INTEGER PRIMARY KEY,
                       backup_frequency TEXT)''')
+        
+        # Create preferences table
         c.execute('''CREATE TABLE IF NOT EXISTS preferences
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       staff_number TEXT UNIQUE,
                       theme TEXT DEFAULT 'dark')''')
+        
+        # Create helped_patients table
         c.execute('''CREATE TABLE IF NOT EXISTS helped_patients
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
                       patient_id INTEGER NOT NULL,
@@ -129,9 +162,26 @@ def init_db():
                       FOREIGN KEY (patient_id) REFERENCES patients(id),
                       FOREIGN KEY (appointment_id) REFERENCES appointments(id),
                       FOREIGN KEY (nurse_id) REFERENCES employees(id))''')
+        
+        # Add helper_id column to existing appointments table (for migration)
+        try:
+            c.execute('''
+                ALTER TABLE appointments
+                ADD COLUMN helper_id INTEGER
+                REFERENCES employees(id)
+            ''')
+            logger.info("Added helper_id column to appointments table")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column name' not in str(e).lower():
+                logger.error(f"Error adding helper_id column: {e}")
+        
+        # Insert default system settings
         c.execute("INSERT OR REPLACE INTO system_settings (id, backup_frequency) VALUES (1, 'weekly')")
+        
+        # Insert default admin user
         c.execute("INSERT OR IGNORE INTO employees (first_name, last_name, password, email, role, staff_number) VALUES (?, ?, ?, ?, ?, ?)",
                   ('Admin', 'User', hashlib.sha256('admin123'.encode()).hexdigest(), 'admin@clinic.com', 'admin', 'STAFF001'))
+        
         conn.commit()
         logger.info("Database initialized or migrated successfully")
     except sqlite3.Error as e:
@@ -153,8 +203,26 @@ def default_page():
             return redirect(url_for('nurse_dashboard'))
         elif role == 'receptionist':
             return redirect(url_for('reception_dashboard'))
-    return render_template('homepage/defaultPage.html')
+    
+    # Fetch health news for non-logged-in users
+    params = {
+        'apiKey': NEWS_API_KEY,
+        'category': 'health',
+        'country': 'za',  # South Africa; remove for global news
+        'pageSize': 5  # Number of articles to fetch
+    }
+    try:
+        response = requests.get(NEWS_API_URL, params=params)
+        response.raise_for_status()
+        news_data = response.json()
+        articles = news_data.get('articles', [])
+    except requests.RequestException as e:
+        logger.error(f"Error fetching news: {e}")
+        articles = []
+    
+    return render_template('homepage/defaultPage.html', articles=articles)
 
+# Fixed appointment_homepage function
 @app.route('/appointments')
 def appointment_homepage():
     if 'username' not in session or session.get('role') != 'receptionist':
@@ -167,6 +235,8 @@ def appointment_homepage():
         if not user_details:
             flash('User details not found. Please log in again.', 'error')
             return redirect(url_for('login_page'))
+        
+        # Get appointments
         c.execute("""
             SELECT a.id, a.patient_id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason
             FROM appointments a
@@ -184,8 +254,50 @@ def appointment_homepage():
                 'reason': row[6]
             } for row in c.fetchall()
         ]
+        
+        # Get available staff
+        c.execute("SELECT staff_number, first_name, last_name, role FROM employees WHERE availability = 'available'")
+        available_staff = [
+            {
+                'id': row[0],
+                'name': f"{row[1]} {row[2]}",
+                'role': row[3]
+            } for row in c.fetchall()
+        ]
+        
+        # Get helped patients
+        c.execute("""
+            SELECT hp.id, hp.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
+                   hp.appointment_id, a.appointment_date, hp.nurse_id,
+                   e.first_name || ' ' || e.last_name AS nurse_name,
+                   hp.helped_timestamp, hp.notes, a.reason
+            FROM helped_patients hp
+            JOIN patients p ON hp.patient_id = p.id
+            JOIN appointments a ON hp.appointment_id = a.id
+            JOIN employees e ON hp.nurse_id = e.id
+            ORDER BY hp.helped_timestamp DESC
+        """)
+        helped_patients = [
+            {
+                'id': row[0],
+                'patient_id': row[1],
+                'first_name': row[2].split()[0] if row[2] else '',
+                'last_name': ' '.join(row[2].split()[1:]) if row[2] and len(row[2].split()) > 1 else '',
+                'appointment_id': row[3],
+                'appointment_date': row[4],
+                'nurse_id': row[5],
+                'helper_name': row[6],
+                'helper_role': 'nurse',
+                'timestamp': row[7],
+                'notes': row[8],
+                'reason': row[9] or 'Not specified'
+            } for row in c.fetchall()
+        ]
+        
         return render_template('reception/manageAppointments.html',
                               appointments=appointments,
+                              available_staff=available_staff,
+                              helped_patients=helped_patients,
                               user_details=user_details,
                               username=session['username'])
     except Exception as e:
@@ -601,41 +713,135 @@ def add_walkin():
         if conn:
             conn.close()
 
-@app.route('/check_in_patient', methods=['POST'])
-def check_in_patient():
+@app.route('/check_in_page', methods=['GET'])
+def check_in_page():
     if 'username' not in session or session.get('role') != 'receptionist':
-        return redirect(url_for('login_page'))
+        return jsonify({'error': 'Unauthorized'}), 403 if request.headers.get('Accept') == 'application/json' else redirect(url_for('login_page'))
+    
     conn = None
     try:
-        conn = sqlite3.connect('clinicinfo.db')
+        conn = get_db_connection()
         c = conn.cursor()
-        appointment_id = request.form.get('appointment_id')
-        if not appointment_id:
-            flash('Appointment ID is required.', 'error')
-            return redirect(url_for('check_in_page'))
-        c.execute("SELECT patient_id, appointment_date, reason FROM appointments WHERE id = ? AND status IN ('scheduled', 'waiting')", (appointment_id,))
-        appt = c.fetchone()
-        if not appt:
-            flash('Appointment not found or not eligible for check-in.', 'error')
-            return redirect(url_for('check_in_page'))
-        c.execute("UPDATE appointments SET status = 'checked_in' WHERE id = ?", (appointment_id,))
-        c.execute("SELECT first_name, last_name FROM patients WHERE id = ?", (appt[0],))
-        patient = c.fetchone()
-        with queue_lock:
-            appointment_queue.put({
-                'appointment_id': appointment_id,
-                'patient_id': appt[0],
-                'patient_name': f"{patient[0]} {patient[1]}" if patient else "Unknown",
-                'appointment_date': appt[1],
-                'reason': appt[2],
-                'status': 'checked_in'
+        user_details = get_user_details(conn, session['username'])
+        if not user_details:
+            if request.headers.get('Accept') == 'application/json':
+                return jsonify({'error': 'User details not found'}), 404
+            else:
+                flash('User details not found.', 'error')
+                return redirect(url_for('login_page'))
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        # Scheduled appointments query
+        c.execute("""
+            SELECT a.id, a.patient_id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason,
+                   e.first_name || ' ' || e.last_name AS helper_name, e.role AS helper_role
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            LEFT JOIN employees e ON a.helper_id = e.id
+            WHERE a.appointment_date LIKE ? AND a.status = 'scheduled'
+            ORDER BY a.appointment_date
+        """, (f'{today}%',))
+        scheduled_appointments = [
+            {
+                'id': row['id'],
+                'patient_id': row['patient_id'],
+                'first_name': row['first_name'],
+                'last_name': row['last_name'],
+                'appointment_date': row['appointment_date'],
+                'status': row['status'],
+                'reason': row['reason'] or 'Not specified',
+                'helper_name': row['helper_name'],
+                'helper_role': row['helper_role']
+            } for row in c.fetchall()
+        ]
+        # Waitlist query
+        c.execute("""
+            SELECT a.id, a.patient_id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason,
+                   e.first_name || ' ' || e.last_name AS helper_name, e.role AS helper_role
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            LEFT JOIN employees e ON a.helper_id = e.id
+            WHERE a.appointment_date LIKE ? AND a.status = 'waiting'
+            ORDER BY a.appointment_date
+        """, (f'{today}%',))
+        waitlist = [
+            {
+                'id': row['id'],
+                'patient_id': row['patient_id'],
+                'first_name': row['first_name'],
+                'last_name': row['last_name'],
+                'appointment_date': row['appointment_date'],
+                'status': row['status'],
+                'reason': row['reason'] or 'Not specified',
+                'helper_name': row['helper_name'],
+                'helper_role': row['helper_role']
+            } for row in c.fetchall()
+        ]
+        # Available staff query
+        c.execute("SELECT staff_number, first_name, last_name, role FROM employees WHERE availability = 'available'")
+        available_staff = [
+            {
+                'staff_number': row['staff_number'],
+                'first_name': row['first_name'],
+                'last_name': row['last_name'],
+                'role': row['role']
+            } for row in c.fetchall()
+        ]
+        # Helped patients query
+        c.execute("""
+            SELECT hp.id, hp.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
+                   hp.appointment_id, a.appointment_date, hp.nurse_id,
+                   e.first_name || ' ' || e.last_name AS nurse_name,
+                   hp.helped_timestamp, hp.notes, a.reason
+            FROM helped_patients hp
+            JOIN patients p ON hp.patient_id = p.id
+            JOIN appointments a ON hp.appointment_id = a.id
+            JOIN employees e ON hp.nurse_id = e.id
+            ORDER BY hp.helped_timestamp DESC
+        """)
+        helped_patients = [
+            {
+                'id': row['id'],
+                'patient_id': row['patient_id'],
+                'patient_name': row['patient_name'],
+                'appointment_id': row['appointment_id'],
+                'appointment_date': row['appointment_date'],
+                'nurse_id': row['nurse_id'],
+                'nurse_name': row['nurse_name'],
+                'helped_timestamp': row['helped_timestamp'],
+                'notes': row['notes'],
+                'reason': row['reason'] or 'Not specified'
+            } for row in c.fetchall()
+        ]
+        # Additional data from duplicate route (example)
+        c.execute("SELECT COUNT(*) FROM appointments WHERE appointment_date LIKE ?", (f'{today}%',))
+        total_appointments = c.fetchone()[0]
+        
+        # Decide response based on Accept header
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({
+                'scheduled_appointments': scheduled_appointments,
+                'waitlist': waitlist,
+                'available_staff': available_staff,
+                'user_details': user_details,
+                'helped_patients': helped_patients,
+                'total_appointments': total_appointments  # Merged data
             })
-        conn.commit()
-        flash('Patient checked in successfully!', 'success')
-        return redirect(url_for('check_in_page'))
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('check_in_page'))
+        else:
+            return render_template('reception/checkInDesk.html',
+                                  user_details=user_details,
+                                  scheduled_appointments=scheduled_appointments,
+                                  waitlist=waitlist,
+                                  available_staff=available_staff,
+                                  helped_patients=helped_patients,
+                                  total_appointments=total_appointments)  # Merged data
+    except sqlite3.Error as e:
+        logger.error(f"Database error in check_in_page: {e}")
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({'error': 'Database error occurred'}), 500
+        else:
+            flash('Database error occurred.', 'error')
+            return redirect(url_for('login_page'))
     finally:
         if conn:
             conn.close()
@@ -711,139 +917,6 @@ def reception_dashboard():
         if conn:
             conn.close()
 
-@app.route('/reception_overview')
-def reception_overview():
-    if 'username' not in session or session.get('role') != 'receptionist':
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = sqlite3.connect('clinicinfo.db')
-        c = conn.cursor()
-        today = datetime.now().strftime('%Y-%m-%d')
-        month = datetime.now().strftime('%Y-%m')
-        c.execute("""
-            SELECT a.id, a.patient_id, p.first_name, p.last_name, a.status, a.appointment_date, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ?
-        """, (f'{today}%',))
-        patients_today = [
-            {
-                'id': row[0],
-                'patient_id': row[1],
-                'first_name': row[2],
-                'last_name': row[3],
-                'status': row[4],
-                'appointment_date': row[5],
-                'reason': row[6]
-            } for row in c.fetchall()
-        ]
-        c.execute("SELECT id FROM visits WHERE visit_time LIKE ?", (f"{month}%",))
-        all_visits = c.fetchall()
-        c.execute("SELECT staff_number, first_name, last_name FROM employees WHERE availability = 'available'")
-        available_staff = c.fetchall()
-        c.execute("SELECT id FROM appointments WHERE status = 'waiting' AND appointment_date LIKE ?", (f'{today}%',))
-        walkins_waiting = c.fetchall()
-        c.execute("SELECT id FROM appointments WHERE status = 'missed' AND appointment_date LIKE ?", (f'{today}%',))
-        missed_appointments = c.fetchall()
-        c.execute("SELECT id FROM patients WHERE medical_history IS NULL")
-        pending_registrations = c.fetchall()
-        date_3days = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
-        c.execute("""
-            SELECT a.appointment_date, p.first_name, p.last_name, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date > ? AND a.appointment_date <= ?
-            ORDER BY a.appointment_date
-        """, (today, date_3days))
-        upcoming_appointments = [
-            {
-                "date": datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"),
-                "patient_name": f"{row[1]} {row[2]}",
-                "reason": row[3]
-            } for row in c.fetchall()
-        ]
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
-        return render_template('reception/receptionOverview.html',
-                              patients_today=patients_today,
-                              all_visits=all_visits,
-                              available_staff=available_staff,
-                              walkins_waiting=walkins_waiting,
-                              missed_appointments=missed_appointments,
-                              pending_registrations=pending_registrations,
-                              upcoming_appointments=upcoming_appointments,
-                              user_details=user_details)
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('login_page'))
-    finally:
-        if conn:
-            conn.close()
-
-@app.route('/check_in_page')
-def check_in_page():
-    if 'username' not in session or session.get('role') != 'receptionist':
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = sqlite3.connect('clinicinfo.db')
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
-        today = datetime.now().strftime('%Y-%m-%d')
-        c.execute("""
-            SELECT a.id, a.patient_id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ? AND a.status = 'scheduled'
-            ORDER BY a.appointment_date
-        """, (f'{today}%',))
-        scheduled_appointments = [
-            {
-                'id': row[0],
-                'patient_id': row[1],
-                'first_name': row[2],
-                'last_name': row[3],
-                'appointment_date': row[4],
-                'status': row[5],
-                'reason': row[6]
-            } for row in c.fetchall()
-        ]
-        c.execute("""
-            SELECT a.id, a.patient_id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ? AND a.status = 'waiting'
-            ORDER BY a.appointment_date
-        """, (f'{today}%',))
-        waitlist = [
-            {
-                'id': row[0],
-                'patient_id': row[1],
-                'first_name': row[2],
-                'last_name': row[3],
-                'appointment_date': row[4],
-                'status': row[5],
-                'reason': row[6]
-            } for row in c.fetchall()
-        ]
-        return render_template('reception/checkInDesk.html',
-                              scheduled_appointments=scheduled_appointments,
-                              waitlist=waitlist,
-                              user_details=user_details,
-                              username=session['username'])
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('reception_dashboard'))
-    finally:
-        if conn:
-            conn.close()
-
 @app.route('/book_appointment', methods=['POST'])
 def book_appointment():
     if 'username' not in session or session.get('role') != 'receptionist':
@@ -905,15 +978,10 @@ def stream_appointments():
                 with queue_lock:
                     if not appointment_queue.empty():
                         appointment = appointment_queue.get()
-                        # Ensure JSON-serializable data
-                        try:
-                            appointment_safe = appointment.copy()
-                            if 'appointment_date' in appointment_safe:
-                                appointment_safe['appointment_date'] = str(appointment_safe['appointment_date'])
-                            yield f"data: {json.dumps(appointment_safe)}\n\n"
-                        except (TypeError, ValueError) as e:
-                            logger.error(f"Error serializing appointment data: {e}, appointment: {appointment}")
-                            continue  # Skip invalid data
+                        appointment_safe = appointment.copy()
+                        if 'appointment_date' in appointment_safe:
+                            appointment_safe['appointment_date'] = str(appointment_safe['appointment_date'])
+                        yield f"data: {json.dumps(appointment_safe)}\n\n"
                 time.sleep(1)
         except GeneratorExit:
             logger.debug("SSE connection closed by client")
@@ -1185,17 +1253,26 @@ def stream_waiting_patients():
 @app.route('/helped_patients_report')
 def helped_patients_report():
     if 'username' not in session or session.get('role') != 'receptionist':
-        flash('Please log in as a receptionist to access reports.', 'error')
-        return redirect(url_for('login_page'))
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({'error': 'Unauthorized'}), 403
+        else:
+            flash('Please log in as a receptionist to access reports.', 'error')
+            return redirect(url_for('login_page'))
+    
     conn = None
     try:
-        conn = sqlite3.connect('clinicinfo.db')
+        conn = get_db_connection()
         c = conn.cursor()
+        user_details = get_user_details(conn, session['username'])
+        if not user_details and request.headers.get('Accept') != 'application/json':
+            flash('User details not found. Please log in again.', 'error')
+            return redirect(url_for('login_page'))
+        
         c.execute("""
             SELECT hp.id, hp.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
                    hp.appointment_id, a.appointment_date, hp.nurse_id,
                    e.first_name || ' ' || e.last_name AS nurse_name,
-                   hp.helped_timestamp, hp.notes
+                   hp.helped_timestamp, hp.notes, a.reason
             FROM helped_patients hp
             JOIN patients p ON hp.patient_id = p.id
             JOIN appointments a ON hp.appointment_id = a.id
@@ -1204,23 +1281,35 @@ def helped_patients_report():
         """)
         helped_patients = [
             {
-                'id': row[0],
-                'patient_id': row[1],
-                'patient_name': row[2],
-                'appointment_id': row[3],
-                'appointment_date': row[4],
-                'nurse_id': row[5],
-                'nurse_name': row[6],
-                'helped_timestamp': row[7],
-                'notes': row[8]
+                'id': row['id'],
+                'patient_id': row['patient_id'],
+                'patient_name': row['patient_name'],
+                'appointment_id': row['appointment_id'],
+                'appointment_date': row['appointment_date'],
+                'nurse_id': row['nurse_id'],
+                'nurse_name': row['nurse_name'],
+                'helped_timestamp': row['helped_timestamp'],
+                'notes': row['notes'],
+                'reason': row['reason'] or 'Not specified'
             } for row in c.fetchall()
         ]
-        user_details = get_user_details(conn, session['username'])
-        return render_template('helped_patients_report.html', helped_patients=helped_patients, user_details=user_details)
+        
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({'helped_patients': helped_patients})
+        else:
+            return render_template('helped_patients_report.html', 
+                                 helped_patients=helped_patients, 
+                                 user_details=user_details or {})
+    
     except sqlite3.Error as e:
         logger.error(f"Database error in helped_patients_report: {e}")
-        flash('An error occurred while generating the report.', 'error')
-        return render_template('helped_patients_report.html', helped_patients=[], user_details={})
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({'error': 'Database error occurred'}), 500
+        else:
+            flash('An error occurred while generating the report.', 'error')
+            return render_template('helped_patients_report.html', 
+                                 helped_patients=[], 
+                                 user_details=user_details or {})
     finally:
         if conn:
             conn.close()
@@ -2319,6 +2408,93 @@ def help():
     finally:
         if conn:
             conn.close()
+            
+@app.route('/assign_staff', methods=['POST'])
+def assign_staff():
+    if 'username' not in session or session.get('role') != 'receptionist':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    conn = None
+    try:
+        data = request.get_json()
+        appointment_id = data.get('appointment_id')
+        staff_id = data.get('staff_id')
+        if not appointment_id or not staff_id:
+            return jsonify({'success': False, 'message': 'Appointment ID and staff ID are required'}), 400
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT patient_id, reason FROM appointments WHERE id = ? AND status IN ('scheduled', 'waiting')", (appointment_id,))
+        appt = c.fetchone()
+        if not appt:
+            return jsonify({'success': False, 'message': 'Appointment not found or not eligible'}), 404
+        c.execute("SELECT id, first_name, last_name, role FROM employees WHERE staff_number = ?", (staff_id,))
+        staff = c.fetchone()
+        if not staff:
+            return jsonify({'success': False, 'message': 'Staff not found'}), 404
+        c.execute("""
+            INSERT INTO helped_patients (patient_id, appointment_id, nurse_id, helped_timestamp, notes)
+            VALUES (?, ?, ?, ?, ?)
+        """, (appt['patient_id'], appointment_id, staff['id'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Assigned by receptionist'))
+        c.execute("UPDATE appointments SET status = 'helped' WHERE id = ?", (appointment_id,))
+        conn.commit()
+        with queue_lock:
+            appointment_queue.put({
+                'appointment_id': appointment_id,
+                'patient_id': appt['patient_id'],
+                'patient_name': f"{staff['first_name']} {staff['last_name']}",
+                'appointment_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'reason': appt['reason'],
+                'status': 'helped',
+                'helper_name': f"{staff['first_name']} {staff['last_name']}",
+                'helper_role': staff['role']
+            })
+        return jsonify({'success': True, 'message': 'Staff assigned successfully'})
+    except sqlite3.Error as e:
+        logger.error(f"Database error in assign_staff: {e}")
+        return jsonify({'success': False, 'message': 'Database error occurred'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+#@app.route('/helped_patients_report')
+#def helped_patients_report():
+#    if 'username' not in session or session.get('role') != 'receptionist':
+#        return jsonify({'error': 'Unauthorized'}), 403
+#    conn = None
+#   try:
+#        conn = get_db_connection()
+#         c = conn.cursor()
+#         c.execute("""
+#             SELECT hp.id, hp.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
+#                    hp.appointment_id, a.appointment_date, hp.nurse_id,
+#                    e.first_name || ' ' || e.last_name AS nurse_name,
+#                    hp.helped_timestamp, hp.notes, a.reason
+#             FROM helped_patients hp
+#             JOIN patients p ON hp.patient_id = p.id
+#             JOIN appointments a ON hp.appointment_id = a.id
+#             JOIN employees e ON hp.nurse_id = e.id
+#             ORDER BY hp.helped_timestamp DESC
+#         """)
+#         helped_patients = [
+#             {
+#                 'id': row['id'],
+#                 'patient_id': row['patient_id'],
+#                 'patient_name': row['patient_name'],
+#                 'appointment_id': row['appointment_id'],
+#                 'appointment_date': row['appointment_date'],
+#                 'nurse_id': row['nurse_id'],
+#                 'nurse_name': row['nurse_name'],
+#                 'helped_timestamp': row['helped_timestamp'],
+#                 'notes': row['notes'],
+#                 'reason': row['reason'] or 'Not specified'
+#             } for row in c.fetchall()
+#         ]
+#         return jsonify({'helped_patients': helped_patients})
+#     except sqlite3.Error as e:
+#         logger.error(f"Database error in helped_patients_report: {e}")
+#         return jsonify({'error': 'Database error occurred'}), 500
+#     finally:
+#         if conn:
+#             conn.close()
 
 if __name__ == '__main__':
     try:

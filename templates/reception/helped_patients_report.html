@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Helped Patients Report - Township Clinic{% endblock %}
+{% block content %}
+<div class="dashboard-content">
+    <h2>Helped Patients Report</h2>
+    {% if helped_patients %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Appointment Date</th>
+                <th>Nurse</th>
+                <th>Timestamp</th>
+                <th>Reason</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in helped_patients %}
+            <tr>
+                <td>{{ patient.id }}</td>
+                <td>{{ patient.patient_name }}</td>
+                <td>{{ patient.appointment_date }}</td>
+                <td>{{ patient.nurse_name }}</td>
+                <td>{{ patient.helped_timestamp }}</td>
+                <td>{{ patient.reason }}</td>
+                <td>{{ patient.notes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No helped patients found.</p>
+    {% endif %}
+</div>
+{% block extra_scripts %}
+<script>
+    // Fetch JSON data for React frontend
+    fetch('/helped_patients_report', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Helped Patients:', data.helped_patients);
+        // Add React logic here to render data dynamically
+    })
+    .catch(error => console.error('Error fetching report data:', error));
+</script>
+{% endblock %}
+{% endblock %}

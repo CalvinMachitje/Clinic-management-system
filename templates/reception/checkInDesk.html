@@ -1,167 +1,203 @@
-{% extends "base.html" %}
-{% block title %}Check-in Desk - Township Clinic{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Check-In Desk - Township Clinic{% endblock %}
 {% block content %}
-<div class="dashboard-content checkin-dashboard">
-    <h2>Check-in Desk</h2>
-    
-    <!-- Scheduled Appointments -->
-    <div class="card scheduled-appointments">
-        <h3>Today's Scheduled Appointments</h3>
-        {% if scheduled_appointments %}
-        <table id="scheduled-appointments-table" class="table">
-            <thead>
-                <tr>
-                    <th>Patient ID</th>
-                    <th>Patient Name</th>
-                    <th>Appointment Time</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="scheduled-appointments-tbody">
-                {% for appt in scheduled_appointments %}
-                <tr data-appointment-id="{{ appt.id }}">
-                    <td>{{ appt.patient_id }}</td>
-                    <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                    <td>{{ appt.appointment_date }}</td>
-                    <td>{{ appt.reason|default('Not specified') }}</td>
-                    <td>{{ appt.status }}</td>
-                    <td>
-                        {% if appt.status == 'scheduled' %}
-                        <form action="{{ url_for('check_in_patient') }}" method="POST" style="display:inline;">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <button type="submit" class="btn btn-primary">Check-in</button>
-                        </form>
-                        <form action="{{ url_for('cancel_appointment') }}" method="POST" style="display:inline;">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <button type="submit" class="btn btn-danger">Cancel</button>
-                        </form>
-                        {% else %}
-                        <span>{{ appt.status|capitalize }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p>No scheduled appointments for today.</p>
-        {% endif %}
-    </div>
-    
-    <!-- Waitlist (Walk-ins and Checked-in Patients) -->
-    <div class="card waitlist">
-        <h3>Waitlist</h3>
-        {% if waitlist %}
-        <table id="waitlist-table" class="table">
-            <thead>
-                <tr>
-                    <th>Patient ID</th>
-                    <th>Patient Name</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="waitlist-tbody">
-                {% for appt in waitlist %}
-                <tr data-appointment-id="{{ appt.id }}">
-                    <td>{{ appt.patient_id }}</td>
-                    <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                    <td>{{ appt.reason|default('Not specified') }}</td>
-                    <td>{{ appt.status }}</td>
-                    <td>
-                        {% if appt.status == 'waiting' %}
-                        <form action="{{ url_for('check_in_patient') }}" method="POST" style="display:inline;">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <button type="submit" class="btn btn-primary">Check-in</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p>No patients in the waitlist.</p>
-        {% endif %}
-    </div>
-    
-    <!-- Add Walk-in Patient -->
-    <div class="card add-walkin">
-        <h3>Add Walk-in Patient</h3>
-        <form action="{{ url_for('add_walkin') }}" method="POST">
-            <div class="form-group">
-                <label for="patient_id">Patient ID</label>
-                <input type="text" id="patient_id" name="patient_id" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="reason">Reason for Visit</label>
-                <input type="text" id="reason" name="reason" class="form-control">
-            </div>
-            <button type="submit" class="btn btn-primary">Add to Waitlist</button>
-        </form>
-    </div>
+<div class="dashboard-content">
+    <h2>Check-In Desk</h2>
+    <h3>Scheduled Appointments</h3>
+    {% if scheduled_appointments %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Helper</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for appt in scheduled_appointments %}
+            <tr data-appointment-id="{{ appt.id }}">
+                <td>{{ appt.id }}</td>
+                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                <td>{{ appt.appointment_date }}</td>
+                <td>{{ appt.status }}</td>
+                <td>{{ appt.reason }}</td>
+                <td>{{ appt.helper_name or 'None' }} ({{ appt.helper_role or 'N/A' }})</td>
+                <td>
+                    {% if appt.status == 'scheduled' %}
+                    <form action="{{ url_for('cancel_appointment') }}" method="POST" style="display:inline;">
+                        <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                        <button type="submit" class="btn btn-danger">Cancel</button>
+                    </form>
+                    {% else %}
+                    <span>{{ appt.status|capitalize }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No scheduled appointments.</p>
+    {% endif %}
+
+    <h3>Waitlist</h3>
+    {% if waitlist %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="waitlist-table-body">
+            {% for appt in waitlist %}
+            <tr data-appointment-id="{{ appt.id }}">
+                <td>{{ appt.id }}</td>
+                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                <td>{{ appt.appointment_date }}</td>
+                <td>{{ appt.status }}</td>
+                <td>{{ appt.reason }}</td>
+                <td>
+                    <form action="{{ url_for('assign_staff') }}" method="POST" style="display:inline;">
+                        <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                        <select name="staff_id" required>
+                            <option value="">Select Staff</option>
+                            {% for staff in available_staff %}
+                            <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary">Assign</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No patients in waitlist.</p>
+    {% endif %}
+
+    <h3>Available Staff</h3>
+    {% if available_staff %}
+    <ul>
+        {% for staff in available_staff %}
+        <li>{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }}) - {{ staff.staff_number }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No staff available.</p>
+    {% endif %}
+
+    <h3>Helped Patients</h3>
+    {% if helped_patients %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Patient</th>
+                <th>Appointment Date</th>
+                <th>Nurse</th>
+                <th>Timestamp</th>
+                <th>Reason</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in helped_patients %}
+            <tr>
+                <td>{{ patient.id }}</td>
+                <td>{{ patient.patient_name }}</td>
+                <td>{{ patient.appointment_date }}</td>
+                <td>{{ patient.nurse_name }}</td>
+                <td>{{ patient.helped_timestamp }}</td>
+                <td>{{ patient.reason }}</td>
+                <td>{{ patient.notes }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No helped patients found.</p>
+    {% endif %}
 </div>
-
+{% block extra_scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+    // Fetch JSON data for React frontend
+    fetch('/check_in_page', {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Scheduled Appointments:', data.scheduled_appointments);
+        console.log('Waitlist:', data.waitlist);
+        console.log('Available Staff:', data.available_staff);
+        console.log('Helped Patients:', data.helped_patients);
+        // Add React logic here to render data dynamically
+    })
+    .catch(error => console.error('Error fetching check-in data:', error));
+
+    // SSE for real-time updates
     const source = new EventSource('/stream_appointments');
-    const today = new Date().toISOString().split('T')[0];
-
     source.onmessage = function(event) {
-        const appointment = JSON.parse(event.data);
-        console.log('New appointment received:', appointment);
-
-        if (appointment.appointment_date.startsWith(today)) {
-            const scheduledTbody = document.getElementById('scheduled-appointments-tbody');
-            const waitlistTbody = document.getElementById('waitlist-tbody');
-            
-            if (!document.querySelector(`[data-appointment-id="${appointment.appointment_id}"]`)) {
-                const row = document.createElement('tr');
-                row.setAttribute('data-appointment-id', appointment.appointment_id);
-
-                // build actions string without nested template literals to avoid syntax issues
-                let actions = '';
-                if (appointment.status === 'scheduled' || appointment.status === 'waiting') {
-                    actions += '<form action="/check_in_patient" method="POST" style="display:inline;">' +
-                               '<input type="hidden" name="appointment_id" value="' + appointment.appointment_id + '">' +
-                               '<button type="submit" class="btn btn-primary">Check-in</button>' +
-                               '</form>';
-                    if (appointment.status === 'scheduled') {
-                        actions += '<form action="/cancel_appointment" method="POST" style="display:inline;">' +
-                                   '<input type="hidden" name="appointment_id" value="' + appointment.appointment_id + '">' +
-                                   '<button type="submit" class="btn btn-danger">Cancel</button>' +
-                                   '</form>';
-                    }
-                } else {
-                    actions = appointment.status;
-                }
-
-                row.innerHTML = '<td>' + appointment.patient_id + '</td>' +
-                                '<td>' + appointment.patient_name + '</td>' +
-                                '<td>' + appointment.appointment_date + '</td>' +
-                                '<td>' + (appointment.reason || 'Not specified') + '</td>' +
-                                '<td>' + appointment.status + '</td>' +
-                                '<td>' + actions + '</td>';
-
-                if (appointment.status === 'scheduled' && scheduledTbody) {
-                    scheduledTbody.prepend(row);
-                    const noApptMessage = scheduledTbody.parentElement.querySelector('p');
-                    if (noApptMessage) noApptMessage.remove();
-                } else if (appointment.status === 'waiting' && waitlistTbody) {
-                    waitlistTbody.prepend(row);
-                    const noWaitlistMessage = waitlistTbody.parentElement.querySelector('p');
-                    if (noWaitlistMessage) noWaitlistMessage.remove();
+        try {
+            const update = JSON.parse(event.data);
+            console.log('Appointment update:', update);
+            // Update UI (e.g., waitlist table)
+            const waitlistTbody = document.getElementById('waitlist-table-body');
+            if (waitlistTbody) {
+                const row = waitlistTbody.querySelector(`tr[data-appointment-id="${update.id}"]`);
+                if (update.status === 'helped' && row) {
+                    row.remove(); // Remove from waitlist
+                } else if (!row && update.status === 'waiting') {
+                    // Add new waitlist entry
+                    const newRow = document.createElement('tr');
+                    newRow.setAttribute('data-appointment-id', update.id);
+                    newRow.innerHTML = `
+                        <td>${update.id}</td>
+                        <td>${update.first_name} ${update.last_name}</td>
+                        <td>${update.appointment_date}</td>
+                        <td>${update.status}</td>
+                        <td>${update.reason || 'Not specified'}</td>
+                        <td>
+                            <form action="/assign_staff" method="POST" style="display:inline;">
+                                <input type="hidden" name="appointment_id" value="${update.id}">
+                                <select name="staff_id" required>
+                                    <option value="">Select Staff</option>
+                                    {% for staff in available_staff %}
+                                    <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-primary">Assign</button>
+                            </form>
+                        </td>
+                    `;
+                    waitlistTbody.prepend(newRow);
                 }
             }
+        } catch (e) {
+            console.error('Error processing SSE data:', e);
         }
     };
-
     source.onerror = function() {
-        console.error('SSE connection error. Reconnecting...');
+        console.warn('SSE connection error. Reconnecting in 5 seconds...');
+        source.close();
+        setTimeout(() => window.location.reload(), 5000);
     };
-});
+    window.addEventListener('beforeunload', () => source.close());
 </script>
+{% endblock %}
 {% endblock %}

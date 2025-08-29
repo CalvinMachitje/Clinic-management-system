@@ -18,15 +18,41 @@
             </div>
             <div class="form-group">
                 <label for="reason">Reason for Appointment</label>
-                <input type="text" id="reason" name="reason" class="form-control">
+                <select id="reason" name="reason" class="form-control" required>
+                    <option value="general">General Consultation</option>
+                    <option value="chronic">Chronic Condition</option>
+                    <option value="check-up">Check-up</option>
+                </select>
             </div>
             <button type="submit" class="btn btn-primary">Book Appointment</button>
         </form>
     </div>
     
+    <!-- Search Appointments -->
+    <div class="card search-appointments">
+        <h3>Search Appointments</h3>
+        <div class="form-group">
+            <label for="search-input">Search by Patient ID or Name</label>
+            <input type="text" id="search-input" class="form-control" placeholder="Enter Patient ID or Name">
+        </div>
+    </div>
+    
     <!-- All Appointments -->
     <div class="card all-appointments">
         <h3>All Appointments</h3>
+        <!-- Sorting Controls -->
+        <div class="form-group">
+            <label for="sort-appointments">Sort By</label>
+            <select id="sort-appointments" class="form-control">
+                <option value="all">All Appointments</option>
+                <option value="scheduled">Scheduled Appointments</option>
+                <option value="cancelled">Cancelled Appointments</option>
+                <option value="helped">Helped Appointments</option>
+                <option value="today">Today's Appointments</option>
+                <option value="week">This Week's Appointments</option>
+                <option value="month">This Month's Appointments</option>
+            </select>
+        </div>
         {% if appointments %}
         <table id="appointments-table" class="table">
             <thead>
@@ -36,17 +62,35 @@
                     <th>Appointment Time</th>
                     <th>Reason</th>
                     <th>Status</th>
+                    <th>Assigned Staff</th>
                     <th>Action</th>
                 </tr>
             </thead>
             <tbody id="appointments-tbody">
                 {% for appt in appointments %}
-                <tr data-appointment-id="{{ appt.id }}">
+                <tr data-appointment-id="{{ appt.id }}" class="{% if appt.reason == 'chronic' %}urgent{% endif %}">
                     <td>{{ appt.patient_id }}</td>
                     <td>{{ appt.first_name }} {{ appt.last_name }}</td>
                     <td>{{ appt.appointment_date }}</td>
                     <td>{{ appt.reason|default('Not specified') }}</td>
                     <td>{{ appt.status }}</td>
+                    <td>
+                        {% if appt.status == 'scheduled' or appt.status == 'waiting' %}
+                        <form action="{{ url_for('assign_staff') }}" method="POST" class="assign-staff-form" style="display:inline;">
+                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                            <select name="staff_id" class="form-control" style="display:inline-block; width:150px;" required>
+                                <option value="">Select Staff</option>
+                                {% for staff in available_staff %}
+                                {% if (appt.reason == 'general' and staff.role == 'nurse') or (appt.reason in ['chronic', 'check-up'] and staff.role == 'doctor') or (appt.reason == 'check-up' and staff.role == 'nurse') %}
+                                <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role|capitalize }})</option>
+                                {% endif %}
+                            </select>
+                            <button type="submit" class="btn btn-primary">Assign</button>
+                        </form>
+                        {% else %}
+                        {{ appt.helper_name or 'N/A' }} ({{ appt.helper_role or 'N/A' }})
+                        {% endif %}
+                    </td>
                     <td>
                         {% if appt.status == 'scheduled' %}
                         <form action="{{ url_for('cancel_appointment') }}" method="POST" style="display:inline;">
@@ -70,26 +114,210 @@
         <p>No appointments found.</p>
         {% endif %}
     </div>
+    
+    <!-- Helped Patients History -->
+    <div class="card helped-patients">
+        <h3>Helped Patients History</h3>
+        <table id="helped-patients-table" class="table">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Patient Name</th>
+                    <th>Reason</th>
+                    <th>Assigned Staff</th>
+                    <th>Helped At</th>
+                </tr>
+            </thead>
+            <tbody id="helped-patients-tbody">
+                {% for record in helped_patients %}
+                <tr>
+                    <td>{{ record.patient_id }}</td>
+                    <td>{{ record.first_name }} {{ record.last_name }}</td>
+                    <td>{{ record.reason }}</td>
+                    <td>{{ record.helper_name }} ({{ record.helper_role }})</td>
+                    <td>{{ record.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
+<!-- Assignment Confirmation Modal -->
+<div id="assign-modal" class="modal">
+    <div class="modal-content">
+        <h3>Confirm Staff Assignment</h3>
+        <p>Assign <span id="modal-staff-name"></span> to <span id="modal-patient-name"></span> for <span id="modal-reason"></span>?</p>
+        <button id="confirm-assign" class="btn btn-primary">Confirm</button>
+        <button id="cancel-assign" class="btn btn-danger">Cancel</button>
+    </div>
+</div>
+
+<script id="staff-data" type="application/json">
+{{ available_staff|tojson }}
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const source = new EventSource('/stream_appointments');
+    const tbody = document.getElementById('appointments-tbody');
+    const helpedTbody = document.getElementById('helped-patients-tbody');
+    let originalRows = [];
+    let helpedRecords = [];
 
+    // Parse staff JSON from a non-JS script tag to avoid template-brace parsing issues in editors
+    const staffDataEl = document.getElementById('staff-data');
+    const staffList = staffDataEl ? JSON.parse(staffDataEl.textContent || '[]') : [];
+
+    // Store original rows for sorting
+    if (tbody) {
+        originalRows = Array.from(tbody.getElementsByTagName('tr')).sort((a, b) => {
+            const dateA = new Date(a.cells[2].textContent.trim());
+            const dateB = new Date(b.cells[2].textContent.trim());
+            return dateA - dateB; // First-come, first-serve
+        });
+        sortAppointments(document.getElementById('sort-appointments')?.value || 'all');
+    }
+
+    // Sorting function
+    function sortAppointments(criteria) {
+        let filteredRows = originalRows;
+        const now = new Date('2025-08-27T11:53:00+02:00'); // Current date/time SAST
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        if (criteria === 'scheduled') {
+            filteredRows = originalRows.filter(row => row.cells[4].textContent.trim().toLowerCase() === 'scheduled');
+        } else if (criteria === 'cancelled') {
+            filteredRows = originalRows.filter(row => row.cells[4].textContent.trim().toLowerCase() === 'cancelled');
+        } else if (criteria === 'helped') {
+            filteredRows = originalRows.filter(row => row.cells[4].textContent.trim().toLowerCase() === 'helped');
+        } else if (criteria === 'today') {
+            filteredRows = originalRows.filter(row => {
+                const apptDate = new Date(row.cells[2].textContent.trim());
+                return apptDate >= todayStart && apptDate < todayEnd;
+            });
+        } else if (criteria === 'week') {
+            filteredRows = originalRows.filter(row => {
+                const apptDate = new Date(row.cells[2].textContent.trim());
+                return apptDate >= todayStart && apptDate < weekEnd;
+            });
+        } else if (criteria === 'month') {
+            filteredRows = originalRows.filter(row => {
+                const apptDate = new Date(row.cells[2].textContent.trim());
+                return apptDate >= todayStart && apptDate <= monthEnd;
+            });
+        }
+
+        tbody.innerHTML = '';
+        if (filteredRows.length === 0) {
+            const noApptMessage = document.createElement('p');
+            noApptMessage.textContent = 'No appointments found.';
+            tbody.parentElement.appendChild(noApptMessage);
+        } else {
+            filteredRows.forEach(row => tbody.appendChild(row));
+            const existingMessage = tbody.parentElement.querySelector('p');
+            if (existingMessage) existingMessage.remove();
+        }
+    }
+
+    // Handle sort selection
+    const sortSelect = document.getElementById('sort-appointments');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+            sortAppointments(this.value);
+        });
+    }
+
+    // Search functionality
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const filteredRows = originalRows.filter(row => {
+                const patientId = row.cells[0].textContent.toLowerCase();
+                const patientName = row.cells[1].textContent.toLowerCase();
+                return patientId.includes(query) || patientName.includes(query);
+            });
+            tbody.innerHTML = '';
+            if (filteredRows.length === 0) {
+                const noApptMessage = document.createElement('p');
+                noApptMessage.textContent = 'No appointments found.';
+                tbody.parentElement.appendChild(noApptMessage);
+            } else {
+                filteredRows.forEach(row => tbody.appendChild(row));
+                const existingMessage = tbody.parentElement.querySelector('p');
+                if (existingMessage) existingMessage.remove();
+            }
+        });
+    }
+
+    // Assignment confirmation modal
+    const modal = document.getElementById('assign-modal');
+    const confirmBtn = document.getElementById('confirm-assign');
+    const cancelBtn = document.getElementById('cancel-assign');
+    let activeForm = null;
+
+    document.querySelectorAll('.assign-staff-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            activeForm = this;
+            const staffSelect = this.querySelector('select[name="staff_id"]');
+            const staffName = staffSelect.options[staffSelect.selectedIndex].text;
+            const patientName = this.closest('tr').cells[1].textContent;
+            const reason = this.closest('tr').cells[3].textContent;
+            document.getElementById('modal-staff-name').textContent = staffName;
+            document.getElementById('modal-patient-name').textContent = patientName;
+            document.getElementById('modal-reason').textContent = reason;
+            modal.style.display = 'flex';
+        });
+    });
+
+    confirmBtn.addEventListener('click', function() {
+        if (activeForm) activeForm.submit();
+        modal.style.display = 'none';
+    });
+
+    cancelBtn.addEventListener('click', function() {
+        modal.style.display = 'none';
+        activeForm = null;
+    });
+
+    // SSE for real-time updates
     source.onmessage = function(event) {
         const appointment = JSON.parse(event.data);
         console.log('New appointment received:', appointment);
 
-        const tbody = document.getElementById('appointments-tbody');
         if (tbody && !document.querySelector(`[data-appointment-id="${appointment.appointment_id}"]`)) {
             const row = document.createElement('tr');
             row.setAttribute('data-appointment-id', appointment.appointment_id);
+            row.className = appointment.reason === 'chronic' ? 'urgent' : '';
+            let assignForm = '';
+            if (appointment.status === 'scheduled' || appointment.status === 'waiting') {
+                assignForm = `<form action="/assign_staff" method="POST" class="assign-staff-form" style="display:inline;">
+                    <input type="hidden" name="appointment_id" value="${appointment.appointment_id}">
+                    <select name="staff_id" class="form-control" style="display:inline-block; width:150px;" required>
+                        <option value="">Select Staff</option>`;
+                // Dynamically filter staff based on reason
+                staffList.forEach(staff => {
+                    if ((appointment.reason === 'general' && staff.role === 'nurse') ||
+                        (appointment.reason === 'chronic' && staff.role === 'doctor') ||
+                        (appointment.reason === 'check-up' && (staff.role === 'nurse' || staff.role === 'doctor'))) {
+                        assignForm += `<option value="${staff.id}">${staff.name} (${staff.role.charAt(0).toUpperCase() + staff.role.slice(1)})</option>`;
+                    }
+                });
+                assignForm += `</select>
+                    <button type="submit" class="btn btn-primary">Assign</button>
+                </form>`;
+            }
             row.innerHTML = `
                 <td>${appointment.patient_id}</td>
                 <td>${appointment.patient_name}</td>
                 <td>${appointment.appointment_date}</td>
                 <td>${appointment.reason || 'Not specified'}</td>
                 <td>${appointment.status}</td>
+                <td>${appointment.status === 'scheduled' || appointment.status === 'waiting' ? assignForm : (appointment.helper_name || 'N/A') + ' (' + (appointment.helper_role || 'N/A') + ')'}</td>
                 <td>
                     ${appointment.status === 'scheduled' ?
                       `<form action="/cancel_appointment" method="POST" style="display:inline;">
@@ -103,9 +331,26 @@ document.addEventListener('DOMContentLoaded', function() {
                        </form>` : appointment.status}
                 </td>
             `;
-            tbody.prepend(row);
-            const noApptMessage = tbody.parentElement.querySelector('p');
-            if (noApptMessage) noApptMessage.remove();
+            originalRows.unshift(row);
+            sortAppointments(sortSelect ? sortSelect.value : 'all');
+        }
+
+        // Update helped patients history
+        if (appointment.status === 'helped' && helpedTbody) {
+            const existingRow = helpedTbody.querySelector(`tr[data-appointment-id="${appointment.appointment_id}"]`);
+            if (!existingRow) {
+                const row = document.createElement('tr');
+                row.setAttribute('data-appointment-id', appointment.appointment_id);
+                row.innerHTML = `
+                    <td>${appointment.patient_id}</td>
+                    <td>${appointment.patient_name}</td>
+                    <td>${appointment.reason || 'Not specified'}</td>
+                    <td>${appointment.helper_name} (${appointment.helper_role})</td>
+                    <td>${appointment.timestamp}</td>
+                `;
+                helpedTbody.prepend(row);
+                helpedRecords.push(appointment);
+            }
         }
     };
 

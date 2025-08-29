@@ -62,6 +62,26 @@
             </div>
         </section>
 
+        <section class="news-section">
+            <h2>Latest Health News</h2>
+                <div class="news-cards">
+                    {% if articles %}
+                    {% for article in articles %}
+                        <div class="card">
+                             <h3>{{ article.title }}</h3>
+                            <p>{{ article.publishedAt[:10] }} - {{ article.description or 'No description available.' }}</p>
+                            <a href="{{ article.url }}" target="_blank" class="btn">Read More</a>
+                        </div>
+                    {% endfor %}
+                    {% else %}
+                <div class="card">
+                    <h3>No News Available</h3>
+                    <p>Unable to fetch health news at this time. Please try again later.</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
         <!-- Clinic Updates -->
         <section class="updates-section">
             <h2>Clinic Updates</h2>

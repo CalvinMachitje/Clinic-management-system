@@ -69,3 +69,33 @@ if (!document.querySelector('link[href*="fontawesome"]')) {
     fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css';
     document.head.appendChild(fontAwesome);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const newsContainer = document.querySelector('.news-cards');
+    const apiKey = 'your_newsapi_key_here'; // Not recommended: use server-side instead
+    const url = `https://newsapi.org/v2/top-headlines?category=health&country=za&pageSize=5&apiKey=${apiKey}`;
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            newsContainer.innerHTML = ''; // Clear static content
+            if (data.articles && data.articles.length > 0) {
+                data.articles.forEach(article => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <h3>${article.title}</h3>
+                        <p>${article.publishedAt.slice(0, 10)} - ${article.description || 'No description available.'}</p>
+                        <a href="${article.url}" target="_blank" class="btn">Read More</a>
+                    `;
+                    newsContainer.appendChild(card);
+                });
+            } else {
+                newsContainer.innerHTML = '<div class="card"><h3>No News Available</h3><p>Unable to fetch health news at this time.</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching news:', error);
+            newsContainer.innerHTML = '<div class="card"><h3>No News Available</h3><p>Unable to fetch health news at this time.</p></div>';
+        });
+});
