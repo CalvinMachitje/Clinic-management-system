@@ -2409,92 +2409,86 @@ def help():
         if conn:
             conn.close()
             
+# Fixed assign_staff function
+# Replace the existing function in script.py (around line 2367) with this version
+
 @app.route('/assign_staff', methods=['POST'])
 def assign_staff():
     if 'username' not in session or session.get('role') != 'receptionist':
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     conn = None
     try:
-        data = request.get_json()
-        appointment_id = data.get('appointment_id')
-        staff_id = data.get('staff_id')
+        # Handle both JSON and form data
+        if request.content_type == 'application/json':
+            data = request.get_json()
+            appointment_id = data.get('appointment_id')
+            staff_id = data.get('staff_id')
+        else:
+            # Handle form data
+            appointment_id = request.form.get('appointment_id')
+            staff_id = request.form.get('staff_id')
+        
         if not appointment_id or not staff_id:
-            return jsonify({'success': False, 'message': 'Appointment ID and staff ID are required'}), 400
-        conn = get_db_connection()
+            if request.content_type == 'application/json':
+                return jsonify({'success': False, 'message': 'Appointment ID and staff ID are required'}), 400
+            else:
+                flash('Appointment ID and staff ID are required', 'error')
+                return redirect(url_for('appointment_homepage'))
+        
+        conn = sqlite3.connect('clinicinfo.db')
         c = conn.cursor()
         c.execute("SELECT patient_id, reason FROM appointments WHERE id = ? AND status IN ('scheduled', 'waiting')", (appointment_id,))
         appt = c.fetchone()
         if not appt:
-            return jsonify({'success': False, 'message': 'Appointment not found or not eligible'}), 404
+            if request.content_type == 'application/json':
+                return jsonify({'success': False, 'message': 'Appointment not found or not eligible'}), 404
+            else:
+                flash('Appointment not found or not eligible', 'error')
+                return redirect(url_for('appointment_homepage'))
+        
         c.execute("SELECT id, first_name, last_name, role FROM employees WHERE staff_number = ?", (staff_id,))
         staff = c.fetchone()
         if not staff:
-            return jsonify({'success': False, 'message': 'Staff not found'}), 404
+            if request.content_type == 'application/json':
+                return jsonify({'success': False, 'message': 'Staff not found'}), 404
+            else:
+                flash('Staff not found', 'error')
+                return redirect(url_for('appointment_homepage'))
+        
         c.execute("""
             INSERT INTO helped_patients (patient_id, appointment_id, nurse_id, helped_timestamp, notes)
             VALUES (?, ?, ?, ?, ?)
-        """, (appt['patient_id'], appointment_id, staff['id'], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Assigned by receptionist'))
+        """, (appt[0], appointment_id, staff[0], datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'Assigned by receptionist'))
         c.execute("UPDATE appointments SET status = 'helped' WHERE id = ?", (appointment_id,))
         conn.commit()
+        
+        # Add to queue for real-time updates
         with queue_lock:
             appointment_queue.put({
                 'appointment_id': appointment_id,
-                'patient_id': appt['patient_id'],
-                'patient_name': f"{staff['first_name']} {staff['last_name']}",
-                'appointment_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'reason': appt['reason'],
+                'patient_id': appt[0],
                 'status': 'helped',
-                'helper_name': f"{staff['first_name']} {staff['last_name']}",
-                'helper_role': staff['role']
+                'helper_name': f"{staff[1]} {staff[2]}",
+                'helper_role': staff[3],
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             })
-        return jsonify({'success': True, 'message': 'Staff assigned successfully'})
+        
+        if request.content_type == 'application/json':
+            return jsonify({'success': True, 'message': 'Staff assigned successfully'})
+        else:
+            flash('Staff assigned successfully', 'success')
+            return redirect(url_for('appointment_homepage'))
+            
     except sqlite3.Error as e:
         logger.error(f"Database error in assign_staff: {e}")
-        return jsonify({'success': False, 'message': 'Database error occurred'}), 500
+        if request.content_type == 'application/json':
+            return jsonify({'success': False, 'message': 'Database error occurred'}), 500
+        else:
+            flash('Database error occurred', 'error')
+            return redirect(url_for('appointment_homepage'))
     finally:
         if conn:
             conn.close()
-
-#@app.route('/helped_patients_report')
-#def helped_patients_report():
-#    if 'username' not in session or session.get('role') != 'receptionist':
-#        return jsonify({'error': 'Unauthorized'}), 403
-#    conn = None
-#   try:
-#        conn = get_db_connection()
-#         c = conn.cursor()
-#         c.execute("""
-#             SELECT hp.id, hp.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
-#                    hp.appointment_id, a.appointment_date, hp.nurse_id,
-#                    e.first_name || ' ' || e.last_name AS nurse_name,
-#                    hp.helped_timestamp, hp.notes, a.reason
-#             FROM helped_patients hp
-#             JOIN patients p ON hp.patient_id = p.id
-#             JOIN appointments a ON hp.appointment_id = a.id
-#             JOIN employees e ON hp.nurse_id = e.id
-#             ORDER BY hp.helped_timestamp DESC
-#         """)
-#         helped_patients = [
-#             {
-#                 'id': row['id'],
-#                 'patient_id': row['patient_id'],
-#                 'patient_name': row['patient_name'],
-#                 'appointment_id': row['appointment_id'],
-#                 'appointment_date': row['appointment_date'],
-#                 'nurse_id': row['nurse_id'],
-#                 'nurse_name': row['nurse_name'],
-#                 'helped_timestamp': row['helped_timestamp'],
-#                 'notes': row['notes'],
-#                 'reason': row['reason'] or 'Not specified'
-#             } for row in c.fetchall()
-#         ]
-#         return jsonify({'helped_patients': helped_patients})
-#     except sqlite3.Error as e:
-#         logger.error(f"Database error in helped_patients_report: {e}")
-#         return jsonify({'error': 'Database error occurred'}), 500
-#     finally:
-#         if conn:
-#             conn.close()
 
 if __name__ == '__main__':
     try:

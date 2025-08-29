@@ -84,6 +84,7 @@
                                 {% if (appt.reason == 'general' and staff.role == 'nurse') or (appt.reason in ['chronic', 'check-up'] and staff.role == 'doctor') or (appt.reason == 'check-up' and staff.role == 'nurse') %}
                                 <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role|capitalize }})</option>
                                 {% endif %}
+                                {% endfor %}
                             </select>
                             <button type="submit" class="btn btn-primary">Assign</button>
                         </form>
