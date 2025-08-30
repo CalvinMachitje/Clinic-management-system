@@ -48,7 +48,6 @@ Usage
 Login with role-based credentials.
 Patients submit symptoms via portal for AI triage.
 Navigate dashboards post-login.
-Deploy with WSGI (e.g., Gunicorn) for production.
 
 Risk Mitigations
 
