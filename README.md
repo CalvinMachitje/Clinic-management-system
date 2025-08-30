@@ -19,7 +19,7 @@ Core Functionality
 
 Patient Management: Store and retrieve patient data (name, contact, medical history, triage results, status).
 Appointment Scheduling: Online booking with real-time status updates (pending/helped/cancelled) and SMS reminders.
-AI Integration: Patient self-triage using APIs like Infermedica to recommend actions (e.g., "Consult Nurse" or "See Doctor").
+AI Integration: Patient self-triage using health/medical APIs to recommend actions (e.g., "Consult Nurse" or "See Doctor").
 Security: Role-based access control, password hashing, and secure API key storage via environment variables.
 Performance Tracking: Logs staff actions, with metrics like database size and system uptime.
 
@@ -30,14 +30,6 @@ Nurse Dashboard: Manage waiting lists and triage; table with patient details and
 Receptionist Dashboard: Track appointments; table with filters for daily views and triage submissions.
 Doctor Dashboard: Access patient data; table for records, history, and updates.
 Admin Dashboard: Oversee performance; summaries, staff tables, and filters.
-
-Database Schema
-Uses SQLite (e.g., clinicinfo.db). Key tables:
-
-employees: staff_id (PK), name, role, email, password_hash.
-patients: patient_id (PK), name, contact, medical_history, triage_result, status.
-appointments: appointment_id (PK), patient_id (FK), staff_id (FK), date, time, status, helper_id (FK).
-performance_logs: log_id (PK), staff_id (FK), action, timestamp.
 
 Installation
 Prerequisites
