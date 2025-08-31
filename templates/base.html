@@ -1,93 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{% block title %}Township Clinic{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-  <!-- Include FontAwesome or your icon library -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}ClinicCare — Dashboard{% endblock %}</title>
+
+  <!-- Icons + Styles -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=2">
+
+  <!-- Theme system -->
+  <script>
+    // Optional: keep dark/light theme in sync
+    document.documentElement.dataset.theme = "{{ session.theme or 'light' }}";
+  </script>
+
+  <!-- Update current-time CSS variable -->
+  <style>
+    :root {
+      --current-time: "02:39 AM SAST, August 31, 2025";
+    }
+  </style>
 </head>
-<body class="{% if session.get('role') %}non-default-page{% else %}default-page{% endif %}">
-  
+<body class="dashboard-page">
+  <!-- Sidebar Toggle Button -->
+  <button class="menu-toggle">☰</button>
+
   <!-- Sidebar -->
-  <nav class="sidebar" role="navigation" aria-label="Sidebar Navigation" tabindex="0" aria-expanded="true" aria-hidden="false" aria-controls="main-content">
-    <div class="logo" aria-label="Clinic Logo">Township Clinic</div>
-    <div class="user-info" aria-label="Logged in user info">
-      <img src="{{ url_for('static', filename='profile_images/' + user_details.get('profile_image', 'default.jpg')) }}" alt="User profile image" width="40" height="40" />
-      <div>
-        <span style="font-weight: 600;">
-          {{ user_details.get('first_name', '') }} {{ user_details.get('last_name', '') }}!
-        </span><br/>
-        <small>Staff Number: {{ user_details.get('staff_number', 'N/A') }}</small>
-      </div>
-    </div>
-    <ul role="menu" aria-label="Primary Menu">
-      {% if session.get('role') == 'admin' %}
-        <li role="none"><a role="menuitem" href="{{ url_for('overview') }}"><i class="fas fa-eye"></i> Overview</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('system_settings') }}"><i class="fas fa-cogs"></i> System Settings</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('admin_report') }}"><i class="fas fa-chart-bar"></i> Reports</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('user_management') }}"><i class="fas fa-users"></i> Users</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('staff_counseling') }}"><i class="fas fa-users-cog"></i> Staff Counseling & Development</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('calendar') }}"><i class="fas fa-calendar"></i> Calendar</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Announcements</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('preferences') }}"><i class="fas fa-sliders-h"></i> Preferences</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('worksite_setup') }}"><i class="fas fa-tools"></i> Worksite Setup</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('trusted_application') }}"><i class="fas fa-shield-alt"></i> Trusted Application</a></li>
-      {% elif session.get('role') == 'doctor' %}
-        <li role="none"><a role="menuitem" href="{{ url_for('doctor_overview') }}"><i class="fas fa-eye"></i> Overview</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('doctor_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('patients_list') }}"><i class="fas fa-users"></i> Patients</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('doctor_report') }}"><i class="fas fa-chart-bar"></i> Reports</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('appointment_homepage') }}"><i class="fas fa-calendar-check"></i> Appointments</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('staff_counseling') }}"><i class="fas fa-users-cog"></i> Staff Counseling & Development</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('calendar') }}"><i class="fas fa-calendar"></i> Calendar</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Announcements</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('preferences') }}"><i class="fas fa-sliders-h"></i> Preferences</a></li>
-      {% elif session.get('role') == 'nurse' %}
-        <li role="none"><a role="menuitem" href="{{ url_for('nurse_dashboard') }}"><i class="fas fa-stethoscope"></i> Dashboard</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('patients_list') }}"><i class="fas fa-users"></i> Patients</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('staff_counseling') }}"><i class="fas fa-users-cog"></i> Staff Counseling & Development</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('calendar') }}"><i class="fas fa-calendar"></i> Calendar</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Announcements</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('preferences') }}"><i class="fas fa-sliders-h"></i> Preferences</a></li>
-      {% elif session.get('role') == 'receptionist' %}
-        <li role="none"><a role="menuitem" href="{{ url_for('reception_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('appointment_homepage') }}"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('check_in_page') }}"><i class="fas fa-clipboard-check"></i> Check-in Desk</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('helped_patients_report') }}"><i class="fas fa-chart-line"></i> Patient Reports</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('add_patient') }}"><i class="fas fa-user-plus"></i> Add New Patient</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('patients_list') }}"><i class="fas fa-users"></i> All Patients</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('generate_daily_report') }}"><i class="fas fa-file-alt"></i> Daily Reports</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('calendar') }}"><i class="fas fa-calendar"></i> Calendar</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Announcements</a></li>
-        <li role="none"><a role="menuitem" href="{{ url_for('preferences') }}"><i class="fas fa-sliders-h"></i> Preferences</a></li>
+  <aside class="sidebar">
+    <div class="logo">ClinicCare</div>
+    <nav>
+      {% if session.username %}
+        <div class="user-info">
+          <img src="{{ url_for('static', filename='images/user-placeholder.png') }}" alt="User Avatar">
+          <span>{{ session.username }}</span>
+        </div>
+
+        {% if session.role == 'receptionist' %}
+          <ul>
+            <li><a href="{{ url_for('reception_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('appointment_homepage') }}"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
+            <li><a href="{{ url_for('check_in_page') }}"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
+            <li><a href="{{ url_for('helped_patients_report') }}"><i class="fas fa-file-alt"></i> Patient Report</a></li>
+            <li><a href="{{ url_for('reception_announcements') }}"><i class="fas fa-bullhorn"></i> Announcements</a></li>
+            <li><a href="{{ url_for('search_patient') }}"><i class="fas fa-search"></i> Search Patients</a></li>
+            <li><a href="#" onclick="openModal('addPatientModal')"><i class="fas fa-user-plus"></i> Add Patient</a></li>
+          </ul>
+        {% elif session.role == 'doctor' %}
+          <ul>
+            <li><a href="{{ url_for('doctor_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('doctor_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
+            <li><a href="{{ url_for('doctor_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
+          </ul>
+        {% elif session.role == 'nurse' %}
+          <ul>
+            <li><a href="{{ url_for('nurse_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('nurse_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
+          </ul>
+        {% elif session.role == 'admin' %}
+          <ul>
+            <li><a href="{{ url_for('admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('admin_manage_users') }}"><i class="fas fa-users"></i> Manage Users</a></li>
+            <li><a href="{{ url_for('admin_system_settings') }}"><i class="fas fa-cog"></i> System Settings</a></li>
+            <li><a href="{{ url_for('admin_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
+          </ul>
+        {% endif %}
+
+        <ul>
+          <li><a href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
+          <li>
+            <form action="{{ url_for('change_theme') }}" method="POST" class="theme-form">
+              <select name="theme" onchange="this.form.submit()">
+                <option value="dark" {% if session.theme == 'dark' %}selected{% endif %}>Dark</option>
+                <option value="light" {% if session.theme == 'light' %}selected{% endif %}>Light</option>
+              </select>
+            </form>
+          </li>
+          <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+
+      {% else %}
+        <ul>
+          <li><a href="{{ url_for('default_page') }}"><i class="fas fa-home"></i> Home</a></li>
+          <li><a href="{{ url_for('vaccinations_homepage') }}"><i class="fas fa-syringe"></i> Vaccinations</a></li>
+          <li><a href="{{ url_for('consultation_homepage') }}"><i class="fas fa-stethoscope"></i> Consultations</a></li>
+          <li><a href="{{ url_for('appointments_homepage') }}"><i class="fas fa-calendar-check"></i> Appointments</a></li>
+          <li><a href="{{ url_for('emergency_homepage') }}"><i class="fas fa-ambulance"></i> Emergency</a></li>
+          <li><a href="{{ url_for('about') }}"><i class="fas fa-info-circle"></i> About</a></li>
+          <li><a href="{{ url_for('contact') }}"><i class="fas fa-envelope"></i> Contact</a></li>
+          <li><a href="{{ url_for('login_page') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+          <li><a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a></li>
+        </ul>
       {% endif %}
+    </nav>
+  </aside>
 
-      <li role="none"><a role="menuitem" href="{{ url_for('system_guides') }}"><i class="fas fa-book"></i> System Guides</a></li>
-      <li role="none"><a role="menuitem" href="{{ url_for('email_info') }}"><i class="fas fa-envelope"></i> Email Info</a></li>
-      <li role="none"><a role="menuitem" href="{{ url_for('help') }}"><i class="fas fa-question-circle"></i> Help</a></li>
-      <li role="none"><a role="menuitem" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-    </ul>
-  </nav>
-
-  <!-- Main Content -->
-  <main class="dashboard-content" id="main-content" tabindex="-1">
+  <!-- Dashboard Content -->
+  <main class="dashboard">
+    <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          <div class="alert {{ category }}">{{ message }}</div>
+          <div class="alert alert-{{ category }}">
+            <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+            {{ message }}
+            <button class="close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+          </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
-    
+
+    <!-- Page content -->
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Receptionist: Add Patient Modal -->
+  {% if session.role == 'receptionist' %}
+  <div class="modal" id="addPatientModal">
+    <div class="modal__content">
+      <h2>Add New Patient</h2>
+      <form action="{{ url_for('add_patient') }}" method="POST">
+        <div class="form-group">
+          <label for="first_name">First Name</label>
+          <input type="text" id="first_name" name="first_name" class="control" required>
+        </div>
+        <div class="form-group">
+          <label for="last_name">Last Name</label>
+          <input type="text" id="last_name" name="last_name" class="control" required>
+        </div>
+        <div class="form-group">
+          <label for="date_of_birth">Date of Birth</label>
+          <input type="date" id="date_of_birth" name="date_of_birth" class="control" required>
+        </div>
+        <div class="form-group">
+          <label for="gender">Gender</label>
+          <select id="gender" name="gender" class="control">
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="address">Address</label>
+          <input type="text" id="address" name="address" class="control">
+        </div>
+        <div class="form-group">
+          <label for="phone">Phone</label>
+          <input type="text" id="phone" name="phone" class="control">
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" class="control">
+        </div>
+        <div class="form-group">
+          <label for="emergency_contact_name">Emergency Contact Name</label>
+          <input type="text" id="emergency_contact_name" name="emergency_contact_name" class="control">
+        </div>
+        <div class="form-group">
+          <label for="emergency_contact_phone">Emergency Contact Phone</label>
+          <input type="text" id="emergency_contact_phone" name="emergency_contact_phone" class="control">
+        </div>
+        <div class="form-group">
+          <label for="medical_history">Medical History</label>
+          <textarea id="medical_history" name="medical_history" class="control"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="allergies">Allergies</label>
+          <textarea id="allergies" name="allergies" class="control"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="current_medications">Current Medications</label>
+          <textarea id="current_medications" name="current_medications" class="control"></textarea>
+        </div>
+        <div class="flex gap-4 mt-4">
+          <button type="submit" class="btn btn-primary">Add Patient</button>
+          <button type="button" class="btn btn-danger" onclick="closeModal('addPatientModal')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Scripts -->
+  <script>
+    function openModal(id) { document.getElementById(id).setAttribute("open", "true"); }
+    function closeModal(id) { document.getElementById(id).removeAttribute("open"); }
+
+    // Sidebar toggle functionality
+    document.querySelector('.menu-toggle').addEventListener('click', () => {
+      document.querySelector('.sidebar').classList.toggle('active');
+      document.querySelector('.dashboard').classList.toggle('active');
+    });
+  </script>
+  <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Patient Profile - Township Clinic{% endblock %}
+
+{% block content %}
+<div class="patient-profile-container">
+    <header>
+        <h2>Patient Profile: {{ patient.first_name }} {{ patient.last_name }}</h2>
+        <p>Patient ID: {{ patient.id }}</p>
+    </header>
+    <section>
+        <h3>Personal Information</h3>
+        <p><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
+        <p><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
+    </section>
+    <section>
+        <h3>Medical Information</h3>
+        <p><strong>Medical History:</strong> {{ patient.medical_history }}</p>
+        <p><strong>Allergies:</strong> {{ patient.allergies }}</p>
+        <p><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
+    </section>
+    <a href="{{ url_for('doctor_dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+    <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-primary">Prescribe Medication</a>
+</div>
+{% endblock %}

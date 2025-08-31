@@ -2,110 +2,138 @@
 {% block title %}Doctor Dashboard - Township Clinic{% endblock %}
 
 {% block head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/doctor_dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/doctor_dashboard.css') }}">
 {% endblock %}
 
 {% block content %}
 <div class="doctor-dash-container">
+    <header class="doctor-dash-header">
+        <h2>👨‍⚕️ Dr. {{ user_details.first_name }} {{ user_details.last_name }}'s Dashboard</h2>
+        <p>Welcome back! Here's your overview for {{ now.strftime('%B %d, %Y') }}.</p>
+    </header>
 
-  <header class="doctor-dash-header">
-    <h2>👨‍⚕️ Dr. {{ user_details.first_name }}'s Dashboard</h2>
-    <p>Welcome back! Here's your overview for today.</p>
-  </header>
+    <section class="doctor-dash-top">
+        <div class="doctor-card schedule-card">
+            <h3>Today's Appointments</h3>
+            {% if patients_today %}
+            <ul class="appointments-list">
+                {% for patient in patients_today %}
+                <li>
+                    <strong>{{ patient.first_name }} {{ patient.last_name }}</strong> (ID: {{ patient.id }}) 
+                    at {{ patient.appointment_time if patient.appointment_time else 'Time TBD' }}
+                    <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">View Profile</a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p>No appointments for today.</p>
+            {% endif %}
+        </div>
 
-  <section class="doctor-dash-top">
-    <div class="doctor-card schedule-card">
-      <h3>Today's Appointments ({{ now.strftime('%B %d, %Y') }})</h3>
-      {% if patients_today %}
-      <ul class="appointments-list">
-        {% for patient in patients_today %}
-          <li>
-            <strong>{{ patient.first_name }} {{ patient.last_name }}</strong>
-            (ID: {{ patient.id }}) at {{ patient.appointment_time if patient.appointment_time else "Time TBD" }}
-            <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">View Profile</a>
-          </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p>No appointments for today. Enjoy your day!</p>
-      {% endif %}
-    </div>
+        <div class="doctor-card quick-stats-card">
+            <h3>Quick Stats</h3>
+            <ul>
+                <li><strong>Total Patients:</strong> {{ total_patients }}</li>
+                <li><strong>Chronic Cases:</strong> {{ chronic_patients }}</li>
+                <li><strong>Pending Lab Results:</strong> {{ pending_lab_results | default(0) }}</li>
+                <li><strong>Unread Messages:</strong> {{ unread_messages | default(0) }}</li>
+            </ul>
+            <a href="{{ url_for('announcements') }}" class="btn btn-primary btn-block">View Messages</a>
+        </div>
+    </section>
 
-    <div class="doctor-card quick-stats-card">
-      <h3>Quick Stats</h3>
-      <ul>
-        <li><strong>Total Patients:</strong> {{ total_patients }}</li>
-        <li><strong>Chronic Cases:</strong> {{ chronic_patients }}</li>
-        <li><strong>Pending Lab Results:</strong> {{ pending_lab_results }}</li>
-        <li><strong>Unread Messages:</strong> {{ unread_messages }}</li>
-      </ul>
-      <a href="{{ url_for('edit_employee') }}" class="btn btn-primary btn-block">View Messages</a>
-    </div>
-  </section>
+    <section class="nhs-condition-search">
+        <h3>Search NHS Conditions</h3>
+        <input type="text" id="nhsConditionSearch" placeholder="🔍 Search medical conditions (e.g., diabetes)..." autocomplete="off">
+        <div id="nhsConditionResults" class="condition-results"></div>
+    </section>
 
-  <section class="doctor-dash-patients">
-    <h3>Patient Directory</h3>
-    <input type="text" id="searchInput" placeholder="🔍 Search patients by name or ID..." onkeyup="filterPatients()" autocomplete="off">
+    <section class="doctor-dash-patients">
+        <h3>Patient Directory</h3>
+        <input type="text" id="searchInput" placeholder="🔍 Search patients by name or ID..." onkeyup="filterPatients()" autocomplete="off">
+        <table id="patientsTable" class="table">
+            <thead>
+                <tr>
+                    <th>ID</th><th>First Name</th><th>Last Name</th><th>DOB</th><th>Gender</th><th>Last Visit</th><th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for patient in patients %}
+                <tr>
+                    <td>{{ patient.id }}</td>
+                    <td>{{ patient.first_name }}</td>
+                    <td>{{ patient.last_name }}</td>
+                    <td>{{ patient.date_of_birth or 'Not specified' }}</td>
+                    <td>{{ patient.gender or 'Not specified' }}</td>
+                    <td>{{ patient.last_visit_date or 'N/A' }}</td>
+                    <td>
+                        <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">Profile</a>
+                        <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-sm btn-alt">Prescription</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
 
-    <table id="patientsTable" class="table">
-      <thead>
-        <tr>
-          <th>ID</th><th>First Name</th><th>Last Name</th><th>DOB</th><th>Gender</th><th>Last Visit</th><th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for patient in patients %}
-        <tr>
-          <td>{{ patient.id }}</td>
-          <td>{{ patient.first_name }}</td>
-          <td>{{ patient.last_name }}</td>
-          <td>{{ patient.date_of_birth }}</td>
-          <td>{{ patient.gender }}</td>
-          <td>{{ patient.last_visit_date }}</td>
-          <td>
-            <a href="{{ url_for('patient_profile', patient_id=patient.id) }}" class="btn btn-sm">Profile</a>
-            <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-sm btn-alt">Prescription</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-
-  <section class="doctor-dash-reminders">
-    <h3>Reminders & Alerts</h3>
-    {% if reminders %}
-    <ul class="reminder-list">
-      {% for reminder in reminders %}
-      <li>
-        <strong>{{ reminder.title }}</strong> — <em>{{ reminder.date }}</em><br>
-        {{ reminder.description }}
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-      <p>No reminders or alerts at the moment.</p>
-    {% endif %}
-  </section>
+    <section class="doctor-dash-reminders">
+        <h3>Reminders & Alerts</h3>
+        {% if reminders %}
+        <ul class="reminder-list">
+            {% for reminder in reminders %}
+            <li>
+                <strong>{{ reminder.title }}</strong> — <em>{{ reminder.date }}</em><br>
+                {{ reminder.description }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No reminders or alerts at the moment.</p>
+        {% endif %}
+    </section>
 </div>
 
 <script>
-  function filterPatients() {
-    const input = document.getElementById("searchInput").value.toLowerCase();
-    const table = document.getElementById("patientsTable");
-    const rows = table.tBodies[0].rows;
-
-    for (let row of rows) {
-      const firstName = row.cells[1].textContent.toLowerCase();
-      const lastName = row.cells[2].textContent.toLowerCase();
-      const id = row.cells[0].textContent.toLowerCase();
-      const searchText = input.trim();
-      row.style.display =
-        (firstName.includes(searchText) ||
-        lastName.includes(searchText) ||
-        id.includes(searchText))
-        ? '' : 'none';
+    // Patient search
+    function filterPatients() {
+        const input = document.getElementById("searchInput").value.toLowerCase();
+        const table = document.getElementById("patientsTable");
+        const rows = table.tBodies[0].rows;
+        for (let row of rows) {
+            const firstName = row.cells[1].textContent.toLowerCase();
+            const lastName = row.cells[2].textContent.toLowerCase();
+            const id = row.cells[0].textContent.toLowerCase();
+            row.style.display = (firstName.includes(input) || lastName.includes(input) || id.includes(input)) ? '' : 'none';
+        }
     }
-  }
+
+    // NHS condition search
+    document.getElementById("nhsConditionSearch").addEventListener("input", async function() {
+        const query = this.value;
+        if (query.length < 2) {
+            document.getElementById("nhsConditionResults").innerHTML = "";
+            return;
+        }
+        try {
+            const response = await fetch(`/search_nhs_conditions?query=${encodeURIComponent(query)}`);
+            const conditions = await response.json();
+            const results = document.getElementById("nhsConditionResults");
+            if (conditions.length === 0) {
+                results.innerHTML = "<p>No results found.</p>";
+                return;
+            }
+            results.innerHTML = conditions.map(c => `
+                <div class="condition-card">
+                    <h4>${c.name}</h4>
+                    <p><strong>Description:</strong> ${c.description}</p>
+                    <p><strong>Symptoms:</strong> ${c.symptoms.join(", ")}</p>
+                    <p><strong>Treatment:</strong> ${c.treatment}</p>
+                </div>
+            `).join("");
+        } catch (error) {
+            console.error("Error fetching NHS conditions:", error);
+            document.getElementById("nhsConditionResults").innerHTML = "<p>Error fetching conditions.</p>";
+        }
+    });
 </script>
 {% endblock %}
