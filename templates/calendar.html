@@ -1,34 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Calendar - Township Clinic{% endblock %}
 {% block content %}
-    <h1>Monthly Clinic Calendar</h1>
-    <p>Today is <strong>{{ now.strftime('%A, %B %d, %Y') }}</strong>.</p>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Monthly Clinic Calendar</h1>
+    <p class="text-lg mb-4">Today is <strong>{{ now.strftime('%A, %B %d, %Y') }}</strong>.</p>
 
-    <div class="calendar-nav">
-        <a href="{{ url_for('calendar', year=prev_year, month=prev_month) }}">&laquo; Previous</a>
-        <span>{{ calendar_month_name }} {{ calendar_year }}</span>
-        <a href="{{ url_for('calendar', year=next_year, month=next_month) }}">Next &raquo;</a>
+    <div class="flex justify-center items-center mb-6 calendar-nav">
+        <a href="{{ url_for('calendar', year=prev_year, month=prev_month) }}" class="btn btn-primary mr-4">&laquo; Previous</a>
+        <span class="text-xl font-semibold">{{ calendar_month_name }} {{ calendar_year }}</span>
+        <a href="{{ url_for('calendar', year=next_year, month=next_month) }}" class="btn btn-primary ml-4">Next &raquo;</a>
     </div>
 
-    <table class="calendar">
-        <thead>
+    <table class="w-full table-auto border-collapse calendar">
+        <thead class="bg-gray-100">
             <tr>
-                <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th>
-                <th>Thu</th><th>Fri</th><th>Sat</th>
+                <th class="p-2">Sun</th><th class="p-2">Mon</th><th class="p-2">Tue</th><th class="p-2">Wed</th>
+                <th class="p-2">Thu</th><th class="p-2">Fri</th><th class="p-2">Sat</th>
             </tr>
         </thead>
         <tbody>
         {% for week in calendar_weeks %}
             <tr>
             {% for day in week %}
-                <td class="{% if day.is_today %}today{% endif %}{% if day.has_appointments %} has-appointments{% endif %}{% if day.has_events %} has-events{% endif %}">
+                <td class="p-2 border {% if day.is_today %}today bg-yellow-100{% endif %}{% if day.has_appointments %} has-appointments bg-green-50{% endif %}{% if day.has_events %} has-events bg-blue-50{% endif %}">
                     {% if day.day %}
-                        <div class="date-num">{{ day.day }}</div>
+                        <div class="date-num font-bold">{{ day.day }}</div>
                         {% if day.has_appointments %}
-                            <span class="badge appointments">{{ day.appointment_count }} Appt.</span>
+                            <span class="badge appointments text-xs bg-green-200 text-green-800 rounded-full px-2 py-1">{{ day.appointment_count }} Appt.</span>
                         {% endif %}
                         {% if day.has_events %}
-                            <span class="badge events">{{ day.event_count }} Event(s)</span>
+                            <span class="badge events text-xs bg-blue-200 text-blue-800 rounded-full px-2 py-1">{{ day.event_count }} Event(s)</span>
                         {% endif %}
                     {% endif %}
                 </td>
@@ -38,14 +39,14 @@
         </tbody>
     </table>
 
-    <hr>
+    <hr class="my-8">
 
     {% if session.get('role') == 'receptionist' %}
-        <h3>Today's Appointments ({{ patients_today|length }})</h3>
+        <h3 class="text-2xl font-semibold mb-4">Today's Appointments ({{ patients_today|length }})</h3>
         {% if patients_today %}
-            <ul>
+            <ul class="space-y-4">
             {% for patient in patients_today %}
-                <li>
+                <li class="bg-white rounded-md p-4 shadow-sm">
                     <strong>{{ patient.first_name }} {{ patient.last_name }}</strong> –
                     ID: {{ patient.patient_id }},
                     Time: {{ patient.appointment_time }},
@@ -55,14 +56,14 @@
             {% endfor %}
             </ul>
         {% else %}
-            <p>No patients scheduled for today.</p>
+            <p class="text-center text-gray-600">No patients scheduled for today.</p>
         {% endif %}
 
-        <h3>Upcoming Clinic Events</h3>
+        <h3 class="text-2xl font-semibold mb-4 mt-8">Upcoming Clinic Events</h3>
         {% if events_this_month %}
-            <ul>
+            <ul class="space-y-4">
             {% for event in events_this_month %}
-                <li>
+                <li class="bg-white rounded-md p-4 shadow-sm">
                     <strong>{{ event.title }}</strong> –
                     {{ event.date.strftime('%b %d') }}:
                     {{ event.description }}
@@ -70,15 +71,15 @@
             {% endfor %}
             </ul>
         {% else %}
-            <p>No special events this month.</p>
+            <p class="text-center text-gray-600">No special events this month.</p>
         {% endif %}
 
     {% elif session.get('role') in ['doctor', 'nurse'] %}
-        <h3>Your Upcoming Appointments</h3>
+        <h3 class="text-2xl font-semibold mb-4">Your Upcoming Appointments</h3>
         {% if user_appointments %}
-            <ul>
+            <ul class="space-y-4">
             {% for appt in user_appointments %}
-                <li>
+                <li class="bg-white rounded-md p-4 shadow-sm">
                     {{ appt.date.strftime('%A, %B %d at %H:%M') }} –
                     {{ appt.patient_first_name }} {{ appt.patient_last_name }},
                     Reason: {{ appt.reason }}
@@ -86,7 +87,8 @@
             {% endfor %}
             </ul>
         {% else %}
-            <p>No appointments assigned to you this month.</p>
+            <p class="text-center text-gray-600">No appointments assigned to you this month.</p>
         {% endif %}
     {% endif %}
+</div>
 {% endblock %}

@@ -1,22 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Preferences - Township Clinic{% endblock %}
 {% block content %}
-    <div class="dashboard-content">
-        <h2>Preferences</h2>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <form method="POST" action="{{ url_for('preferences') }}">
-            <label for="theme">Select Theme:</label>
-            <select name="theme" id="theme">
+<div class="container mx-auto px-4 py-8 dashboard-content">
+    <h2 class="text-3xl font-bold mb-6">Preferences</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} mb-4">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <form method="POST" action="{{ url_for('preferences') }}" class="bg-white rounded-lg shadow-md p-6 max-w-md">
+        <div class="form-group mb-4">
+            <label for="theme" class="block text-sm font-medium text-gray-700">Select Theme:</label>
+            <select name="theme" id="theme" class="mt-1 p-2 w-full border rounded-md">
                 <option value="dark" {% if current_theme == 'dark' %}selected{% endif %}>Dark</option>
                 <option value="light" {% if current_theme == 'light' %}selected{% endif %}>Light</option>
             </select>
-            <button type="submit" class="btn">Save Preferences</button>
-        </form>
-    </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Save Preferences</button>
+    </form>
+</div>
 {% endblock %}

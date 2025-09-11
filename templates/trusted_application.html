@@ -1,13 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Trusted Application - Township Clinic{% endblock %}
 {% block content %}
-    <h1>Trusted Application</h1>
-    <p>Manage trusted applications for secure access. Only admins can add or remove applications.</p>
-    <ul>
-        <li>Current Trusted App: Clinic Portal</li>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Trusted Application</h1>
+    <p class="text-lg mb-6">Manage trusted applications for secure access. Only admins can add or remove applications.</p>
+    <ul class="space-y-4 mb-6">
+        <li class="bg-white rounded-lg shadow-md p-4">Current Trusted App: Clinic Portal</li>
     </ul>
-    <form method="POST" action="{{ url_for('trusted_application') }}">
-        <label>App Name: <input type="text" name="app_name"></label>
-        <button type="submit">Add</button>
+    <form method="POST" action="{{ url_for('trusted_application') }}" class="bg-white rounded-lg shadow-md p-6 max-w-md">
+        <div class="form-group mb-4">
+            <label for="app_name" class="block text-sm font-medium text-gray-700">App Name:</label>
+            <input type="text" id="app_name" name="app_name" value="Clinic A" class="mt-1 p-2 w-full border rounded-md">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Save</button>
     </form>
+</div>
 {% endblock %}

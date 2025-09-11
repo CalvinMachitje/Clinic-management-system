@@ -6,41 +6,32 @@
     <title>Edit Visit - Township Clinic</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
 </head>
-<body>
-    <nav class="navbar">
+<body class="container mx-auto px-4 py-8">
+    <nav class="default-menu">
         <div class="logo">Township Clinic</div>
     </nav>
-    <div class="sidebar">
-        <div class="logo">Township Clinic</div>
-        <ul>
-            <li><a href="{{ url_for('reception_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('search_patient') }}"><i class="fas fa-search"></i> Search Patient</a></li>
-            <li><a href="{{ url_for('add_patient') }}"><i class="fas fa-user-plus"></i> Add New Patient</a></li>
-            <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-        </ul>
-    </div>
     <main class="main-content" role="main" aria-label="Edit Visit Main Content">
-        <section class="dashboard-content">
-            <h2>Edit Visit</h2>
-            <form action="{{ url_for('edit_visit', visit_id=visit_id) }}" method="POST" enctype="multipart/form-data" class="card">
+        <section class="dashboard-content bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-3xl font-bold mb-6">Edit Visit</h2>
+            <form action="{{ url_for('edit_visit', visit_id=visit_id) }}" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="form-group">
-                    <label for="visit_time">Visit Time</label>
-                    <input type="datetime-local" id="visit_time" name="visit_time" value="{{ visit.visit_time }}" required>
+                    <label for="visit_time" class="block text-sm font-medium text-gray-700">Visit Time</label>
+                    <input type="datetime-local" id="visit_time" name="visit_time" value="{{ visit.visit_time }}" required class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div class="form-group">
-                    <label for="notes">Notes</label>
-                    <textarea id="notes" name="notes">{{ visit.notes }}</textarea>
+                <div class="form-group md:col-span-2">
+                    <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea id="notes" name="notes" class="mt-1 p-2 w-full border rounded-md">{{ visit.notes }}</textarea>
                 </div>
-                <div class="form-group">
-                    <label for="profile_image">Profile Image (Optional)</label>
-                    <input type="file" id="profile_image" name="profile_image" accept="image/*">
+                <div class="form-group md:col-span-2">
+                    <label for="profile_image" class="block text-sm font-medium text-gray-700">Profile Image (Optional)</label>
+                    <input type="file" id="profile_image" name="profile_image" accept="image/*" class="mt-1 p-2 w-full border rounded-md">
                     {% if visit.image_path %}
-                        <img src="{{ url_for('static', filename=visit.image_path[7:]) }}" alt="Profile" style="max-width: 100px; max-height: 100px;">
+                        <img src="{{ url_for('static', filename=visit.image_path[7:]) }}" alt="Profile" class="mt-4 max-w-xs rounded-md shadow-sm">
                     {% endif %}
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn">Save Changes</button>
-                    <a href="{{ url_for('reception_dashboard') }}" class="btn">Cancel</a>
+                <div class="form-actions md:col-span-2 flex justify-end gap-4">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <a href="{{ url_for('reception_dashboard') }}" class="btn btn-secondary">Cancel</a>
                 </div>
             </form>
         </section>

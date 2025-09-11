@@ -1,26 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Assess Patient</title>
+    <title>Assess Patient - Township Clinic</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body>
-    <h1>Assess Patient: {{ patient.first_name }} {{ patient.last_name }}</h1>
-    <h2>Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
+<body class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">Assess Patient: {{ patient.first_name }} {{ patient.last_name }}</h1>
+    <h2 class="text-xl mb-6">Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
+                <div class="alert alert-{{ category }} mb-4">{{ message }}</div>
             {% endfor %}
         {% endif %}
     {% endwith %}
-    <form method="POST">
-        <label for="vitals">Vitals (e.g., BP, Temp):</label><br>
-        <textarea id="vitals" name="vitals" rows="4" cols="50" required></textarea><br>
-        <label for="notes">Notes:</label><br>
-        <textarea id="notes" name="notes" rows="4" cols="50"></textarea><br>
-        <button type="submit">Record Assessment</button>
+    <form method="POST" class="bg-white rounded-lg shadow-md p-6 max-w-lg mx-auto">
+        <div class="form-group mb-4">
+            <label for="vitals" class="block text-sm font-medium text-gray-700">Vitals (e.g., BP, Temp):</label>
+            <textarea id="vitals" name="vitals" rows="4" class="mt-1 p-2 w-full border rounded-md" required></textarea>
+        </div>
+        <div class="form-group mb-4">
+            <label for="notes" class="block text-sm font-medium text-gray-700">Notes:</label>
+            <textarea id="notes" name="notes" rows="4" class="mt-1 p-2 w-full border rounded-md"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Record Assessment</button>
     </form>
-    <a href="{{ url_for('nurse_dashboard') }}">Back to Dashboard</a>
+    <a href="{{ url_for('nurse_dashboard') }}" class="btn btn-secondary block text-center mt-4 max-w-lg mx-auto">Back to Dashboard</a>
 </body>
 </html>

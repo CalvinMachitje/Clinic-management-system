@@ -1,49 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Doctor Report - Township Clinic{% endblock %}
 {% block content %}
+<div class="container mx-auto px-4 py-8">
     <main class="main-content" role="main" aria-label="Doctor Report Main Content">
         <section class="dashboard-content">
-            <div class="panels" aria-label="Doctor Statistics">
-                <div class="card">
-                    <h3>Total Patients Seen</h3>
-                    <p>{{ total_patients_seen }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8" aria-label="Doctor Statistics">
+                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
+                    <h3 class="text-lg font-semibold mb-2">Total Patients Seen</h3>
+                    <p class="text-3xl font-bold text-primary">{{ total_patients_seen }}</p>
                 </div>
-                <div class="card">
-                    <h3>Pending Appointments</h3>
-                    <p>{{ pending_appointments }}</p>
+                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
+                    <h3 class="text-lg font-semibold mb-2">Pending Appointments</h3>
+                    <p class="text-3xl font-bold text-primary">{{ pending_appointments }}</p>
                 </div>
-                <div class="card">
-                    <h3>Monthly Consultations</h3>
-                    <p>{{ monthly_consultations }}</p>
+                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
+                    <h3 class="text-lg font-semibold mb-2">Monthly Consultations</h3>
+                    <p class="text-3xl font-bold text-primary">{{ monthly_consultations }}</p>
                 </div>
             </div>
 
             <!-- Appointment Preview -->
-            <section aria-labelledby="appointment-preview-title">
-                <h2 id="appointment-preview-title">Recent Appointments</h2>
-                <a href="{{ url_for('book_appointment') }}" class="btn" aria-label="Go to full appointments page">View All Appointments</a>
-                <table aria-describedby="appointment-preview-description" role="grid">
-                    <caption id="appointment-preview-description">Recent appointments for the doctor</caption>
-                    <thead>
+            <section aria-labelledby="appointment-preview-title" class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="appointment-preview-title" class="text-xl font-semibold">Recent Appointments</h2>
+                    <a href="{{ url_for('appointments') }}" class="btn btn-primary" aria-label="Go to full appointments page">View All Appointments</a>
+                </div>
+                <table aria-describedby="appointment-preview-description" role="grid" class="w-full table-auto border-collapse">
+                    <caption id="appointment-preview-description" class="text-left text-lg font-medium mb-2">Recent appointments for the doctor</caption>
+                    <thead class="bg-gray-100">
                         <tr>
-                            <th scope="col">Patient Name</th>
-                            <th scope="col">Appointment Time</th>
-                            <th scope="col">Status</th>
+                            <th class="px-4 py-2 text-left">Patient Name</th>
+                            <th class="px-4 py-2 text-left">Appointment Time</th>
+                            <th class="px-4 py-2 text-left">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for appointment in recent_appointments %}
-                        <tr>
-                            <td>{{ appointment.patient_name }}</td>
-                            <td>{{ appointment.appointment_time }}</td>
-                            <td>{{ appointment.status }}</td>
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">{{ appointment.patient_name }}</td>
+                            <td class="px-4 py-2">{{ appointment.appointment_time }}</td>
+                            <td class="px-4 py-2">{{ appointment.status }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="3">No appointments found.</td></tr>
+                        <tr><td colspan="3" class="px-4 py-2 text-center">No appointments found.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </section>
         </section>
     </main>
+</div>
 {% endblock %}

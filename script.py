@@ -235,9 +235,28 @@ def default_page():
     except requests.RequestException as e:
         logger.error(f"Error fetching news: {e}")
         articles = []
+        flash('Failed to fetch news articles. Please try again later.', 'error')
 
-    # Pass both news articles and OpenFDA events to the template
+    # Fetch OpenFDA drug safety events
+    openfda_events = []
+    openfda_api_key = os.environ.get('OPENFDA_API_KEY')
+    if openfda_api_key:
+        openfda_params = {
+            'api_key': openfda_api_key,
+            'search': 'receivedate:[20250101 TO 20250911]',  # Adjust date range as needed
+            'limit': 5
+        }
+        try:
+            openfda_response = requests.get('https://api.fda.gov/drug/event.json', params=openfda_params)
+            openfda_response.raise_for_status()
+            openfda_data = openfda_response.json()
+            openfda_events = openfda_data.get('results', [])
+        except requests.RequestException as e:
+            logger.error(f"Error fetching OpenFDA events: {e}")
+            flash('Failed to fetch drug safety reports. Please try again later.', 'error')
+
     return render_template('homepage/defaultPage.html', articles=articles, openfda_events=openfda_events)
+
 
 @app.route('/appointments')
 def appointment_homepage():

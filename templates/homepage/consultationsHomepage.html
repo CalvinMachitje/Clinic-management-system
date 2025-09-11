@@ -8,16 +8,33 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
 </head>
 <body>
-    <nav>
-        <a href="{{ url_for('default_page') }}">Home</a>
+    <nav class="default-menu">
+        <div class="logo">Township Clinic</div>
+        <ul>
+            <li><a href="{{ url_for('default_page') }}">Home</a></li>
+        </ul>
     </nav>
-    <main>
-        <h1>Consultations</h1>
-        <p>Get expert medical advice and consultations.</p>
-        <!-- Add consultation details or form here -->
+    <main class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-4">Consultations</h1>
+        <p class="text-gray-600 mb-8">Get expert medical advice and consultations.</p>
+        <!-- Consultation details or form -->
+        <div class="bg-white rounded-lg shadow-md p-6 max-w-md mx-auto">
+            <h2 class="text-xl font-semibold mb-4">Schedule a Consultation</h2>
+            <form action="{{ url_for('appointments') }}" method="POST">
+                <div class="form-group mb-4">
+                    <label for="patient_id" class="block text-sm font-medium text-gray-700">Patient ID</label>
+                    <input type="text" id="patient_id" name="patient_id" required class="mt-1 p-2 w-full border rounded-md">
+                </div>
+                <div class="form-group mb-4">
+                    <label for="appointment_time" class="block text-sm font-medium text-gray-700">Time</label>
+                    <input type="datetime-local" id="appointment_time" name="appointment_time" required class="mt-1 p-2 w-full border rounded-md">
+                </div>
+                <button type="submit" class="btn btn-primary w-full">Schedule</button>
+            </form>
+        </div>
     </main>
-    <footer>
-        <p>© 2025 Township Clinic. All rights reserved.</p>
+    <footer class="footer text-center py-4 bg-gray-100">
+        <p class="text-gray-600">© 2025 Township Clinic. All rights reserved.</p>
     </footer>
 </body>
 </html>

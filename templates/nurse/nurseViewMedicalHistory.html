@@ -1,38 +1,43 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Medical History</title>
+    <title>Medical History - Township Clinic</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body>
-    <h1>Medical History: {{ patient.first_name }} {{ patient.last_name }}</h1>
-    <h2>Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
+<body class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">Medical History: {{ patient.first_name }} {{ patient.last_name }}</h1>
+    <h2 class="text-xl mb-6">Nurse: {{ user_details.first_name }} {{ user_details.last_name }}</h2>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <p class="{{ category }}">{{ message }}</p>
+                <div class="alert alert-{{ category }} mb-4">{{ message }}</div>
             {% endfor %}
         {% endif %}
     {% endwith %}
-    <h3>Patient Details</h3>
-    <p><strong>Medical History:</strong> {{ patient.medical_history }}</p>
-    <p><strong>Allergies:</strong> {{ patient.allergies }}</p>
-    <p><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
-    <h3>Prescription History</h3>
-    {% if prescriptions %}
-        <ul>
-        {% for prescription in prescriptions %}
-            <li>
-                {{ prescription.medication_name }} ({{ prescription.dosage }}) - 
-                {{ prescription.instructions }} (Prescribed: {{ prescription.prescribed_date }})
-            </li>
-        {% endfor %}
-        </ul>
-    {% else %}
-        <p>No prescriptions recorded.</p>
-    {% endif %}
-    <a href="{{ url_for('nurse_prescribe_medication', patient_id=patient.id) }}">Prescribe Medication</a> |
-    <a href="{{ url_for('nurse_assess_patient', patient_id=patient.id) }}">Assess Patient</a> |
-    <a href="{{ url_for('nurse_dashboard') }}">Back to Dashboard</a>
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h3 class="text-xl font-semibold mb-4">Patient Details</h3>
+        <p class="mb-2"><strong>Medical History:</strong> {{ patient.medical_history }}</p>
+        <p class="mb-2"><strong>Allergies:</strong> {{ patient.allergies }}</p>
+        <p class="mb-2"><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
+    </section>
+    <section class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Prescription History</h3>
+        {% if prescriptions %}
+            <ul class="space-y-4">
+            {% for prescription in prescriptions %}
+                <li class="border-b pb-2">
+                    {{ prescription.medication_name }} ({{ prescription.dosage }}) - 
+                    {{ prescription.instructions }} (Prescribed: {{ prescription.prescribed_date }})
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-gray-600">No prescriptions recorded.</p>
+        {% endif %}
+    </section>
+    <div class="flex space-x-4 mt-6">
+        <a href="{{ url_for('nurse_prescribe_medication', patient_id=patient.id) }}" class="btn btn-primary">Prescribe Medication</a>
+        <a href="{{ url_for('nurse_dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
 </body>
 </html>

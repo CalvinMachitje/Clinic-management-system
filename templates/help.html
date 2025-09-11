@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Help - Township Clinic{% endblock %}
 {% block content %}
-    <h1>Help</h1>
-    <p>Get assistance with any issues. Contact support at <a href="mailto:support@townshipclinic.co.za">support@townshipclinic.co.za</a> or call +27 11 555 0123.</p>
-    <a href="{{ url_for('system_guides') }}">View System Guides</a>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">Help</h1>
+    <p class="text-lg mb-6">Get assistance with any issues. Contact support at <a href="mailto:support@townshipclinic.co.za" class="text-blue-600 hover:underline">support@townshipclinic.co.za</a> or call +27 11 555 0123.</p>
+    <a href="{{ url_for('system_guides') }}" class="btn btn-primary">View System Guides</a>
+</div>
 {% endblock %}

@@ -2,72 +2,72 @@
 {% block title %}Admin Report - Township Clinic{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_report.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-content">
-    <h2>Admin Report Summary</h2>
+<div class="container mx-auto px-4 py-8">
+    <h2 class="text-3xl font-bold text-center mb-8 text-primary">Admin Report Summary</h2>
 
-    <div class="panels" aria-label="System Statistics">
-        <div class="card stat-card">
-            <h3>Total Users</h3>
-            <p>{{ total_users }}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Total Users</h3>
+            <p class="text-3xl font-bold text-primary">{{ total_users }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Total Doctors</h3>
-            <p>{{ total_doctors }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Total Doctors</h3>
+            <p class="text-3xl font-bold text-primary">{{ total_doctors }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Total Nurses</h3>
-            <p>{{ total_nurses }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Total Nurses</h3>
+            <p class="text-3xl font-bold text-primary">{{ total_nurses }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Total Receptionists</h3>
-            <p>{{ total_receptionists }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Total Receptionists</h3>
+            <p class="text-3xl font-bold text-primary">{{ total_receptionists }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Total Patients</h3>
-            <p>{{ total_patients }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Total Patients</h3>
+            <p class="text-3xl font-bold text-primary">{{ total_patients }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Monthly Appointments</h3>
-            <p>{{ monthly_appointments_total }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Monthly Appointments</h3>
+            <p class="text-3xl font-bold text-primary">{{ monthly_appointments_total }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Pending Appointments</h3>
-            <p>{{ pending_appointments }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Pending Appointments</h3>
+            <p class="text-3xl font-bold text-primary">{{ pending_appointments }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Completed Appointments</h3>
-            <p>{{ completed_appointments }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Completed Appointments</h3>
+            <p class="text-3xl font-bold text-primary">{{ completed_appointments }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Missed Appointments</h3>
-            <p>{{ missed_appointments }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Missed Appointments</h3>
+            <p class="text-3xl font-bold text-primary">{{ missed_appointments }}</p>
         </div>
-        <div class="card stat-card">
-            <h3>Monthly Revenue</h3>
-            <p>${{ monthly_revenue }}</p>
+        <div class="stat-card bg-white rounded-lg shadow-md p-6 text-center">
+            <h3 class="text-lg font-semibold mb-2">Monthly Revenue</h3>
+            <p class="text-3xl font-bold text-primary">${{ monthly_revenue }}</p>
         </div>
     </div>
 
-    <div class="charts-container">
-        <div class="chart-box">
-            <h3>Staff Distribution</h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        <div class="chart-box bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold mb-4 text-center">Staff Distribution</h3>
             <canvas id="staffPieChart"></canvas>
         </div>
 
-        <div class="chart-box">
-            <h3>Appointments Status</h3>
+        <div class="chart-box bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-xl font-semibold mb-4 text-center">Appointments Status</h3>
             <canvas id="appointmentBarChart"></canvas>
         </div>
+    </div>
 
-        <div class="chart-box full-width-chart">
-            <h3>Monthly Appointments Trend</h3>
-            <canvas id="monthlyLineChart"></canvas>
-        </div>
+    <div class="chart-box full-width-chart bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4 text-center">Monthly Appointments Trend</h3>
+        <canvas id="monthlyLineChart"></canvas>
     </div>
 </div>
 {% endblock %}
@@ -75,7 +75,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/admin_report.js') }}"></script>
 <script>
-  // Pass Python variables to JS (make sure these are JSON serialized in backend)
+  // Pass Python variables to JS
   window.staffPieData = {{ staff_pie_data_json|safe }};
   window.appointmentBarData = {{ appointment_bar_data_json|safe }};
   window.monthlyAppointmentsData = {{ monthly_appointments_data_json|safe }};

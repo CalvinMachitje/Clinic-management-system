@@ -1,100 +1,95 @@
 {% extends "base.html" %}
 {% block title %}Edit Patient - Township Clinic{% endblock %}
 {% block content %}
-<main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Edit Patient">
-    <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
-        {% if patient %}
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Edit Patient: {{ patient.first_name }} {{ patient.last_name }}</h2>
-            <a href="{{ url_for('patients_list') }}" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">Back to Patients List</a>
-        </div>
+<div class="container mx-auto px-4 py-8">
+    <main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Edit Patient Main Content">
+        <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
+            {% if patient %}
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold text-primary">Edit Patient: {{ patient.first_name }} {{ patient.last_name }}</h2>
+                <a href="{{ url_for('patients_list') }}" class="btn btn-primary">Back to Patients List</a>
+            </div>
 
-        <form method="POST" action="{{ url_for('edit_patient', id=patient.id) }}" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+            <form method="POST" action="{{ url_for('edit_patient', id=patient.id) }}" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-group">
                     <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
-                    <input type="text" id="first_name" name="first_name" value="{{ patient.first_name }}" required class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="text" id="first_name" name="first_name" value="{{ patient.first_name }}" required class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
-                    <input type="text" id="last_name" name="last_name" value="{{ patient.last_name }}" required class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="text" id="last_name" name="last_name" value="{{ patient.last_name }}" required class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="date_of_birth" class="block text-sm font-medium text-gray-700">Date of Birth</label>
-                    <input type="date" id="date_of_birth" name="date_of_birth" value="{{ patient.date_of_birth or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="date" id="date_of_birth" name="date_of_birth" value="{{ patient.date_of_birth or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="gender" class="block text-sm font-medium text-gray-700">Gender</label>
-                    <select id="gender" name="gender" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <select id="gender" name="gender" class="mt-1 p-2 w-full border rounded-md">
                         <option value="" {% if not patient.gender %}selected{% endif %}>Select Gender</option>
                         <option value="Male" {% if patient.gender == 'Male' %}selected{% endif %}>Male</option>
                         <option value="Female" {% if patient.gender == 'Female' %}selected{% endif %}>Female</option>
                         <option value="Other" {% if patient.gender == 'Other' %}selected{% endif %}>Other</option>
                     </select>
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="address" class="block text-sm font-medium text-gray-700">Address</label>
-                    <input type="text" id="address" name="address" value="{{ patient.address or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="text" id="address" name="address" value="{{ patient.address or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="phone" class="block text-sm font-medium text-gray-700">Phone</label>
-                    <input type="tel" id="phone" name="phone" value="{{ patient.phone or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="tel" id="phone" name="phone" value="{{ patient.phone or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" name="email" value="{{ patient.email or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="email" id="email" name="email" value="{{ patient.email or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="emergency_contact_name" class="block text-sm font-medium text-gray-700">Emergency Contact Name</label>
-                    <input type="text" id="emergency_contact_name" name="emergency_contact_name" value="{{ patient.emergency_contact_name or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="text" id="emergency_contact_name" name="emergency_contact_name" value="{{ patient.emergency_contact_name or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-                <div>
+                <div class="form-group">
                     <label for="emergency_contact_phone" class="block text-sm font-medium text-gray-700">Emergency Contact Phone</label>
-                    <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone" value="{{ patient.emergency_contact_phone or '' }}" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <input type="tel" id="emergency_contact_phone" name="emergency_contact_phone" value="{{ patient.emergency_contact_phone or '' }}" class="mt-1 p-2 w-full border rounded-md">
                 </div>
-            </div>
 
-            {% if session.get('role') in ['nurse', 'doctor'] %}
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                {% if session.get('role') in ['nurse', 'doctor'] %}
+                <div class="form-group md:col-span-2">
                     <label for="medical_history" class="block text-sm font-medium text-gray-700">Medical History</label>
-                    <textarea id="medical_history" name="medical_history" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">{{ patient.medical_history or '' }}</textarea>
+                    <textarea id="medical_history" name="medical_history" class="mt-1 p-2 w-full border rounded-md">{{ patient.medical_history or '' }}</textarea>
                 </div>
-                <div>
+                <div class="form-group md:col-span-2">
                     <label for="allergies" class="block text-sm font-medium text-gray-700">Allergies</label>
-                    <textarea id="allergies" name="allergies" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">{{ patient.allergies or '' }}</textarea>
+                    <textarea id="allergies" name="allergies" class="mt-1 p-2 w-full border rounded-md">{{ patient.allergies or '' }}</textarea>
                 </div>
-                <div>
+                <div class="form-group md:col-span-2">
                     <label for="current_medications" class="block text-sm font-medium text-gray-700">Current Medications</label>
-                    <textarea id="current_medications" name="current_medications" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">{{ patient.current_medications or '' }}</textarea>
+                    <textarea id="current_medications" name="current_medications" class="mt-1 p-2 w-full border rounded-md">{{ patient.current_medications or '' }}</textarea>
                 </div>
-                <div>
+                <div class="form-group md:col-span-2">
                     <label for="employee_id" class="block text-sm font-medium text-gray-700">Assigned Doctor</label>
-                    <select id="employee_id" name="employee_id" class="mt-1 p-2 block w-full border rounded-lg focus:ring-blue-600 focus:border-blue-600">
+                    <select id="employee_id" name="employee_id" class="mt-1 p-2 w-full border rounded-md">
                         <option value="" {% if not patient.employee_id %}selected{% endif %}>Select Doctor</option>
                         {% for doctor in doctors %}
                         <option value="{{ doctor.id }}" {% if patient.employee_id == doctor.id %}selected{% endif %}>{{ doctor.first_name }} {{ doctor.last_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                {% endif %}
+
+                <div class="flex justify-end space-x-4 md:col-span-2">
+                    <button type="submit" class="btn btn-success">Save Changes</button>
+                    <a href="{{ url_for('patients_list') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+            {% else %}
+            <div class="bg-red-50 p-5 rounded-lg shadow mt-6">
+                <h3 class="text-lg font-medium text-red-800 mb-4">Error</h3>
+                <p class="text-red-600">Patient data could not be loaded. Please try again or return to the patients list.</p>
+                <a href="{{ url_for('patients_list') }}" class="mt-4 inline-block btn btn-primary">Back to Patients List</a>
             </div>
             {% endif %}
-
-            <div class="flex justify-end space-x-4">
-                <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">Save Changes</button>
-                <a href="{{ url_for('patients_list') }}" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition">Cancel</a>
-            </div>
-        </form>
-        {% else %}
-        <div class="bg-red-50 p-5 rounded-lg shadow mt-6">
-            <h3 class="text-lg font-medium text-red-800 mb-4">Error</h3>
-            <p class="text-red-600">Patient data could not be loaded. Please try again or return to the patients list.</p>
-            <a href="{{ url_for('patients_list') }}" class="mt-4 inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">Back to Patients List</a>
-        </div>
-        {% endif %}
-    </section>
-</main>
-
-<!-- Tailwind CSS CDN -->
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        </section>
+    </main>
+</div>
 {% endblock %}

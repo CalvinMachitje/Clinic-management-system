@@ -1,34 +1,34 @@
 {% extends 'base.html' %}
 {% block title %}Check-In Desk - Township Clinic{% endblock %}
 {% block content %}
-<div class="dashboard-content">
-    <h2>Check-In Desk</h2>
-    <h3>Scheduled Appointments</h3>
+<div class="container mx-auto px-4 py-8 dashboard-content">
+    <h2 class="text-3xl font-bold mb-8">Check-In Desk</h2>
+    <h3 class="text-2xl font-semibold mb-4">Scheduled Appointments</h3>
     {% if scheduled_appointments %}
-    <table class="table">
-        <thead>
+    <table class="w-full table-auto border-collapse table mb-8">
+        <thead class="bg-gray-100">
             <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Helper</th>
-                <th>Action</th>
+                <th class="px-4 py-2 text-left">ID</th>
+                <th class="px-4 py-2 text-left">Patient</th>
+                <th class="px-4 py-2 text-left">Date</th>
+                <th class="px-4 py-2 text-left">Status</th>
+                <th class="px-4 py-2 text-left">Reason</th>
+                <th class="px-4 py-2 text-left">Helper</th>
+                <th class="px-4 py-2 text-left">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for appt in scheduled_appointments %}
-            <tr data-appointment-id="{{ appt.id }}">
-                <td>{{ appt.id }}</td>
-                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                <td>{{ appt.appointment_date }}</td>
-                <td>{{ appt.status }}</td>
-                <td>{{ appt.reason }}</td>
-                <td>{{ appt.helper_name or 'None' }} ({{ appt.helper_role or 'N/A' }})</td>
-                <td>
+            <tr class="hover:bg-gray-50" data-appointment-id="{{ appt.id }}">
+                <td class="px-4 py-2">{{ appt.id }}</td>
+                <td class="px-4 py-2">{{ appt.first_name }} {{ appt.last_name }}</td>
+                <td class="px-4 py-2">{{ appt.appointment_date }}</td>
+                <td class="px-4 py-2">{{ appt.status }}</td>
+                <td class="px-4 py-2">{{ appt.reason }}</td>
+                <td class="px-4 py-2">{{ appt.helper_name or 'None' }} ({{ appt.helper_role or 'N/A' }})</td>
+                <td class="px-4 py-2">
                     {% if appt.status == 'scheduled' %}
-                    <form action="{{ url_for('cancel_appointment') }}" method="POST" style="display:inline;">
+                    <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
                         <input type="hidden" name="appointment_id" value="{{ appt.id }}">
                         <button type="submit" class="btn btn-danger">Cancel</button>
                     </form>
@@ -41,34 +41,34 @@
         </tbody>
     </table>
     {% else %}
-    <p>No scheduled appointments.</p>
+    <p class="text-center text-gray-600 mb-8">No scheduled appointments.</p>
     {% endif %}
 
-    <h3>Waitlist</h3>
+    <h3 class="text-2xl font-semibold mb-4">Waitlist</h3>
     {% if waitlist %}
-    <table class="table">
-        <thead>
+    <table class="w-full table-auto border-collapse table mb-8">
+        <thead class="bg-gray-100">
             <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Action</th>
+                <th class="px-4 py-2 text-left">ID</th>
+                <th class="px-4 py-2 text-left">Patient</th>
+                <th class="px-4 py-2 text-left">Date</th>
+                <th class="px-4 py-2 text-left">Status</th>
+                <th class="px-4 py-2 text-left">Reason</th>
+                <th class="px-4 py-2 text-left">Action</th>
             </tr>
         </thead>
         <tbody id="waitlist-table-body">
             {% for appt in waitlist %}
-            <tr data-appointment-id="{{ appt.id }}">
-                <td>{{ appt.id }}</td>
-                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                <td>{{ appt.appointment_date }}</td>
-                <td>{{ appt.status }}</td>
-                <td>{{ appt.reason }}</td>
-                <td>
-                    <form action="{{ url_for('assign_staff') }}" method="POST" style="display:inline;">
+            <tr class="hover:bg-gray-50" data-appointment-id="{{ appt.id }}">
+                <td class="px-4 py-2">{{ appt.id }}</td>
+                <td class="px-4 py-2">{{ appt.first_name }} {{ appt.last_name }}</td>
+                <td class="px-4 py-2">{{ appt.appointment_date }}</td>
+                <td class="px-4 py-2">{{ appt.status }}</td>
+                <td class="px-4 py-2">{{ appt.reason }}</td>
+                <td class="px-4 py-2">
+                    <form action="{{ url_for('assign_staff') }}" method="POST" class="inline">
                         <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                        <select name="staff_id" required>
+                        <select name="staff_id" required class="p-2 border rounded-md mr-2">
                             <option value="">Select Staff</option>
                             {% for staff in available_staff %}
                             <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
@@ -82,52 +82,54 @@
         </tbody>
     </table>
     {% else %}
-    <p>No patients in waitlist.</p>
+    <p class="text-center text-gray-600 mb-8">No patients in waitlist.</p>
     {% endif %}
 
-    <h3>Available Staff</h3>
+    <h3 class="text-2xl font-semibold mb-4">Available Staff</h3>
     {% if available_staff %}
-    <ul>
+    <ul class="space-y-2 mb-8">
         {% for staff in available_staff %}
-        <li>{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }}) - {{ staff.staff_number }}</li>
+        <li class="bg-white rounded-md p-4 shadow-sm">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }}) - {{ staff.staff_number }}</li>
         {% endfor %}
     </ul>
     {% else %}
-    <p>No staff available.</p>
+    <p class="text-center text-gray-600 mb-8">No staff available.</p>
     {% endif %}
 
-    <h3>Helped Patients</h3>
+    <h3 class="text-2xl font-semibold mb-4">Helped Patients</h3>
     {% if helped_patients %}
-    <table class="table">
-        <thead>
+    <table class="w-full table-auto border-collapse table">
+        <thead class="bg-gray-100">
             <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Appointment Date</th>
-                <th>Nurse</th>
-                <th>Timestamp</th>
-                <th>Reason</th>
-                <th>Notes</th>
+                <th class="px-4 py-2 text-left">ID</th>
+                <th class="px-4 py-2 text-left">Patient</th>
+                <th class="px-4 py-2 text-left">Appointment Date</th>
+                <th class="px-4 py-2 text-left">Nurse</th>
+                <th class="px-4 py-2 text-left">Timestamp</th>
+                <th class="px-4 py-2 text-left">Reason</th>
+                <th class="px-4 py-2 text-left">Notes</th>
             </tr>
         </thead>
         <tbody>
             {% for patient in helped_patients %}
-            <tr>
-                <td>{{ patient.id }}</td>
-                <td>{{ patient.patient_name }}</td>
-                <td>{{ patient.appointment_date }}</td>
-                <td>{{ patient.nurse_name }}</td>
-                <td>{{ patient.helped_timestamp }}</td>
-                <td>{{ patient.reason }}</td>
-                <td>{{ patient.notes }}</td>
+            <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2">{{ patient.id }}</td>
+                <td class="px-4 py-2">{{ patient.patient_name }}</td>
+                <td class="px-4 py-2">{{ patient.appointment_date }}</td>
+                <td class="px-4 py-2">{{ patient.nurse_name }}</td>
+                <td class="px-4 py-2">{{ patient.helped_timestamp }}</td>
+                <td class="px-4 py-2">{{ patient.reason }}</td>
+                <td class="px-4 py-2">{{ patient.notes }}</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p>No helped patients found.</p>
+    <p class="text-center text-gray-600">No helped patients found.</p>
     {% endif %}
 </div>
+{% endblock %}
+
 {% block extra_scripts %}
 <script>
     // Fetch JSON data for React frontend
@@ -146,7 +148,7 @@
         console.log('Waitlist:', data.waitlist);
         console.log('Available Staff:', data.available_staff);
         console.log('Helped Patients:', data.helped_patients);
-        // Add React logic here to render data dynamically
+        // Add React logic here to render data dynamically if needed
     })
     .catch(error => console.error('Error fetching check-in data:', error));
 
@@ -167,15 +169,15 @@
                     const newRow = document.createElement('tr');
                     newRow.setAttribute('data-appointment-id', update.id);
                     newRow.innerHTML = `
-                        <td>${update.id}</td>
-                        <td>${update.first_name} ${update.last_name}</td>
-                        <td>${update.appointment_date}</td>
-                        <td>${update.status}</td>
-                        <td>${update.reason || 'Not specified'}</td>
-                        <td>
-                            <form action="/assign_staff" method="POST" style="display:inline;">
+                        <td class="px-4 py-2">${update.id}</td>
+                        <td class="px-4 py-2">${update.first_name} ${update.last_name}</td>
+                        <td class="px-4 py-2">${update.appointment_date}</td>
+                        <td class="px-4 py-2">${update.status}</td>
+                        <td class="px-4 py-2">${update.reason || 'Not specified'}</td>
+                        <td class="px-4 py-2">
+                            <form action="/assign_staff" method="POST" class="inline">
                                 <input type="hidden" name="appointment_id" value="${update.id}">
-                                <select name="staff_id" required>
+                                <select name="staff_id" required class="p-2 border rounded-md mr-2">
                                     <option value="">Select Staff</option>
                                     {% for staff in available_staff %}
                                     <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
@@ -192,12 +194,5 @@
             console.error('Error processing SSE data:', e);
         }
     };
-    source.onerror = function() {
-        console.warn('SSE connection error. Reconnecting in 5 seconds...');
-        source.close();
-        setTimeout(() => window.location.reload(), 5000);
-    };
-    window.addEventListener('beforeunload', () => source.close());
 </script>
-{% endblock %}
 {% endblock %}

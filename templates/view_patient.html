@@ -1,61 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Patient Details - Township Clinic{% endblock %}
 {% block content %}
-<main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Patient Details">
-    <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
-        {% if patient %}
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Patient Details: {{ patient.first_name }} {{ patient.last_name }}</h2>
-        </div>
+<div class="container mx-auto px-4 py-8">
+    <main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Patient Details Main Content">
+        <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
+            {% if patient %}
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold text-primary">Patient Details: {{ patient.first_name }} {{ patient.last_name }}</h2>
+            </div>
 
-        <div class="bg-gray-50 p-5 rounded-lg shadow">
-            <h3 class="text-lg font-medium text-gray-800 mb-4">Personal Information</h3>
-            <p class="text-gray-600"><strong>ID:</strong> {{ patient.id }}</p>
-            <p class="text-gray-600"><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'N/A' }}</p>
-            <p class="text-gray-600"><strong>Gender:</strong> {{ patient.gender or 'N/A' }}</p>
-            <p class="text-gray-600"><strong>Address:</strong> {{ patient.address or 'N/A' }}</p>
-            <p class="text-gray-600"><strong>Phone:</strong> {{ patient.phone or 'N/A' }}</p>
-            <p class="text-gray-600"><strong>Email:</strong> {{ patient.email or 'N/A' }}</p>
-            <p class="text-gray-600"><strong>Emergency Contact:</strong> {{ patient.emergency_contact_name or 'N/A' }} ({{ patient.emergency_contact_phone or 'N/A' }})</p>
-            <p class="text-gray-600"><strong>Assigned Doctor:</strong> {{ patient.assigned_doctor or 'N/A' }}</p>
-        </div>
+            <div class="bg-gray-50 p-5 rounded-lg shadow mb-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">Personal Information</h3>
+                <p class="text-gray-600 mb-2"><strong>ID:</strong> {{ patient.id }}</p>
+                <p class="text-gray-600 mb-2"><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'N/A' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Gender:</strong> {{ patient.gender or 'N/A' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Address:</strong> {{ patient.address or 'N/A' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Phone:</strong> {{ patient.phone or 'N/A' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Email:</strong> {{ patient.email or 'N/A' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Emergency Contact:</strong> {{ patient.emergency_contact_name or 'N/A' }} ({{ patient.emergency_contact_phone or 'N/A' }})</p>
+                <p class="text-gray-600 mb-2"><strong>Assigned Doctor:</strong> {{ patient.assigned_doctor or 'N/A' }}</p>
+            </div>
 
-        {% if session.get('role') in ['nurse', 'doctor'] %}
-        <div class="bg-gray-50 p-5 rounded-lg shadow mt-6">
-            <h3 class="text-lg font-medium text-gray-800 mb-4">Medical Information</h3>
-            <p class="text-gray-600"><strong>Medical History:</strong> {{ patient.medical_history or 'No medical history recorded' }}</p>
-            <p class="text-gray-600"><strong>Allergies:</strong> {{ patient.allergies or 'No allergies recorded' }}</p>
-            <p class="text-gray-600"><strong>Current Medications:</strong> {{ patient.current_medications or 'No medications recorded' }}</p>
-        </div>
-        {% endif %}
-
-        {% if session.get('role') == 'receptionist' %}
-        <div class="bg-gray-50 p-5 rounded-lg shadow mt-6">
-            <h3 class="text-lg font-medium text-gray-800 mb-4">Appointment Information</h3>
-            {% if appointments %}
-            <ul class="list-disc pl-5">
-                {% for appointment in appointments %}
-                <li class="text-gray-600">
-                    <strong>Date:</strong> {{ appointment.appointment_date or 'N/A' }} |
-                    <strong>Status:</strong> {{ appointment.status or 'N/A' }}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-gray-600">No appointments recorded.</p>
+            {% if session.get('role') in ['nurse', 'doctor'] %}
+            <div class="bg-gray-50 p-5 rounded-lg shadow mb-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">Medical Information</h3>
+                <p class="text-gray-600 mb-2"><strong>Medical History:</strong> {{ patient.medical_history or 'No medical history recorded' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Allergies:</strong> {{ patient.allergies or 'No allergies recorded' }}</p>
+                <p class="text-gray-600 mb-2"><strong>Current Medications:</strong> {{ patient.current_medications or 'No medications recorded' }}</p>
+            </div>
             {% endif %}
-        </div>
-        {% endif %}
-        {% else %}
-        <div class="bg-red-50 p-5 rounded-lg shadow mt-6">
-            <h3 class="text-lg font-medium text-red-800 mb-4">Error</h3>
-            <p class="text-red-600">Patient data could not be loaded. Please try again or return to the patients list.</p>
-            <a href="{{ url_for('patients_list') }}" class="mt-4 inline-block bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">Back to Patients List</a>
-        </div>
-        {% endif %}
-    </section>
-</main>
 
-<!-- Tailwind CSS CDN -->
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+            {% if session.get('role') == 'receptionist' %}
+            <div class="bg-gray-50 p-5 rounded-lg shadow">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">Appointment Information</h3>
+                {% if appointments %}
+                <ul class="list-disc pl-5 space-y-2">
+                    {% for appointment in appointments %}
+                    <li class="text-gray-600">
+                        <strong>Date:</strong> {{ appointment.appointment_date or 'N/A' }} |
+                        <strong>Status:</strong> {{ appointment.status or 'N/A' }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-gray-600">No appointments recorded.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="bg-red-50 p-5 rounded-lg shadow mt-6">
+                <h3 class="text-lg font-medium text-red-800 mb-4">Error</h3>
+                <p class="text-red-600">Patient data could not be loaded. Please try again or return to the patients list.</p>
+                <a href="{{ url_for('patients_list') }}" class="mt-4 inline-block btn btn-primary">Back to Patients List</a>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+</div>
 {% endblock %}

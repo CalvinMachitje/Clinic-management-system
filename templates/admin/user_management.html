@@ -1,85 +1,75 @@
 {% extends "base.html" %}
 {% block title %}User Management - Township Clinic{% endblock %}
 {% block content %}
-        <div class="dashboard-content">
-            <!-- User List Panel -->
-            <div class="card panels" aria-label="User List">
-                <div class="card">
-                    <h3>User List</h3>
-                    <table id="user-table" role="grid">
-                        <caption>Registered users in the system</caption>
-                        <thead>
-                            <tr>
-                                <th scope="col">Username</th>
-                                <th scope="col">Email</th>
-                                <th scope="col">Role</th>
-                                <th scope="col">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="user-table-body">
-                            {% for user in employees %}
-                            <tr>
-                                <td>{{ user.username }}</td>
-                                <td>{{ user.email }}</td>
-                                <td>{{ user.role }}</td>
-                                <td>
-                                    <button class="btn delete-user" data-user-id="{{ user.id }}" aria-label="Delete user {{ user.username }}">Delete</button>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr><td colspan="4">No users found.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+<div class="container mx-auto px-4 py-8">
+    <!-- User List Panel -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h3 class="text-xl font-semibold mb-4">User List</h3>
+        <table id="user-table" class="w-full table-auto border-collapse">
+            <caption class="text-left text-lg font-medium mb-2">Registered users in the system</caption>
+            <thead>
+                <tr class="bg-gray-100">
+                    <th class="px-4 py-2 text-left">Username</th>
+                    <th class="px-4 py-2 text-left">Email</th>
+                    <th class="px-4 py-2 text-left">Role</th>
+                    <th class="px-4 py-2 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body">
+                {% for user in employees %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2">{{ user.username }}</td>
+                    <td class="px-4 py-2">{{ user.email }}</td>
+                    <td class="px-4 py-2">{{ user.role }}</td>
+                    <td class="px-4 py-2">
+                        <button class="btn btn-danger delete-user" data-user-id="{{ user.id }}" aria-label="Delete user {{ user.username }}">Delete</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="px-4 py-2 text-center">No users found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Delete Confirmation (Hidden by default) -->
+    <div id="delete-confirmation" class="bg-white rounded-lg shadow-md p-6 hidden">
+        <h3 class="text-xl font-semibold mb-4">Confirm User Deletion</h3>
+        <p class="mb-4">Are you sure you want to delete the selected user?</p>
+        <form id="delete-user-form" action="{{ url_for('admin_manage_users') }}" method="POST">
+            <input type="hidden" id="delete-user-id" name="user_id">
+            <input type="hidden" name="action" value="delete">
+            <div class="form-group mb-4">
+                <label for="delete-reason" class="block text-sm font-medium text-gray-700">Reason for Deletion</label>
+                <select id="delete-reason" name="reason" required class="mt-1 p-2 w-full border rounded-md">
+                    <option value="contract_termination">Contract Termination</option>
+                    <option value="performance_issues">Performance Issues</option>
+                    <option value="retirement">Retirement</option>
+                    <option value="other">Other</option>
+                </select>
             </div>
-
-            <!-- Delete Confirmation (Hidden by default) -->
-            <div id="delete-confirmation" class="card panel" style="display: none;">
-                <h3>Confirm User Deletion</h3>
-                <p>Are you sure you want to delete the selected user?</p>
-                <form id="delete-user-form" action="{{ url_for('delete_user') }}" method="POST">
-                    <input type="hidden" id="delete-user-id" name="user_id">
-                    <div class="form-group">
-                        <label for="delete-reason">Reason for Deletion</label>
-                        <select id="delete-reason" name="reason" required>
-                            <option value="contract_termination">Contract Termination</option>
-                            <option value="performance_issues">Performance Issues</option>
-                            <option value="retirement">Retirement</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn">Confirm Delete</button>
-                    <button type="button" id="cancel-delete" class="btn">Cancel</button>
-                </form>
+            <div class="flex justify-end gap-4">
+                <button type="submit" class="btn btn-danger">Confirm Delete</button>
+                <button type="button" id="cancel-delete" class="btn btn-secondary">Cancel</button>
             </div>
-        </div>
+        </form>
+    </div>
+</div>
 
-    <script src="{{ url_for('static', filename='auth.js') }}"></script>
-    <script src="{{ url_for('static', filename='user_management.js') }}"></script>
-    <script>
-        // JavaScript for Add/Cancel and Delete Confirmation
-        document.getElementById('add-user-btn')?.addEventListener('click', function() {
-            document.getElementById('add-user-panel').style.display = 'block';
+<script src="{{ url_for('static', filename='auth.js') }}"></script>
+<script src="{{ url_for('static', filename='user_management.js') }}"></script>
+<script>
+    document.querySelectorAll('.delete-user').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-user-id');
+            document.getElementById('delete-user-id').value = userId;
+            document.getElementById('delete-confirmation').style.display = 'block';
         });
+    });
 
-        document.getElementById('cancel-add-user').addEventListener('click', function() {
-            document.getElementById('add-user-panel').style.display = 'none';
-        });
-
-        document.querySelectorAll('.delete-user').forEach(button => {
-            button.addEventListener('click', function() {
-                const userId = this.getAttribute('data-user-id');
-                document.getElementById('delete-user-id').value = userId;
-                document.getElementById('delete-confirmation').style.display = 'block';
-                // Auto-submit the form after showing confirmation
-                document.getElementById('delete-user-form').submit();
-            });
-        });
-
-        document.getElementById('cancel-delete').addEventListener('click', function() {
-            document.getElementById('delete-confirmation').style.display = 'none';
-            document.getElementById('delete-user-id').value = ''; // Clear user ID on cancel
-        });
-    </script>
+    document.getElementById('cancel-delete').addEventListener('click', function() {
+        document.getElementById('delete-confirmation').style.display = 'none';
+        document.getElementById('delete-user-id').value = '';
+    });
+</script>
 {% endblock %}

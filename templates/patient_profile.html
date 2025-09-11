@@ -2,23 +2,25 @@
 {% block title %}Patient Profile - Township Clinic{% endblock %}
 
 {% block content %}
-<div class="patient-profile-container">
-    <header>
-        <h2>Patient Profile: {{ patient.first_name }} {{ patient.last_name }}</h2>
-        <p>Patient ID: {{ patient.id }}</p>
+<div class="container mx-auto px-4 py-8 patient-profile-container">
+    <header class="mb-8">
+        <h2 class="text-3xl font-bold">Patient Profile: {{ patient.first_name }} {{ patient.last_name }}</h2>
+        <p class="text-lg text-gray-600">Patient ID: {{ patient.id }}</p>
     </header>
-    <section>
-        <h3>Personal Information</h3>
-        <p><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
-        <p><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
+    <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h3 class="text-xl font-semibold mb-4">Personal Information</h3>
+        <p class="mb-2"><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
+        <p class="mb-2"><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
     </section>
-    <section>
-        <h3>Medical Information</h3>
-        <p><strong>Medical History:</strong> {{ patient.medical_history }}</p>
-        <p><strong>Allergies:</strong> {{ patient.allergies }}</p>
-        <p><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
+    <section class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Medical Information</h3>
+        <p class="mb-2"><strong>Medical History:</strong> {{ patient.medical_history }}</p>
+        <p class="mb-2"><strong>Allergies:</strong> {{ patient.allergies }}</p>
+        <p class="mb-2"><strong>Current Medications:</strong> {{ patient.current_medications }}</p>
     </section>
-    <a href="{{ url_for('doctor_dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
-    <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-primary">Prescribe Medication</a>
+    <div class="flex space-x-4 mt-6">
+        <a href="{{ url_for('doctor_dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+        <a href="{{ url_for('prescription_page', patient_id=patient.id) }}" class="btn btn-primary">Prescribe Medication</a>
+    </div>
 </div>
 {% endblock %}

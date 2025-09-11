@@ -7,121 +7,122 @@
 {% endblock %}
 
 {% block content %}
-<div class="overview-container">
-
+<div class="container mx-auto px-4 py-8 overview-container">
   <!-- Welcome Section -->
-  <section class="welcome-section">
-    <h1>Hello, Dr. {{ user_details.first_name }}! <span class="wave">👋</span></h1>
-    <p class="date">{{ now.strftime('%A, %B %d, %Y') }}</p>
+  <section class="mb-8 welcome-section">
+    <h1 class="text-3xl font-bold">Hello, Dr. {{ user_details.first_name }}! <span class="wave">👋</span></h1>
+    <p class="text-lg text-gray-600">{{ now.strftime('%A, %B %d, %Y') }}</p>
   </section>
 
   <!-- Key Metrics -->
-  <section class="metrics-section">
-    <article class="metric-card">
-      <i class="fas fa-user-injured metric-icon primary"></i>
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 metrics-section">
+    <article class="metric-card bg-white rounded-lg shadow-md p-6 flex items-center gap-4">
+      <i class="fas fa-user-injured metric-icon text-blue-500 text-4xl"></i>
       <div class="metric-data">
-        <p class="metric-title">Total Patients</p>
-        <p class="metric-value">{{ total_patients }}</p>
+        <p class="metric-title text-sm font-medium">Total Patients</p>
+        <p class="metric-value text-3xl font-bold">{{ total_patients }}</p>
       </div>
     </article>
 
-    <article class="metric-card">
-      <i class="fas fa-calendar-check metric-icon success"></i>
+    <article class="metric-card bg-white rounded-lg shadow-md p-6 flex items-center gap-4">
+      <i class="fas fa-calendar-check metric-icon text-green-500 text-4xl"></i>
       <div class="metric-data">
-        <p class="metric-title">Today's Appointments</p>
-        <p class="metric-value">{{ patients_today|length }}</p>
+        <p class="metric-title text-sm font-medium">Today's Appointments</p>
+        <p class="metric-value text-3xl font-bold">{{ patients_today|length }}</p>
       </div>
     </article>
 
-    <article class="metric-card">
-      <i class="fas fa-exclamation-triangle metric-icon warning"></i>
+    <article class="metric-card bg-white rounded-lg shadow-md p-6 flex items-center gap-4">
+      <i class="fas fa-exclamation-triangle metric-icon text-yellow-500 text-4xl"></i>
       <div class="metric-data">
-        <p class="metric-title">Urgent Patient Alerts</p>
-        <p class="metric-value">{{ urgent_flags }}</p>
+        <p class="metric-title text-sm font-medium">Urgent Patient Alerts</p>
+        <p class="metric-value text-3xl font-bold">{{ urgent_flags }}</p>
       </div>
     </article>
 
-    <article class="metric-card">
-      <i class="fas fa-envelope metric-icon info"></i>
+    <article class="metric-card bg-white rounded-lg shadow-md p-6 flex items-center gap-4">
+      <i class="fas fa-envelope metric-icon text-purple-500 text-4xl"></i>
       <div class="metric-data">
-        <p class="metric-title">Unread Messages</p>
-        <p class="metric-value">{{ unread_messages }}</p>
+        <p class="metric-title text-sm font-medium">Unread Messages</p>
+        <p class="metric-value text-3xl font-bold">{{ unread_messages }}</p>
       </div>
     </article>
   </section>
 
   <!-- Upcoming Appointments -->
-  <section class="appointments-section card">
-    <header>
-      <h2>Upcoming Appointments</h2>
-      <a href="{{ url_for('book_appointment') }}" class="view-all">View All <i class="fas fa-arrow-right"></i></a>
+  <section class="card bg-white rounded-lg shadow-md p-6 mb-8">
+    <header class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">Upcoming Appointments</h2>
+      <a href="{{ url_for('calendar') }}" class="text-blue-600 hover:text-blue-800">View All <i class="fas fa-arrow-right"></i></a>
     </header>
     {% if patients_today %}
-    <ul class="appointments-list">
+    <ul class="space-y-4 appointments-list">
       {% for patient in patients_today %}
-      <li>
-        <div class="time">{{ patient.appointment_time.strftime('%I:%M %p') if patient.appointment_time else "TBD" }}</div>
-        <div class="patient-info">
-          <p class="name">{{ patient.first_name }} {{ patient.last_name }}</p>
-          <p class="reason">{{ patient.appointment_reason or "General check-up" }}</p>
+      <li class="flex items-center justify-between border-b pb-2">
+        <div class="time text-gray-600 font-medium">{{ patient.appointment_time.strftime('%I:%M %p') if patient.appointment_time else "TBD" }}</div>
+        <div class="patient-info flex-grow ml-4">
+          <p class="name font-semibold">{{ patient.first_name }} {{ patient.last_name }}</p>
+          <p class="reason text-sm text-gray-600">{{ patient.appointment_reason or "General check-up" }}</p>
         </div>
         {% if patient.urgent_flag %}
-          <span class="alert-badge" title="Urgent Attention"><i class="fas fa-exclamation-circle"></i></span>
+          <span class="alert-badge text-red-500" title="Urgent Attention"><i class="fas fa-exclamation-circle"></i></span>
         {% endif %}
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p class="no-appointments">No appointments scheduled for today.</p>
+    <p class="text-center text-gray-600 no-appointments">No appointments scheduled for today.</p>
     {% endif %}
   </section>
 
   <!-- Patient Health Alerts -->
-  <section class="alerts-section card">
-    <header>
-      <h2>Patient Health Alerts</h2>
-      <a href="{{ url_for('calendar') }}" class="view-all">Manage Alerts <i class="fas fa-arrow-right"></i></a>
+  <section class="card bg-white rounded-lg shadow-md p-6 mb-8">
+    <header class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">Patient Health Alerts</h2>
+      <a href="{{ url_for('calendar') }}" class="text-blue-600 hover:text-blue-800">Manage Alerts <i class="fas fa-arrow-right"></i></a>
     </header>
     {% if health_alerts %}
-    <ul class="alerts-list">
+    <ul class="space-y-4 alerts-list">
       {% for alert in health_alerts %}
-      <li>
-        <i class="fas fa-bell alert-icon"></i>
+      <li class="flex items-start">
+        <i class="fas fa-bell alert-icon text-yellow-500 mr-3 text-xl"></i>
         <div>
-          <strong>{{ alert.patient_name }}</strong> - {{ alert.alert_type }}
-          <p class="alert-message">{{ alert.message }}</p>
-          <small class="alert-date">{{ alert.date_reported.strftime('%b %d, %Y') }}</small>
+          <strong class="font-semibold">{{ alert.patient_name }}</strong> - {{ alert.alert_type }}
+          <p class="alert-message text-sm text-gray-600">{{ alert.message }}</p>
+          <small class="alert-date text-xs text-gray-500">{{ alert.date_reported.strftime('%b %d, %Y') }}</small>
         </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p>No patient health alerts at the moment.</p>
+    <p class="text-center text-gray-600">No patient health alerts at the moment.</p>
     {% endif %}
   </section>
 
   <!-- Recent Messages -->
-  <section class="messages-section card">
-    <header>
-      <h2>Recent Messages</h2>
-      <a href="{{ url_for('calendar') }}" class="view-all">View Inbox <i class="fas fa-arrow-right"></i></a>
+  <section class="card bg-white rounded-lg shadow-md p-6">
+    <header class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">Recent Messages</h2>
+      <a href="{{ url_for('calendar') }}" class="text-blue-600 hover:text-blue-800">View Inbox <i class="fas fa-arrow-right"></i></a>
     </header>
     {% if recent_messages %}
-    <ul class="messages-list">
+    <ul class="space-y-4 messages-list">
       {% for msg in recent_messages %}
-      <li>
-        <img class="avatar" src="{{ url_for('static', filename='profile_images/' + msg.sender_profile) }}" alt="{{ msg.sender_name }}'s avatar" />
-        <div class="message-content">
-          <p><strong>{{ msg.sender_name }}</strong> <span class="time">{{ msg.timestamp.strftime('%I:%M %p') }}</span></p>
-          <p class="preview">{{ msg.preview }}</p>
+      <li class="flex items-start">
+        <img class="avatar w-10 h-10 rounded-full mr-3" src="{{ url_for('static', filename='profile_images/' + msg.sender_profile) }}" alt="{{ msg.sender_name }}'s avatar" />
+        <div class="message-content flex-grow">
+          <p class="flex justify-between">
+            <strong>{{ msg.sender_name }}</strong> 
+            <span class="time text-xs text-gray-500">{{ msg.timestamp.strftime('%I:%M %p') }}</span>
+          </p>
+          <p class="preview text-sm text-gray-600">{{ msg.preview }}</p>
         </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <p>No recent messages.</p>
+    <p class="text-center text-gray-600">No recent messages.</p>
     {% endif %}
   </section>
-
 </div>
 {% endblock %}

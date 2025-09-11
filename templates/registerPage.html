@@ -10,73 +10,73 @@
         .form-group { position: relative; }
     </style>
 </head>
-<body>
-    <div class="register-container">
-        <div class="logo">Township Clinic</div>
-        <h1>Register</h1>
-        <form action="/register" method="post" onsubmit="return validateForm()">
-            <div class="form-group">
-                <label for="first_name">First Name</label>
-                <input type="text" id="first_name" name="first_name" required>
+<body class="flex items-center justify-center min-h-screen bg-gray-100">
+    <div class="register-container w-full max-w-md mx-4">
+        <div class="logo text-2xl font-bold text-primary mb-4 text-center">Township Clinic</div>
+        <h1 class="text-2xl font-bold mb-6 text-center">Register</h1>
+        <form action="{{ url_for('register') }}" method="post" onsubmit="return validateForm()" class="bg-white rounded-lg shadow-md p-6">
+            <div class="form-group mb-4">
+                <label for="first_name" class="block text-sm font-medium text-gray-700">First Name</label>
+                <input type="text" id="first_name" name="first_name" required class="mt-1 p-2 w-full border rounded-md">
             </div>
-            <div class="form-group">
-                <label for="last_name">Last Name</label>
-                <input type="text" id="last_name" name="last_name" required>
+            <div class="form-group mb-4">
+                <label for="last_name" class="block text-sm font-medium text-gray-700">Last Name</label>
+                <input type="text" id="last_name" name="last_name" required class="mt-1 p-2 w-full border rounded-md">
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required oninput="validatePassword()">
+            <div class="form-group mb-4">
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="password" name="password" required oninput="validatePassword()" class="mt-1 p-2 w-full border rounded-md">
                 <span id="password-error" class="error"></span>
             </div>
-            <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" required oninput="validatePassword()">
+            <div class="form-group mb-4">
+                <label for="confirm_password" class="block text-sm font-medium text-gray-700">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required oninput="validatePassword()" class="mt-1 p-2 w-full border rounded-md">
                 <span id="confirm-password-error" class="error"></span>
             </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required oninput="validateEmail()">
+            <div class="form-group mb-4">
+                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                <input type="email" id="email" name="email" required oninput="validateEmail()" class="mt-1 p-2 w-full border rounded-md">
                 <span id="email-error" class="error"></span>
             </div>
-            <div class="form-group">
-                <label for="confirm_email">Confirm Email</label>
-                <input type="email" id="confirm_email" name="confirm_email" required oninput="validateEmail()">
+            <div class="form-group mb-4">
+                <label for="confirm_email" class="block text-sm font-medium text-gray-700">Confirm Email</label>
+                <input type="email" id="confirm_email" name="confirm_email" required oninput="validateEmail()" class="mt-1 p-2 w-full border rounded-md">
                 <span id="confirm-email-error" class="error"></span>
             </div>
-            <div class="form-group">
-                <label for="role">Role</label>
-                <select id="role" name="role" required>
+            <div class="form-group mb-4">
+                <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+                <select id="role" name="role" required class="mt-1 p-2 w-full border rounded-md">
                     <option value="admin">Admin</option>
                     <option value="doctor">Doctor</option>
                     <option value="nurse">Nurse</option>
                     <option value="receptionist">Reception</option>
                 </select>
             </div>
-            <div class="form-group terms">
-                <input type="checkbox" id="terms" name="terms" required>
-                <label for="terms">I agree to the <a href="#terms">Terms and Conditions</a></label>
+            <div class="form-group terms flex items-center mb-4">
+                <input type="checkbox" id="terms" name="terms" required class="mr-2">
+                <label for="terms" class="text-sm">I agree to the <a href="#terms" class="text-blue-600 hover:underline">Terms and Conditions</a></label>
             </div>
             <div class="form-group">
-                <button type="submit">Register</button>
+                <button type="submit" class="btn btn-primary w-full">Register</button>
             </div>
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
                         {% if category == 'success' and 'Staff Number' in message %}
-                            <p class="flash-message staff-number">
+                            <p class="flash-message staff-number mt-4">
                                 {{ message }}
-                                <button class="copy-btn" onclick="copyToClipboard('{{ message.split(': ')[1] }}')">Copy</button>
+                                <button class="copy-btn ml-2 btn btn-secondary text-xs" onclick="copyToClipboard('{{ message.split(': ')[1] }}')">Copy</button>
                             </p>
                         {% else %}
-                            <p class="flash-message {{ category }}">{{ message }}</p>
+                            <p class="flash-message {{ category }} mt-4">{{ message }}</p>
                         {% endif %}
                     {% endfor %}
                 {% endif %}
             {% endwith %}
-            <a href="{{ url_for('login_page') }}">Already have an account? Login</a>
+            <a href="{{ url_for('login_page') }}" class="register-link block text-center mt-4">Already have an account? Login</a>
         </form>
-        <footer class="register-footer">
-            <div class="footer-logo">🌿 Township Clinic</div>
+        <footer class="register-footer text-center mt-6 text-gray-600">
+            <div class="footer-logo text-xl font-bold text-primary">🌿 Township Clinic</div>
             <p>Contact us: info@townshipclinic.org | (012) 345-6789</p>
         </footer>
     </div>
@@ -87,10 +87,9 @@
             const passwordError = document.getElementById('password-error');
             const confirmPasswordError = document.getElementById('confirm-password-error');
 
-            // Password validation: at least 8 characters, 1 uppercase, 1 lowercase, 1 number
             const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
             if (!passwordRegex.test(password) && password) {
-                passwordError.textContent = 'Password must be at least 8 characters';
+                passwordError.textContent = 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number.';
                 return false;
             } else {
                 passwordError.textContent = '';
@@ -111,7 +110,6 @@
             const emailError = document.getElementById('email-error');
             const confirmEmailError = document.getElementById('confirm-email-error');
 
-            // Basic email validation
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!emailRegex.test(email) && email) {
                 emailError.textContent = 'Please enter a valid email address.';

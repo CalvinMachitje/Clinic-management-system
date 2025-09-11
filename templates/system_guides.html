@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block title %}System Guides - Township Clinic{% endblock %}
 {% block content %}
-    <h1>System Guides</h1>
-    <p>Access user manuals and guides for the clinic system.</p>
-    <ul>
-        <li><a href="{{ url_for('static', filename='guides/user_manual.pdf') }}">User Manual</a></li>
-        <li><a href="{{ url_for('static', filename='guides/admin_guide.pdf') }}">Admin Guide</a></li>
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-8">System Guides</h1>
+    <p class="text-lg mb-6">Access user manuals and guides for the clinic system.</p>
+    <ul class="space-y-4">
+        <li><a href="{{ url_for('static', filename='guides/user_manual.pdf') }}" class="btn btn-primary inline-block">User Manual (PDF)</a></li>
+        <li><a href="{{ url_for('static', filename='guides/admin_guide.pdf') }}" class="btn btn-primary inline-block">Admin Guide (PDF)</a></li>
     </ul>
+</div>
 {% endblock %}

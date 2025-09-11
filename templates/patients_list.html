@@ -1,56 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Patients List - Township Clinic{% endblock %}
 {% block content %}
-<main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Patients List Main Content">
-    <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
-        <div class="mb-6">
-            <h2 class="text-2xl font-semibold text-gray-800">Patients List</h2>
-        </div>
-
-        <!-- Search and Filter Bar -->
-        <div class="flex flex-col sm:flex-row gap-4 mb-6">
-            <input type="text" id="searchInput" placeholder="Search patients by name or ID..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600" onkeyup="searchPatients()">
-            <select id="sortSelect" onchange="sortPatients()" class="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
-                <option value="name-asc">Sort by Name (A-Z)</option>
-                <option value="name-desc">Sort by Name (Z-A)</option>
-                <option value="id-asc">Sort by ID (Low to High)</option>
-                <option value="id-desc">Sort by ID (High to Low)</option>
-            </select>
-        </div>
-
-        <!-- Patients Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="patientGrid">
-            {% for patient in patients %}
-            <div class="patient-card bg-gray-50 p-5 rounded-lg shadow hover:shadow-lg transition">
-                <div class="flex justify-between items-center mb-3">
-                    {% if session.get('role') in ['nurse', 'doctor', 'receptionist'] %}
-                    <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
-                    {% else %}
-                    <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
-                    {% endif %}
-                    <span class="text-sm text-gray-500">ID: {{ patient.id }}</span>
-                </div>
-                <div class="mt-4">
-                    {% if session.get('role') in ['nurse', 'doctor', 'receptionist'] %}
-                    <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-emerald-600 transition">View Details</a>
-                    {% endif %}
-                </div>
+<div class="container mx-auto px-4 py-8">
+    <main class="main-content max-w-7xl mx-auto p-6" role="main" aria-label="Patients List Main Content">
+        <section class="dashboard-content bg-white shadow-md rounded-lg p-6">
+            <div class="mb-6">
+                <h2 class="text-3xl font-bold text-primary">Patients List</h2>
             </div>
-            {% else %}
-            <div class="col-span-full text-center text-gray-500 py-10">
-                No patients found.
-            </div>
-            {% endfor %}
-        </div>
 
-        <!-- Pagination -->
-        <div class="mt-6 flex justify-center items-center space-x-4">
-            <button id="prevPage" class="btn bg-gray-200 text-gray-800 px-3 py-1 rounded-md disabled:opacity-50" disabled>Previous</button>
-            <span id="pageInfo" class="text-gray-600">Page 1</span>
-            <button id="nextPage" class="btn bg-gray-200 text-gray-800 px-3 py-1 rounded-md">Next</button>
-        </div>
-    </section>
-</main>
+            <!-- Search and Filter Bar -->
+            <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                <input type="text" id="searchInput" placeholder="Search patients by name or ID..." class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600" onkeyup="searchPatients()">
+                <select id="sortSelect" onchange="sortPatients()" class="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
+                    <option value="name-asc">Sort by Name (A-Z)</option>
+                    <option value="name-desc">Sort by Name (Z-A)</option>
+                    <option value="id-asc">Sort by ID (Low to High)</option>
+                    <option value="id-desc">Sort by ID (High to Low)</option>
+                </select>
+            </div>
+
+            <!-- Patients Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="patientGrid">
+                {% for patient in patients %}
+                <div class="patient-card bg-gray-50 p-5 rounded-lg shadow hover:shadow-lg transition">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-medium text-gray-800">{{ patient.first_name }} {{ patient.last_name }}</h3>
+                        <span class="text-sm text-gray-500">ID: {{ patient.id }}</span>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{{ url_for('view_patient', id=patient.id) }}" class="btn btn-primary">View Details</a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-span-full text-center text-gray-500 py-10">
+                    No patients found.
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            <div class="mt-6 flex justify-center items-center space-x-4">
+                <button id="prevPage" class="btn btn-secondary disabled:opacity-50" disabled>Previous</button>
+                <span id="pageInfo" class="text-gray-600">Page 1</span>
+                <button id="nextPage" class="btn btn-secondary">Next</button>
+            </div>
+        </section>
+    </main>
+</div>
 
 <!-- JavaScript for Interactivity -->
 <script>
@@ -121,7 +117,4 @@
     // Initial pagination setup
     updatePagination();
 </script>
-
-<!-- Tailwind CSS CDN -->
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 {% endblock %}

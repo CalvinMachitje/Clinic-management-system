@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Nurse Dashboard - Township Clinic{% endblock %}
 {% block content %}
-<div class="dashboard-content nurse-wrapper">
-    <h2 class="nurse-welcome">Nurse Dashboard</h2>
+<div class="container mx-auto px-4 py-8 nurse-wrapper">
+    <h2 class="text-3xl font-bold mb-8 nurse-welcome">Nurse Dashboard</h2>
 
     <!-- System Overview -->
-    <details class="overview-panel">
-        <summary>System Overview</summary>
-        <div class="panel-content">
-            <ul>
+    <details class="bg-white rounded-lg shadow-md p-6 mb-8 overview-panel">
+        <summary class="text-xl font-semibold cursor-pointer">System Overview</summary>
+        <div class="panel-content mt-4">
+            <ul class="space-y-2">
                 <li>Today's Patients: <strong>{{ todays_patients }}</strong></li>
                 <li>Total Assigned: <strong>{{ patients|length }}</strong></li>
                 <li>Emergency Requests: <strong>{{ emergency_requests }}</strong></li>
@@ -20,32 +20,32 @@
     </details>
 
     <!-- Today's Appointments -->
-    <div class="card">
-        <header>
-            <h2>Today's Appointments</h2>
+    <div class="bg-white rounded-lg shadow-md p-6 card mb-8">
+        <header class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">Today's Appointments</h2>
             <span class="text-gray-600">Total: {{ appointments|length }}</span>
         </header>
         {% if appointments %}
-        <table class="table">
-            <thead>
+        <table class="w-full table-auto border-collapse table">
+            <thead class="bg-gray-100">
                 <tr>
-                    <th>Patient ID</th>
-                    <th>Name</th>
-                    <th>Appointment Time</th>
-                    <th>Reason</th>
-                    <th>Action</th>
+                    <th class="px-4 py-2 text-left">Patient ID</th>
+                    <th class="px-4 py-2 text-left">Name</th>
+                    <th class="px-4 py-2 text-left">Appointment Time</th>
+                    <th class="px-4 py-2 text-left">Reason</th>
+                    <th class="px-4 py-2 text-left">Action</th>
                 </tr>
             </thead>
             <tbody id="appointments-table-body">
                 {% for appt in appointments %}
-                <tr data-appointment-id="{{ appt.id }}">
-                    <td>{{ appt.patient_id }}</td>
-                    <td>{{ appt.patient_name }}</td>
-                    <td>{{ appt.appointment_date }}</td>
-                    <td>{{ appt.reason or 'N/A' }}</td>
-                    <td>
-                        <div class="action-buttons">
-                            <form onsubmit="markHelped(event, '{{ appt.id }}')" style="display: inline;">
+                <tr data-appointment-id="{{ appt.id }}" class="hover:bg-gray-50">
+                    <td class="px-4 py-2">{{ appt.patient_id }}</td>
+                    <td class="px-4 py-2">{{ appt.patient_name }}</td>
+                    <td class="px-4 py-2">{{ appt.appointment_date }}</td>
+                    <td class="px-4 py-2">{{ appt.reason or 'N/A' }}</td>
+                    <td class="px-4 py-2">
+                        <div class="action-buttons flex space-x-2">
+                            <form onsubmit="markHelped(event, '{{ appt.id }}')" class="inline">
                                 <input type="hidden" name="appointment_id" value="{{ appt.id }}">
                                 <button type="submit" class="btn btn-success">Mark as Helped</button>
                             </form>
@@ -59,13 +59,13 @@
             </tbody>
         </table>
         {% else %}
-        <p class="no-appointments">No appointments scheduled for today.</p>
+        <p class="text-center text-gray-600 no-appointments">No appointments scheduled for today.</p>
         {% endif %}
     </div>
 
     <!-- Patient Care -->
-    <div class="card">
-        <h3>Patient Care</h3>
+    <div class="bg-white rounded-lg shadow-md p-6 card mb-8">
+        <h3 class="text-xl font-semibold mb-4">Patient Care</h3>
         <p>
             {% if emergency_requests > 0 %}
             <a href="{{ url_for('emergency_homepage') }}" class="btn btn-alert">Emergency Requests ({{ emergency_requests }})</a>
@@ -74,9 +74,9 @@
     </div>
 
     <!-- Messages & Shift -->
-    <div class="card">
-        <h3>Messages & Shift</h3>
-        <ul>
+    <div class="bg-white rounded-lg shadow-md p-6 card">
+        <h3 class="text-xl font-semibold mb-4">Messages & Shift</h3>
+        <ul class="space-y-2">
             <li>New Messages: <strong>{{ new_messages }}</strong> <a href="{{ url_for('edit_employee') }}">Inbox</a></li>
             <li>Next Shift Ends: <strong>{{ shift_end }}</strong></li>
             <li>Hours Left: <strong>{{ shift_hours_left }}</strong></li>
@@ -84,7 +84,7 @@
     </div>
 
     <!-- Flash Messages -->
-    <div id="flash-messages">
+    <div id="flash-messages" class="mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -115,7 +115,7 @@ function markHelped(event, appointmentId) {
                 row.remove();
                 const tbody = document.getElementById('appointments-table-body');
                 if (tbody.children.length === 0) {
-                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments">No appointments scheduled for today.</p>');
+                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments text-center text-gray-600">No appointments scheduled for today.</p>');
                 }
             }
         }
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.remove();
                 const tbody = document.getElementById('appointments-table-body');
                 if (tbody.children.length === 0) {
-                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments">No appointments scheduled for today.</p>');
+                    tbody.insertAdjacentHTML('afterend', '<p class="no-appointments text-center text-gray-600">No appointments scheduled for today.</p>');
                 }
             }
         } catch (e) {
