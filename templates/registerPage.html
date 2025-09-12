@@ -60,19 +60,20 @@
                 <button type="submit" class="btn btn-primary w-full">Register</button>
             </div>
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        {% if category == 'success' and 'Staff Number' in message %}
-                            <p class="flash-message staff-number mt-4">
-                                {{ message }}
-                                <button class="copy-btn ml-2 btn btn-secondary text-xs" onclick="copyToClipboard('{{ message.split(': ')[1] }}')">Copy</button>
-                            </p>
-                        {% else %}
-                            <p class="flash-message {{ category }} mt-4">{{ message }}</p>
-                        {% endif %}
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+    {% if messages %}
+        {% for category, message in messages %}
+            {% if category == 'success' and 'Staff Number' in message %}
+                <p class="flash-message staff-number mt-4">
+                    {{ message }}
+                    {% set staff_number = message.split(':')[1] if ':' in message and message.split(':')|length > 1 else '' %}
+                    <button class="copy-btn ml-2 btn btn-secondary text-xs" onclick="copyToClipboard('{{ staff_number|safe }}')">Copy</button>
+                </p>
+            {% else %}
+                <p class="flash-message {{ category }} mt-4">{{ message }}</p>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+{% endwith %}
             <a href="{{ url_for('login_page') }}" class="register-link block text-center mt-4">Already have an account? Login</a>
         </form>
         <footer class="register-footer text-center mt-6 text-gray-600">

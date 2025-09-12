@@ -2,105 +2,175 @@
 {% block title %}Reception Dashboard - Township Clinic{% endblock %}
 {% block content %}
 <div class="container mx-auto px-4 py-8 dashboard-content reception-dashboard">
-    <h2 class="text-3xl font-bold mb-8">Reception Dashboard</h2>
-    <details class="bg-white rounded-lg shadow-md p-6 mb-8 overview-panel" open>
-        <summary class="text-xl font-semibold cursor-pointer">System Overview</summary>
-        <div class="panel-content mt-4">
-            <ul class="space-y-2">
-                <li><strong>Appointments Today:</strong> <span id="appointments-today">{{ patients_today|length }}</span></li>
-                <li><strong>Total Visits (This Month):</strong> {{ all_visits|length }}</li>
-                <li><strong>Available Staff:</strong> {{ available_staff|length }}</li>
-                <li><strong>Walk-in Patients Waiting:</strong> {{ walkins_waiting|length }}</li>
-                <li><strong>Missed Appointments:</strong> {{ missed_appointments|length }}</li>
-                <li><strong>Pending Patient Registrations:</strong> {{ pending_registrations|length }}</li>
-            </ul>
-        </div>
-    </details>
+  <h2 class="text-3xl font-bold mb-8">Reception Dashboard</h2>
 
-    <div class="bg-white rounded-lg shadow-md p-6 card mb-8 appointments-table">
-        <h3 class="text-xl font-semibold mb-4">Today's Appointments</h3>
-        <!-- Sorting Controls -->
-        <div class="form-group mb-4">
-            <label for="sort-appointments">Sort By</label>
-            <select id="sort-appointments" class="form-control">
-                <option value="all">All Appointments</option>
-                <option value="scheduled">Scheduled Appointments</option>
-                <option value="cancelled">Cancelled Appointments</option>
-                <option value="today">Today's Appointments</option>
-                <option value="week">This Week's Appointments</option>
-                <option value="month">This Month's Appointments</option>
-            </select>
-        </div>
-        {% if patients_today %}
-        <table id="appointments-table" class="w-full table-auto border-collapse table">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="px-4 py-2 text-left">Patient ID</th>
-                    <th class="px-4 py-2 text-left">Patient Name</th>
-                    <th class="px-4 py-2 text-left">Appointment Time</th>
-                    <th class="px-4 py-2 text-left">Reason</th>
-                    <th class="px-4 py-2 text-left">Status</th>
-                    <th class="px-4 py-2 text-left">Helped By</th>
-                    <th class="px-4 py-2 text-left">Role</th>
-                    <th class="px-4 py-2 text-left">Action</th>
-                </tr>
-            </thead>
-            <tbody id="waiting-patients-table-body">
-                {% for patient in waiting_patients %}
-                <tr class="hover:bg-gray-50" data-appointment-id="{{ patient.id }}">
-                    <td class="px-4 py-2">{{ patient.patient_id }}</td>
-                    <td class="px-4 py-2">{{ patient.first_name }} {{ patient.last_name }}</td>
-                    <td class="px-4 py-2">{{ patient.appointment_date }}</td>
-                    <td class="px-4 py-2">{{ patient.reason|default('Not specified') }}</td>
-                    <td class="px-4 py-2">{{ patient.status }}</td>
-                    <td class="px-4 py-2">{{ patient.helper_name or 'N/A' }}</td>
-                    <td class="px-4 py-2">{{ patient.helper_role or 'N/A' }}</td>
-                    <td class="px-4 py-2">
-                        {% if patient.status == 'scheduled' %}
-                        <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
-                            <input type="hidden" name="appointment_id" value="{{ patient.id }}">
-                            <button type="submit" class="btn btn-danger">Cancel</button>
-                        </form>
-                        {% else %}
-                        <span>{{ patient.status|capitalize }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="text-center text-gray-600">No appointments today.</p>
-        {% endif %}
+  <details class="bg-white rounded-lg shadow-md p-6 mb-8 overview-panel" open>
+    <summary class="text-xl font-semibold cursor-pointer">System Overview</summary>
+    <div class="panel-content mt-4">
+      <ul class="space-y-2 list-disc list-inside">
+        <li><strong>Appointments Today:</strong> <span id="appointments-today">{{ patients_today|length }}</span></li>
+        <li><strong>Total Visits (This Month):</strong> {{ all_visits|length }}</li>
+        <li><strong>Available Staff:</strong> {{ available_staff|length }}</li>
+        <li><strong>Walk-in Patients Waiting:</strong> {{ walkins_waiting|length }}</li>
+        <li><strong>Missed Appointments:</strong> {{ missed_appointments|length }}</li>
+        <li><strong>Pending Patient Registrations:</strong> {{ pending_registrations|length }}</li>
+      </ul>
+    </div>
+  </details>
+
+  <section class="bg-white rounded-lg shadow-md p-6 card mb-8 appointments-table" aria-labelledby="appointments-heading">
+    <h3 id="appointments-heading" class="text-xl font-semibold mb-4">Today's Appointments</h3>
+
+    <!-- Sorting Controls -->
+    <div class="form-group mb-4">
+      <label for="sort-appointments" class="block mb-1 font-medium">Sort By</label>
+      <select id="sort-appointments" class="form-control w-full max-w-xs" aria-controls="appointments-table">
+        <option value="all">All Appointments</option>
+        <option value="scheduled">Scheduled Appointments</option>
+        <option value="cancelled">Cancelled Appointments</option>
+        <option value="today">Today's Appointments</option>
+        <option value="week">This Week's Appointments</option>
+        <option value="month">This Month's Appointments</option>
+      </select>
     </div>
 
-    <div class="bg-white rounded-lg shadow-md p-6 card mb-8 daily-summary">
-        <h3 class="text-xl font-semibold mb-4">Today's Summary</h3>
-        <ul class="space-y-2">
-            <li><strong>Patients Checked-in:</strong> {{ checked_in_patients }}</li>
-            <li><strong>Walk-ins Processed:</strong> {{ walkins_processed }}</li>
-            <li><strong>Appointments Rescheduled:</strong> {{ appointments_rescheduled }}</li>
-            <li><strong>Payments Processed:</strong> {{ payments_processed }}</li>
-        </ul>
+    {% if patients_today %}
+    <table id="appointments-table" class="w-full table-auto border-collapse table" role="table">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2 text-left" scope="col">Patient ID</th>
+          <th class="px-4 py-2 text-left" scope="col">Patient Name</th>
+          <th class="px-4 py-2 text-left" scope="col">Appointment Time</th>
+          <th class="px-4 py-2 text-left" scope="col">Reason</th>
+          <th class="px-4 py-2 text-left" scope="col">Status</th>
+          <th class="px-4 py-2 text-left" scope="col">Helped By</th>
+          <th class="px-4 py-2 text-left" scope="col">Role</th>
+          <th class="px-4 py-2 text-left" scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody id="waiting-patients-table-body">
+        {% for patient in waiting_patients %}
+        <tr class="hover:bg-gray-50" data-appointment-id="{{ patient.id }}">
+          <td class="px-4 py-2">{{ patient.patient_id }}</td>
+          <td class="px-4 py-2">{{ patient.first_name }} {{ patient.last_name }}</td>
+          <td class="px-4 py-2">{{ patient.appointment_date }}</td>
+          <td class="px-4 py-2">{{ patient.reason|default('Not specified') }}</td>
+          <td class="px-4 py-2 capitalize">{{ patient.status }}</td>
+          <td class="px-4 py-2">{{ patient.helper_name or 'N/A' }}</td>
+          <td class="px-4 py-2">{{ patient.helper_role or 'N/A' }}</td>
+          <td class="px-4 py-2">
+            {% if patient.status == 'scheduled' %}
+            <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
+              <input type="hidden" name="appointment_id" value="{{ patient.id }}">
+              <button type="submit" class="btn btn-danger" aria-label="Cancel appointment for {{ patient.first_name }} {{ patient.last_name }}">Cancel</button>
+            </form>
+            {% else %}
+            <span class="text-gray-600">{{ patient.status|capitalize }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-center text-gray-600">No appointments today.</p>
+    {% endif %}
+  </section>
+
+  <section class="bg-white rounded-lg shadow-md p-6 card mb-8 daily-summary" aria-labelledby="summary-heading">
+    <h3 id="summary-heading" class="text-xl font-semibold mb-4">Today's Summary</h3>
+    <ul class="space-y-2 list-disc list-inside">
+      <li><strong>Patients Checked-in:</strong> {{ checked_in_patients }}</li>
+      <li><strong>Walk-ins Processed:</strong> {{ walkins_processed }}</li>
+      <li><strong>Appointments Rescheduled:</strong> {{ appointments_rescheduled }}</li>
+      <li><strong>Payments Processed:</strong> {{ payments_processed }}</li>
+    </ul>
+  </section>
+
+  <details class="bg-white rounded-lg shadow-md p-6 notifications-panel" open>
+    <summary class="text-xl font-semibold cursor-pointer">Notifications</summary>
+    <div class="panel-content mt-4" role="list" aria-label="Notifications">
+    {% if notifications %}
+      <ul class="space-y-4">
+        {% for note in notifications %}
+          <li class="border-b pb-2" role="listitem">
+            <strong>{{ note.title }}</strong> - {{ note.message }}
+            <small class="text-gray-500 ml-2">({{ note.timestamp.strftime('%b %d, %H:%M') }})</small>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-center text-gray-600">No new notifications.</p>
+    {% endif %}
     </div>
-    <details class="bg-white rounded-lg shadow-md p-6 notifications-panel" open>
-        <summary class="text-xl font-semibold cursor-pointer">Notifications</summary>
-        <div class="panel-content mt-4">
-        {% if notifications %}
-            <ul class="space-y-4">
-                {% for note in notifications %}
-                    <li class="border-b pb-2"><strong>{{ note.title }}</strong> - {{ note.message }} <small>({{ note.timestamp.strftime('%b %d, %H:%M') }})</small></li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-center text-gray-600">No new notifications.</p>
-        {% endif %}
-        </div>
-    </details>
+  </details>
 </div>
 
 <script>
-    // Existing script with enhancements
-    // ...
+  document.addEventListener('DOMContentLoaded', () => {
+    const sortSelect = document.getElementById('sort-appointments');
+    const tableBody = document.getElementById('waiting-patients-table-body');
+
+    function filterAppointments() {
+      const filter = sortSelect.value;
+      const rows = tableBody.querySelectorAll('tr');
+
+      // Helper to parse appointment date string to Date object (assumes format 'YYYY-MM-DD HH:mm:ss')
+      function parseDateTime(dateTimeStr) {
+        return new Date(dateTimeStr.replace(' ', 'T'));
+      }
+
+      // Get current date for filtering
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7);
+      const oneMonthAgo = new Date(now);
+      oneMonthAgo.setMonth(now.getMonth() - 1);
+
+      rows.forEach(row => {
+        const status = row.cells[4].textContent.trim().toLowerCase();  // Status column
+        const appointmentDateStr = row.cells[2].textContent.trim();
+        const appointmentDate = parseDateTime(appointmentDateStr);
+
+        let showRow = true;
+
+        switch(filter) {
+          case 'all':
+            showRow = true;
+            break;
+          case 'scheduled':
+            showRow = status === 'scheduled';
+            break;
+          case 'cancelled':
+            showRow = status === 'cancelled';
+            break;
+          case 'today':
+            // Match only appointments whose date matches today's date
+            showRow = appointmentDateStr.startsWith(today);
+            break;
+          case 'week':
+            // Appointments within the past week (7 days)
+            showRow = appointmentDate >= oneWeekAgo && appointmentDate <= now;
+            break;
+          case 'month':
+            // Appointments within the past month
+            showRow = appointmentDate >= oneMonthAgo && appointmentDate <= now;
+            break;
+          default:
+            showRow = true;
+        }
+
+        row.style.display = showRow ? '' : 'none';
+      });
+    }
+
+    // Run filter when dropdown changes
+    sortSelect.addEventListener('change', filterAppointments);
+
+    // Initial filter on page load
+    filterAppointments();
+  });
 </script>
+
 {% endblock %}

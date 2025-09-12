@@ -2372,3 +2372,101 @@ table.table tbody tr:hover {
 .announcements-section small {
   color: #666;
 }
+
+/* Patient Book Appointment Page Styles */
+.patient-book-appointment {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 30px 25px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  color: var(--text-primary);
+}
+
+.patient-book-appointment h2 {
+  text-align: center;
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  font-size: 2rem;
+}
+
+.patient-book-appointment form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.patient-book-appointment .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.patient-book-appointment label {
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.patient-book-appointment input[type="text"],
+.patient-book-appointment input[type="datetime-local"],
+.patient-book-appointment select,
+.patient-book-appointment textarea {
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.patient-book-appointment input:focus,
+.patient-book-appointment select:focus,
+.patient-book-appointment textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+  outline: none;
+}
+
+.patient-book-appointment button.submit-btn {
+  align-self: center;
+  background: var(--primary);
+  color: var(--text-primary);
+  padding: 12px 30px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  white-space: nowrap;
+}
+
+.patient-book-appointment button.submit-btn:hover,
+.patient-book-appointment button.submit-btn:focus {
+  background: var(--secondary);
+  transform: translateY(-2px);
+}
+
+.patient-book-appointment .error-message {
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: -12px;
+}
+
+@media (max-width: 600px) {
+  .patient-book-appointment {
+    margin: 1rem 15px;
+    padding: 20px 15px;
+  }
+
+  .patient-book-appointment h2 {
+    font-size: 1.6rem;
+  }
+}

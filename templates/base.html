@@ -18,7 +18,7 @@
   <!-- Update current-time CSS variable -->
   <style>
     :root {
-      --current-time: "10:56 AM SAST, September 11, 2025";
+      --current-time: "10:52 AM SAST, September 11, 2025";
     }
   </style>
 </head>
@@ -39,11 +39,11 @@
         {% if session.role == 'receptionist' %}
           <ul>
             <li><a href="{{ url_for('reception_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('appointment_homepage') }}"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
+            <li><a href="{{ url_for('manage_appointments') }}"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
             <li><a href="{{ url_for('check_in_page') }}"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
             <li><a href="{{ url_for('helped_patients_report') }}"><i class="fas fa-file-alt"></i> Patient Report</a></li>
             <li><a href="{{ url_for('search_patient') }}"><i class="fas fa-search"></i> Search Patients</a></li>
-            <li><a href="#" onclick="openModal('addPatientModal')"><i class="fas fa-user-plus"></i> Add Patient</a></li>
+            <li><a href="{{ url_for('add_patient') }}"><i class="fas fa-user-plus"></i> Add Patient</a></li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
@@ -112,26 +112,6 @@
 
     <!-- Page content -->
     {% block content %}{% endblock %}
-
-    <!-- Announcements Section -->
-    {% if session.username %}
-      <section class="announcements-section">
-        <h2>Announcements</h2>
-        {% if announcements %}
-          <ul>
-            {% for ann in announcements %}
-              <li>
-                <h3>{{ ann.title }}</h3>
-                <p>{{ ann.content }}</p>
-                <small>By {{ ann.author }} on {{ ann.created_at }}</small>
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <p>No announcements available at this time.</p>
-        {% endif %}
-      </section>
-    {% endif %}
   </main>
 
   <!-- Receptionist: Add Patient Modal -->

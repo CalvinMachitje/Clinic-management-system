@@ -1,167 +1,153 @@
 {% extends "base.html" %}
-{% block title %}Manage Appointments - Township Clinic{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8 manage-appointments">
-    <h2 class="text-3xl font-bold mb-8 text-center">Manage Appointments</h2>
-    
-    <!-- Book New Appointment -->
-    <div class="bg-white rounded-lg shadow-md p-6 card mb-8 book-appointment">
-        <h3 class="text-xl font-semibold mb-4">Book New Appointment</h3>
-        <form action="{{ url_for('appointments') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="hidden" name="action" value="book">
-            <div class="form-group">
-                <label for="patient_id">Patient ID</label>
-                <input type="text" id="patient_id" name="patient_id" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="appointment_time">Appointment Time (YYYY-MM-DD HH:MM:SS)</label>
-                <input type="datetime-local" id="appointment_time" name="appointment_time" class="form-control" required>
-            </div>
-            <div class="form-group md:col-span-2">
-                <label for="reason">Reason for Appointment</label>
-                <select id="reason" name="reason" class="form-control" required>
-                    <option value="general">General Consultation</option>
-                    <option value="chronic">Chronic Condition</option>
-                    <option value="check-up">Check-up</option>
-                </select>
-            </div>
-            <div class="md:col-span-2">
-                <button type="submit" class="btn btn-primary w-full">Book Appointment</button>
-            </div>
-        </form>
-    </div>
-    
-    <!-- Search Appointments -->
-    <div class="bg-white rounded-lg shadow-md p-6 card mb-8 search-appointments">
-        <h3 class="text-xl font-semibold mb-4">Search Appointments</h3>
-        <div class="form-group">
-            <label for="search-input">Search by Patient ID or Name</label>
-            <input type="text" id="search-input" class="form-control" placeholder="Enter Patient ID or Name">
-        </div>
-    </div>
-    
-    <!-- All Appointments -->
-    <div class="bg-white rounded-lg shadow-md p-6 card mb-8 all-appointments">
-        <h3 class="text-xl font-semibold mb-4">All Appointments</h3>
-        <!-- Sorting Controls -->
-        <div class="form-group mb-4">
-            <label for="sort-appointments">Sort By</label>
-            <select id="sort-appointments" class="form-control">
-                <option value="all">All Appointments</option>
-                <option value="scheduled">Scheduled Appointments</option>
-                <option value="cancelled">Cancelled Appointments</option>
-                <option value="helped">Helped Appointments</option>
-                <option value="today">Today's Appointments</option>
-                <option value="week">This Week's Appointments</option>
-                <option value="month">This Month's Appointments</option>
-            </select>
-        </div>
-        {% if appointments %}
-        <table id="appointments-table" class="w-full table-auto border-collapse table">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="px-4 py-2 text-left">Patient ID</th>
-                    <th class="px-4 py-2 text-left">Patient Name</th>
-                    <th class="px-4 py-2 text-left">Appointment Time</th>
-                    <th class="px-4 py-2 text-left">Reason</th>
-                    <th class="px-4 py-2 text-left">Status</th>
-                    <th class="px-4 py-2 text-left">Assigned Staff</th>
-                    <th class="px-4 py-2 text-left">Action</th>
-                </tr>
-            </thead>
-            <tbody id="appointments-tbody">
-                {% for appt in appointments %}
-                <tr data-appointment-id="{{ appt.id }}" class="{% if appt.reason == 'chronic' %}urgent{% endif %} hover:bg-gray-50">
-                    <td class="px-4 py-2">{{ appt.patient_id }}</td>
-                    <td class="px-4 py-2">{{ appt.first_name }} {{ appt.last_name }}</td>
-                    <td class="px-4 py-2">{{ appt.appointment_date }}</td>
-                    <td class="px-4 py-2">{{ appt.reason|default('Not specified') }}</td>
-                    <td class="px-4 py-2">{{ appt.status }}</td>
-                    <td class="px-4 py-2">
-                        {% if appt.status == 'scheduled' or appt.status == 'waiting' %}
-                        <form action="{{ url_for('assign_staff') }}" method="POST" class="assign-staff-form inline">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <select name="staff_id" class="form-control inline-block w-40 mr-2" required>
-                                <option value="">Select Staff</option>
-                                {% for staff in available_staff %}
-                                <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role|capitalize }})</option>
-                                {% endfor %}
-                            </select>
-                            <button type="submit" class="btn btn-primary">Assign</button>
-                        </form>
-                        {% else %}
-                        {{ appt.helper_name or 'N/A' }} ({{ appt.helper_role or 'N/A' }})
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-2">
-                        {% if appt.status == 'scheduled' %}
-                        <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <button type="submit" class="btn btn-danger">Cancel</button>
-                        </form>
-                        <form action="{{ url_for('reschedule_appointment') }}" method="POST" class="inline mt-2">
-                            <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                            <input type="datetime-local" name="new_time" placeholder="New Time" class="form-control inline-block w-48 mr-2" required>
-                            <button type="submit" class="btn btn-primary">Reschedule</button>
-                        </form>
-                        {% else %}
-                        <span>{{ appt.status|capitalize }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p class="text-center text-gray-600">No appointments found.</p>
-        {% endif %}
-    </div>
-    
-    <!-- Helped Patients History -->
-    <div class="bg-white rounded-lg shadow-md p-6 card helped-patients">
-        <h3 class="text-xl font-semibold mb-4">Helped Patients History</h3>
-        <table id="helped-patients-table" class="w-full table-auto border-collapse table">
-            <thead class="bg-gray-100">
-                <tr>
-                    <th class="px-4 py-2 text-left">Patient ID</th>
-                    <th class="px-4 py-2 text-left">Patient Name</th>
-                    <th class="px-4 py-2 text-left">Reason</th>
-                    <th class="px-4 py-2 text-left">Assigned Staff</th>
-                    <th class="px-4 py-2 text-left">Helped At</th>
-                </tr>
-            </thead>
-            <tbody id="helped-patients-tbody">
-                {% for record in helped_patients %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2">{{ record.patient_id }}</td>
-                    <td class="px-4 py-2">{{ record.first_name }} {{ record.last_name }}</td>
-                    <td class="px-4 py-2">{{ record.reason }}</td>
-                    <td class="px-4 py-2">{{ record.helper_name }} ({{ record.helper_role }})</td>
-                    <td class="px-4 py-2">{{ record.timestamp }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+<div class="dashboard-content">
+    <h2>Manage Appointments</h2>
 
-<!-- Assignment Confirmation Modal -->
-<div id="assign-modal" class="modal fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
-    <div class="modal-content bg-white rounded-lg p-6 max-w-sm w-full">
-        <h3 class="text-xl font-semibold mb-4">Confirm Staff Assignment</h3>
-        <p class="mb-4">Assign <span id="modal-staff-name"></span> to <span id="modal-patient-name"></span> for <span id="modal-reason"></span>?</p>
-        <div class="flex justify-end gap-4">
-            <button id="confirm-assign" class="btn btn-primary">Confirm</button>
-            <button id="cancel-assign" class="btn btn-danger">Cancel</button>
+    <!-- Booking Section -->
+    <div class="manage-appointments">
+        <div class="card">
+            <h3>Book New Appointment</h3>
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label for="patientId">Patient ID</label>
+                    <input type="text" id="patientId" name="patient_id" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label for="appointmentTime">Appointment Date & Time</label>
+                    <input type="datetime-local" id="appointmentTime" name="appointment_time" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label for="reasonInput">Reason (optional)</label>
+                    <input type="text" id="reasonInput" name="reason" class="form-control" placeholder="Reason for appointment" />
+                </div>
+                <button type="submit" class="btn btn-primary">Book Appointment</button>
+                <div id="formMessage" style="margin-top: 10px;"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Filter for appointment status -->
+    <div class="manage-appointments" style="margin-top: 20px;">
+        <label for="statusFilter" style="font-weight: 600; margin-bottom: 8px; display: block;">Filter by Status:</label>
+        <select id="statusFilter" class="form-control" style="max-width: 300px;">
+            <option value="all">All</option>
+            <option value="open">Open (scheduled/waiting)</option>
+            <option value="rescheduled">Rescheduled</option>
+            <option value="missed">Missed</option>
+            <option value="cancelled">Cancelled</option>
+        </select>
+    </div>
+
+    <!-- Appointments Table -->
+    <div class="manage-appointments" style="margin-top: 15px;">
+        <div class="card">
+            <h3>Appointments</h3>
+            <table class="table" id="appointmentsTable">
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>Date & Time</th>
+                        <th>Status</th>
+                        <th>Reason</th>
+                        <th>Assigned Staff</th>
+                        <!-- Actions column can be added if needed -->
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                    <tr data-status="{{ appt.status|lower }}" class="{% if appt.status in ['rescheduled', 'cancelled'] %}urgent{% endif %}">
+                        <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                        <td>{{ appt.appointment_date }}</td>
+                        <td>{{ appt.status|capitalize }}</td>
+                        <td>{{ appt.reason }}</td>
+                        <td>
+                            {% if appt.helper_name %}
+                                {{ appt.helper_name }} ({{ appt.helper_role }})
+                            {% else %}
+                                <em>Unassigned</em>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<script id="staff-data" type="application/json">
-{{ available_staff|tojson }}
-</script>
 <script>
-    // Existing script with enhancements for better UX (e.g., loading spinners, error handling)
-    // ...
+document.addEventListener('DOMContentLoaded', () => {
+    const bookingForm = document.getElementById('bookingForm');
+    const formMessage = document.getElementById('formMessage');
+    const appointmentsTable = document.getElementById('appointmentsTable').getElementsByTagName('tbody')[0];
+    const statusFilter = document.getElementById('statusFilter');
+
+    // Handle booking form submission with AJAX
+    bookingForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        formMessage.textContent = '';
+        formMessage.style.color = '';
+
+        const formData = new FormData(bookingForm);
+        try {
+            const response = await fetch('{{ url_for("manage_appointments") }}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const data = await response.json();
+
+            if (data.success) {
+                formMessage.style.color = 'green';
+                formMessage.textContent = data.message;
+
+                // Append new appointment row to table
+                const appt = data.appointment;
+                const newRow = appointmentsTable.insertRow(0);
+                newRow.setAttribute('data-status', appt.status.toLowerCase());
+                if (['rescheduled', 'cancelled'].includes(appt.status.toLowerCase())) {
+                    newRow.classList.add('urgent');
+                }
+                newRow.innerHTML = `
+                    <td>${appt.patient_first_name || 'Unknown'} ${appt.patient_last_name || ''}</td>
+                    <td>${appt.appointment_date}</td>
+                    <td>${appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}</td>
+                    <td>${appt.reason || 'Not specified'}</td>
+                    <td><em>Unassigned</em></td>
+                `;
+                // Clear form inputs
+                bookingForm.reset();
+            } else {
+                formMessage.style.color = 'red';
+                formMessage.textContent = data.message || 'Failed to book appointment';
+            }
+        } catch (error) {
+            formMessage.style.color = 'red';
+            formMessage.textContent = 'An error occurred while booking appointment.';
+            console.error('Booking error:', error);
+        }
+    });
+
+    // Filter appointments table rows by status
+    statusFilter.addEventListener('change', () => {
+        const selected = statusFilter.value;
+        Array.from(appointmentsTable.rows).forEach(row => {
+            const status = row.getAttribute('data-status');
+            if (selected === 'all') {
+                row.style.display = '';
+            } else if (selected === 'open') {
+                row.style.display = (status === 'scheduled' || status === 'waiting') ? '' : 'none';
+            } else {
+                row.style.display = (status === selected) ? '' : 'none';
+            }
+        });
+    });
+});
 </script>
 {% endblock %}
