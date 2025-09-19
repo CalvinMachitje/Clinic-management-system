@@ -1,0 +1,72 @@
+{% extends "homepage/base.html" %}
+
+{% block title %}Township Clinic - Register{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Register</h1>
+    <form method="POST" action="">
+        {{ form.hidden_tag() }} <!-- CSRF protection -->
+        <div class="form-group">
+            {{ form.first_name.label }}<br>
+            {{ form.first_name(class="form-control", placeholder="First Name") }}<br>
+            {% for error in form.first_name.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.last_name.label }}<br>
+            {{ form.last_name(class="form-control", placeholder="Last Name") }}<br>
+            {% for error in form.last_name.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.email.label }}<br>
+            {{ form.email(class="form-control", placeholder="Email") }}<br>
+            {% for error in form.email.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.password.label }}<br>
+            {{ form.password(class="form-control", placeholder="Password") }}<br>
+            {% for error in form.password.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.confirm_password.label }}<br>
+            {{ form.confirm_password(class="form-control", placeholder="Confirm Password") }}<br>
+            {% for error in form.confirm_password.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.role.label }}<br>
+            {{ form.role(class="form-control") }}<br> <!-- Should be a select dropdown in form definition -->
+            {% for error in form.role.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            <label>{{ form.terms.label }}</label>
+            {{ form.terms(type="checkbox") }} I accept the terms and conditions<br>
+            {% for error in form.terms.errors %}
+                <span style="color: red;">{{ error }}</span><br>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.submit(class="btn btn-primary") }}
+        </div>
+    </form>
+    <p>Already have an account? <a href="{{ url_for('login_page') }}">Login here</a></p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+{% endblock %}

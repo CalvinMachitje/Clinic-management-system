@@ -1,40 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Township Clinic - Emergency Care</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
-</head>
-<body>
-    <nav class="default-menu">
-        <div class="logo">Township Clinic</div>
-        <ul>
-            <li><a href="{{ url_for('default_page') }}">Home</a></li>
-        </ul>
-    </nav>
-    <main class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-4">Emergency Care</h1>
-        <p class="text-gray-600 mb-8">Access urgent medical services when you need them.</p>
-        <!-- Emergency care information or form -->
-        <div class="bg-white rounded-lg shadow-md p-6 max-w-md mx-auto">
-            <h2 class="text-xl font-semibold mb-4">Request Emergency Assistance</h2>
-            <form action="{{ url_for('emergency_request') }}" method="POST">
-                <div class="form-group mb-4">
-                    <label for="patient_id" class="block text-sm font-medium text-gray-700">Patient ID</label>
-                    <input type="text" id="patient_id" name="patient_id" required class="mt-1 p-2 w-full border rounded-md">
-                </div>
-                <div class="form-group mb-4">
-                    <label for="reason" class="block text-sm font-medium text-gray-700">Reason</label>
-                    <textarea id="reason" name="reason" required class="mt-1 p-2 w-full border rounded-md"></textarea>
-                </div>
-                <button type="submit" class="btn btn-danger w-full">Request Emergency</button>
-            </form>
-        </div>
-    </main>
-    <footer class="footer text-center py-4 bg-gray-100">
-        <p class="text-gray-600">© 2025 Township Clinic. All rights reserved.</p>
-    </footer>
-</body>
-</html>
+{% extends "homepage/base.html" %}
+
+{% block title %}Township Clinic - Emergency Care{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Emergency Care</h1>
+    <p>24/7 emergency services available.</p>
+    <img src="{{ url_for('static', filename='Uploads/emergency.jpg') }}" alt="Emergency Image" />
+</div>
+{% endblock %}

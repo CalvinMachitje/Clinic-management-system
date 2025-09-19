@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Township Clinic{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/defaultPage.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+</head>
+<body>
+    <!-- Header -->
+    <nav class="header">
+        <div class="logo"><i class="fas fa-clinic-medical mr-2"></i>Township Clinic</div>
+        <input type="text" class="search-bar" placeholder="Search services..." />
+        <i class="fas fa-bars menu-icon" id="menu-toggle"></i>
+    </nav>
+
+    <!-- Mobile Menu Sidebar -->
+    <div class="mobile-menu" id="mobile-menu">
+        <a href="{{ url_for('default_page') }}" aria-label="Home"><i class="fas fa-home mr-1"></i>Home</a>
+        <div class="dropdown">
+            <a href="#" class="dropbtn" aria-label="Services"><i class="fas fa-stethoscope mr-1"></i>Services</a>
+            <div class="dropdown-content">
+                <a href="{{ url_for('patient_book_appointment') }}">Book Appointment</a>
+                <a href="{{ url_for('vaccinations_homepage') }}">Vaccinations</a>
+                <a href="{{ url_for('consultation_homepage') }}">Consultations</a>
+                <a href="{{ url_for('emergency_homepage') }}">Emergency Care</a>
+            </div>
+        </div>
+        <a href="{{ url_for('about') }}" aria-label="About Us"><i class="fas fa-info-circle mr-1"></i>About Us</a>
+        <a href="{{ url_for('contact') }}" aria-label="Contact"><i class="fas fa-envelope mr-1"></i>Contact</a>
+        <a href="{{ url_for('login_page') }}" aria-label="Sign In"><i class="fas fa-sign-in-alt mr-1"></i>Sign In</a>
+        <a href="{{ url_for('register') }}" aria-label="Register"><i class="fas fa-user-plus mr-1"></i>Register</a>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-section">
+                <h3><i class="fas fa-question-circle mr-2"></i>FAQ</h3>
+                <ul>
+                    <li><a href="#faq-appointments">How to Book an Appointment?</a></li>
+                    <li><a href="#faq-insurance">Do You Accept Insurance?</a></li>
+                    <li><a href="#faq-emergency">Emergency Services Available?</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3><i class="fas fa-map-marker-alt mr-2"></i>Location</h3>
+                <p class="mb-2">123 Health Street, Soweto, Johannesburg, South Africa</p>
+                <a href="https://maps.google.com/?q=123+Health+Street,+Soweto" target="_blank">View Map</a>
+            </div>
+            <div class="footer-section">
+                <h3><i class="fas fa-medkit mr-2"></i>Services</h3>
+                <ul>
+                    <li>General Consultations</li>
+                    <li>Vaccination Programs</li>
+                    <li>Emergency Care</li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3><i class="fas fa-lock mr-2"></i>Privacy Policy</h3>
+                <p class="mb-2">Learn how we protect your personal health information.</p>
+                <a href="#privacy-policy">Read More</a>
+            </div>
+        </div>
+        <div class="copyright">© 2025 Township Clinic. All rights reserved.</div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='defaultPage.js') }}"></script>
+</body>
+</html>

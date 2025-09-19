@@ -1,0 +1,11 @@
+{% extends "homepage/base.html" %}
+
+{% block title %}Township Clinic - Error{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>Oops! Something Went Wrong</h1>
+    <p>Please try again later or contact support.</p>
+    <a href="{{ url_for('default_page') }}" class="btn btn-primary">Go Home</a>
+</div>
+{% endblock %}
