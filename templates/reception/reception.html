@@ -9,7 +9,7 @@
     <div class="panel-content mt-4">
       <ul class="space-y-2 list-disc list-inside">
         <li><strong>Appointments Today:</strong> <span id="appointments-today">{{ patients_today|length }}</span></li>
-        <li><strong>Total Visits (This Month):</strong> {{ all_visits|length }}</li>
+        <li><strong>Total Visits (This Month):</strong> {{ all_visits|default(0) }}</li>
         <li><strong>Available Staff:</strong> {{ available_staff|length }}</li>
         <li><strong>Walk-in Patients Waiting:</strong> {{ walkins_waiting|length }}</li>
         <li><strong>Missed Appointments:</strong> {{ missed_appointments|length }}</li>
@@ -34,7 +34,7 @@
       </select>
     </div>
 
-    {% if patients_today %}
+    {% if waiting_patients %}
     <table id="appointments-table" class="w-full table-auto border-collapse table" role="table">
       <thead class="bg-gray-100">
         <tr>
@@ -56,8 +56,8 @@
           <td class="px-4 py-2">{{ patient.appointment_date }}</td>
           <td class="px-4 py-2">{{ patient.reason|default('Not specified') }}</td>
           <td class="px-4 py-2 capitalize">{{ patient.status }}</td>
-          <td class="px-4 py-2">{{ patient.helper_name or 'N/A' }}</td>
-          <td class="px-4 py-2">{{ patient.helper_role or 'N/A' }}</td>
+          <td class="px-4 py-2">{{ patient.helper_name|default('N/A') }}</td>
+          <td class="px-4 py-2">{{ patient.helper_role|default('N/A') }}</td>
           <td class="px-4 py-2">
             {% if patient.status == 'scheduled' %}
             <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
@@ -73,17 +73,17 @@
       </tbody>
     </table>
     {% else %}
-    <p class="text-center text-gray-600">No appointments today.</p>
+    <p class="text-center text-gray-600">No waiting patients today.</p>
     {% endif %}
   </section>
 
   <section class="bg-white rounded-lg shadow-md p-6 card mb-8 daily-summary" aria-labelledby="summary-heading">
     <h3 id="summary-heading" class="text-xl font-semibold mb-4">Today's Summary</h3>
     <ul class="space-y-2 list-disc list-inside">
-      <li><strong>Patients Checked-in:</strong> {{ checked_in_patients }}</li>
-      <li><strong>Walk-ins Processed:</strong> {{ walkins_processed }}</li>
-      <li><strong>Appointments Rescheduled:</strong> {{ appointments_rescheduled }}</li>
-      <li><strong>Payments Processed:</strong> {{ payments_processed }}</li>
+      <li><strong>Patients Checked-in:</strong> {{ checked_in_patients|default(0) }}</li>
+      <li><strong>Walk-ins Processed:</strong> {{ walkins_processed|default(0) }}</li>
+      <li><strong>Appointments Rescheduled:</strong> {{ appointments_rescheduled|default(0) }}</li>
+      <li><strong>Payments Processed:</strong> {{ payments_processed|default(0) }}</li>
     </ul>
   </section>
 
@@ -95,7 +95,7 @@
         {% for note in notifications %}
           <li class="border-b pb-2" role="listitem">
             <strong>{{ note.title }}</strong> - {{ note.message }}
-            <small class="text-gray-500 ml-2">({{ note.timestamp.strftime('%b %d, %H:%M') }})</small>
+            <small class="text-gray-500 ml-2">({{ note.timestamp|default('N/A')|date('%b %d, %H:%M') }})</small>
           </li>
         {% endfor %}
       </ul>
@@ -111,31 +111,34 @@
     const sortSelect = document.getElementById('sort-appointments');
     const tableBody = document.getElementById('waiting-patients-table-body');
 
+    if (!sortSelect || !tableBody) {
+      console.error('Required DOM elements not found');
+      return;
+    }
+
     function filterAppointments() {
       const filter = sortSelect.value;
       const rows = tableBody.querySelectorAll('tr');
 
-      // Helper to parse appointment date string to Date object (assumes format 'YYYY-MM-DD HH:mm:ss')
       function parseDateTime(dateTimeStr) {
         return new Date(dateTimeStr.replace(' ', 'T'));
       }
 
-      // Get current date for filtering
       const now = new Date();
-      const today = now.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+      const today = now.toISOString().slice(0, 10);
       const oneWeekAgo = new Date(now);
       oneWeekAgo.setDate(now.getDate() - 7);
       const oneMonthAgo = new Date(now);
       oneMonthAgo.setMonth(now.getMonth() - 1);
 
       rows.forEach(row => {
-        const status = row.cells[4].textContent.trim().toLowerCase();  // Status column
+        const status = row.cells[4].textContent.trim().toLowerCase();
         const appointmentDateStr = row.cells[2].textContent.trim();
         const appointmentDate = parseDateTime(appointmentDateStr);
 
         let showRow = true;
 
-        switch(filter) {
+        switch (filter) {
           case 'all':
             showRow = true;
             break;
@@ -146,15 +149,12 @@
             showRow = status === 'cancelled';
             break;
           case 'today':
-            // Match only appointments whose date matches today's date
             showRow = appointmentDateStr.startsWith(today);
             break;
           case 'week':
-            // Appointments within the past week (7 days)
             showRow = appointmentDate >= oneWeekAgo && appointmentDate <= now;
             break;
           case 'month':
-            // Appointments within the past month
             showRow = appointmentDate >= oneMonthAgo && appointmentDate <= now;
             break;
           default:
@@ -165,10 +165,7 @@
       });
     }
 
-    // Run filter when dropdown changes
     sortSelect.addEventListener('change', filterAppointments);
-
-    // Initial filter on page load
     filterAppointments();
   });
 </script>
