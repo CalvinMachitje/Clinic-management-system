@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+{% extends 'homepage/base.html' %}
+{% block title %}Nurse Overview{% endblock %}
+{% block content %}
+    <div class="container">
+        <h1>Nurse Overview</h1>
+        
+        <!-- Flash messages for feedback -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Navigation links -->
+        <nav class="nurse-nav">
+            <a href="{{ url_for('nurse_dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('nurse_assess_patient') }}">Assess Patient</a>
+            <a href="{{ url_for('nurse_view_medical_history') }}">View Medical History</a>
+            <a href="{{ url_for('nurse_prescribe_medication') }}">Prescribe Medication</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </nav>
+        
+        <!-- Overview table for nurse tasks/appointments -->
+        <h2>Today's Appointments</h2>
+        {% if appointments %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Appointment ID</th>
+                        <th>Patient Name</th>
+                        <th>Date</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                        <tr>
+                            <td>{{ appt.id }}</td>
+                            <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                            <td>{{ appt.appointment_date }}</td>
+                            <td>{{ appt.reason }}</td>
+                            <td>{{ appt.status }}</td>
+                            <td>
+                                <a href="{{ url_for('nurse_assess_patient', appointment_id=appt.id) }}">Assess</a>
+                                <a href="{{ url_for('nurse_view_medical_history', patient_id=appt.patient_id) }}">View History</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No appointments scheduled for today.</p>
+        {% endif %}
+    </div>
+{% endblock %}
