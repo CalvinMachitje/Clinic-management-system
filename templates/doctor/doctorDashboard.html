@@ -38,7 +38,7 @@
                 <li><strong>Pending Lab Results:</strong> {{ pending_lab_results | default(0) }}</li>
                 <li><strong>Unread Messages:</strong> {{ unread_messages | default(0) }}</li>
             </ul>
-            <a href="{{ url_for('reception_announcements') }}" class="btn btn-primary btn-block mt-4">View Messages</a>
+            <a href="{{ url_for('view_announcements') }}" class="btn btn-primary btn-block mt-4">View announcements</a>
         </div>
     </section>
 

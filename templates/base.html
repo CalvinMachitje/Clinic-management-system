@@ -11,7 +11,6 @@
 
   <!-- Theme system -->
   <script>
-    // Optional: keep dark/light theme in sync
     document.documentElement.dataset.theme = "{{ session.theme or 'light' }}";
   </script>
 
@@ -26,7 +25,7 @@
   <!-- Sidebar Toggle Button -->
   <button class="menu-toggle">☰</button>
 
-  <!-- Sidebar -->
+  <!-- Sidebar for Logged-in Users (Role-specific) -->
   <aside class="sidebar">
     <div class="logo">ClinicCare</div>
     <nav>
@@ -44,17 +43,20 @@
             <li><a href="{{ url_for('helped_patients_report') }}"><i class="fas fa-file-alt"></i> Patient Report</a></li>
             <li><a href="{{ url_for('search_patient') }}"><i class="fas fa-search"></i> Search Patients</a></li>
             <li><a href="{{ url_for('add_patient') }}"><i class="fas fa-user-plus"></i> Add Patient</a></li>
+            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
             <li><a href="{{ url_for('doctor_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="{{ url_for('doctor_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
             <li><a href="{{ url_for('doctor_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
+            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
           </ul>
         {% elif session.role == 'nurse' %}
           <ul>
             <li><a href="{{ url_for('nurse_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="{{ url_for('nurse_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
+            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
           </ul>
         {% elif session.role == 'admin' %}
           <ul>
@@ -62,7 +64,7 @@
             <li><a href="{{ url_for('admin_manage_users') }}"><i class="fas fa-users"></i> Manage Users</a></li>
             <li><a href="{{ url_for('admin_system_settings') }}"><i class="fas fa-cog"></i> System Settings</a></li>
             <li><a href="{{ url_for('admin_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
-            <li><a href="{{ url_for('admin_create_announcement') }}"><i class="fas fa-bullhorn"></i> Create Announcement</a></li>
+            <li><a href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
           </ul>
         {% endif %}
 
@@ -79,18 +81,6 @@
           <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
 
-      {% else %}
-        <ul>
-          <li><a href="{{ url_for('default_page') }}"><i class="fas fa-home"></i> Home</a></li>
-          <li><a href="{{ url_for('vaccinations_homepage') }}"><i class="fas fa-syringe"></i> Vaccinations</a></li>
-          <li><a href="{{ url_for('consultation_homepage') }}"><i class="fas fa-stethoscope"></i> Consultations</a></li>
-          <li><a href="{{ url_for('patient_book_appointment') }}"><i class="fas fa-calendar-check"></i> Appointments</a></li>
-          <li><a href="{{ url_for('emergency_homepage') }}"><i class="fas fa-ambulance"></i> Emergency</a></li>
-          <li><a href="{{ url_for('about') }}"><i class="fas fa-info-circle"></i> About</a></li>
-          <li><a href="{{ url_for('contact') }}"><i class="fas fa-envelope"></i> Contact</a></li>
-          <li><a href="{{ url_for('login_page') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
-          <li><a href="{{ url_for('register') }}"><i class="fas fa-user-plus"></i> Register</a></li>
-        </ul>
       {% endif %}
     </nav>
   </aside>
@@ -194,4 +184,5 @@
   </script>
   <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
   {% block scripts %}{% endblock %}
+</body>
 </html>

@@ -15,6 +15,7 @@ from flask_caching import Cache
 from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
+import traceback
 import jinja2
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField
@@ -1184,7 +1185,7 @@ def admin_dashboard():
 def doctor_dashboard():
     logger.debug(f"Accessing doctor_dashboard: session={session}")
     if 'user_id' not in session or session.get('role') not in ['doctor', 'nurse']:
-        logger.error(f"Unauthorized access: user_id={session.get('user_id')}, role={session.get('role')}")
+        logger.error(f"Unauthorized access: username={session.get('user_id')}, role={session.get('role')}")
         return redirect(url_for('login_page'))
     conn = None
     try:
@@ -1217,7 +1218,7 @@ def doctor_dashboard():
         ]
         health_trends = "Stable, with a slight increase in chronic condition cases this month."
         user_details = get_user_details(conn, session['user_id'])
-        logger.debug(f"Rendering dashboard for user_id={session['user_id']}, role={session['role']}")
+        logger.debug(f"Rendering dashboard for username={session['user_id']}, role={session['role']}")
         return render_template('doctor/doctorDashboard.html',
                               now=datetime.now(),
                               username=session['user_id'],
@@ -1321,117 +1322,97 @@ def nurse_dashboard():
 @app.route('/reception_dashboard')
 def reception_dashboard():
     if 'user_id' not in session or session.get('role') != 'receptionist':
+        flash('Please log in as a receptionist to access the dashboard.', 'error')
         return redirect(url_for('login_page'))
-    conn = sqlite3.connect('clinicinfo.db')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    conn = None
     try:
-        cursor.execute(
-            "SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.reason, a.status, "
-            "COALESCE(h.first_name || ' ' || h.last_name, 'N/A') AS helper_name, "
-            "COALESCE(h.role, 'N/A') AS helper_role, p.id AS patient_id "
-            "FROM appointments a "
-            "LEFT JOIN patients p ON a.patient_id = p.id "
-            "LEFT JOIN employees h ON a.helper_id = h.id "
-            "WHERE date(a.appointment_date) = date('now')"
-        )
-        patients_today = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute(
-            "SELECT COUNT(*) FROM appointments WHERE strftime('%Y-%m', appointment_date) = strftime('%Y-%m', 'now') AND status = 'completed'"
-        )
-        result = cursor.fetchone()
-        all_visits = result[0] if result else 0
-        cursor.execute(
-            "SELECT e.staff_number, e.first_name, e.last_name, e.role "
-            "FROM employees e "
-            "WHERE e.staff_number NOT IN (SELECT helper_id FROM appointments WHERE status IN ('scheduled', 'waiting', 'assigned')) "
-            "AND e.role IN ('doctor', 'nurse', 'receptionist')"
-        )
-        available_staff = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute(
-            "SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.reason, a.status, "
-            "COALESCE(h.first_name || ' ' || h.last_name, 'N/A') AS helper_name, "
-            "COALESCE(h.role, 'N/A') AS helper_role, p.id AS patient_id "
-            "FROM appointments a "
-            "LEFT JOIN patients p ON a.patient_id = p.id "
-            "LEFT JOIN employees h ON a.helper_id = h.id "
-            "WHERE a.status = 'waiting'"
-        )
-        walkins_waiting = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute(
-            "SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.reason, a.status, "
-            "COALESCE(h.first_name || ' ' || h.last_name, 'N/A') AS helper_name, "
-            "COALESCE(h.role, 'N/A') AS helper_role, p.id AS patient_id "
-            "FROM appointments a "
-            "LEFT JOIN patients p ON a.patient_id = p.id "
-            "LEFT JOIN employees h ON a.helper_id = h.id "
-            "WHERE a.status = 'scheduled' AND a.appointment_date < datetime('now')"
-        )
-        missed_appointments = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute("SELECT id, first_name, last_name FROM patients WHERE status = 'pending'")
-        pending_registrations = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute(
-            "SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.reason, a.status, "
-            "COALESCE(h.first_name || ' ' || h.last_name, 'N/A') AS helper_name, "
-            "COALESCE(h.role, 'N/A') AS helper_role, p.id AS patient_id "
-            "FROM appointments a "
-            "LEFT JOIN patients p ON a.patient_id = p.id "
-            "LEFT JOIN employees h ON a.helper_id = h.id "
-            "WHERE a.status = 'waiting' AND date(a.appointment_date) = date('now')"
-        )
-        waiting_patients = [dict(row) for row in cursor.fetchall()] or []
-        cursor.execute(
-            "SELECT COUNT(*) FROM appointments WHERE status = 'checked_in' AND date(appointment_date) = date('now')"
-        )
-        result = cursor.fetchone()
-        checked_in_patients = result[0] if result else 0
-        cursor.execute(
-            "SELECT COUNT(*) FROM appointments WHERE status = 'processed' AND date(appointment_date) = date('now') AND helper_id IS NULL"
-        )
-        result = cursor.fetchone()
-        walkins_processed = result[0] if result else 0
-        cursor.execute(
-            "SELECT COUNT(*) FROM appointments WHERE status = 'rescheduled' AND date(appointment_date) = date('now')"
-        )
-        result = cursor.fetchone()
-        appointments_rescheduled = result[0] if result else 0
-        cursor.execute(
-            "SELECT COUNT(*) FROM payments WHERE date(payment_date) = date('now')"
-        )
-        result = cursor.fetchone()
-        payments_processed = result[0] if result else 0
-        cursor.execute(
-            "SELECT id, title, message, timestamp FROM notifications ORDER BY timestamp DESC LIMIT 5"
-        )
-        notifications = [dict(row) for row in cursor.fetchall()] or []
-        conn.close()
-        logger.debug("patients_today sample: %s", patients_today[:1] if patients_today else "Empty")
-        logger.debug("all_visits: %s", all_visits)
-        return render_template(
-            'reception/reception.html',
-            patients_today=patients_today,
-            all_visits=all_visits,
-            available_staff=available_staff,
-            walkins_waiting=walkins_waiting,
-            missed_appointments=missed_appointments,
-            pending_registrations=pending_registrations,
-            waiting_patients=waiting_patients,
-            checked_in_patients=checked_in_patients,
-            walkins_processed=walkins_processed,
-            appointments_rescheduled=appointments_rescheduled,
-            payments_processed=payments_processed,
-            notifications=notifications
-        )
-    except sqlite3.Error as e:
-        logger.error("Database error in reception_dashboard: %s", e)
-        flash("Database error occurred. Please try again later.", "error")
-        conn.close()
-        return redirect(url_for('login_page'))
+        conn = get_db_connection()
+        c = conn.cursor()
+        user_details = get_user_details(conn, session['user_id'])
+        if not user_details:
+            flash('User not found.', 'error')
+            return redirect(url_for('login_page'))
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        c.execute("""
+            SELECT a.id, p.first_name, p.last_name, a.appointment_date
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.appointment_date LIKE ?
+        """, (f'{today}%',))
+        patients_today = [
+            {
+                'id': row['id'],
+                'first_name': row['first_name'],
+                'last_name': row['last_name'],
+                'appointment_time': row['appointment_date']
+            } for row in c.fetchall()
+        ]
+        logger.debug(f"patients_today sample: {patients_today if patients_today else 'Empty'}")
+        
+        c.execute("SELECT COUNT(*) FROM visits WHERE visit_time LIKE ?", (f'{today}%',))
+        all_visits = c.fetchone()[0] or 0
+        logger.debug(f"all_visits: {all_visits}")
+        
+        c.execute("SELECT id, title, message, timestamp FROM announcements ORDER BY pinned DESC, timestamp DESC")
+        notes = [
+            {
+                'id': row['id'],
+                'title': row['title'],
+                'message': row['message'],
+                'timestamp': datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%b %d, %H:%M') if row['timestamp'] else 'N/A'
+            } for row in c.fetchall()
+        ]
+        
+        return render_template('reception/reception.html',
+                              user_details=user_details,
+                              username=session['user_id'],
+                              patients_today=patients_today,
+                              all_visits=all_visits,
+                              notes=notes)
     except Exception as e:
-        logger.error("Unexpected error in reception_dashboard: %s. Traceback: %s", e, traceback.format_exc())
-        flash("An unexpected error occurred. Please contact support.", "error")
-        conn.close()
+        logger.error(f"Unexpected error in reception_dashboard: {str(e)}. Traceback: {traceback.format_exc()}")
+        flash('An error occurred while fetching dashboard data.', 'error')
         return redirect(url_for('login_page'))
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/view_announcements')
+def view_announcements():
+    if 'user_id' not in session or session.get('role') not in ['doctor', 'nurse', 'receptionist']:
+        flash('Please log in as a doctor, nurse, or receptionist to view announcements.', 'error')
+        return redirect(url_for('login_page'))
+    conn = None
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        user_details = get_user_details(conn, session['user_id'])
+        if not user_details:
+            flash('User details not found. Please log in again.', 'error')
+            return redirect(url_for('login_page'))
+        c.execute("SELECT id, title, message, category, author, timestamp, pinned FROM announcements ORDER BY pinned DESC, timestamp DESC")
+        announcements = [
+            {
+                'id': row['id'],
+                'title': row['title'],
+                'message': row['message'],
+                'category': row['category'],
+                'author': row['author'],
+                'timestamp': datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%b %d, %H:%M') if row['timestamp'] else 'N/A'
+            } for row in c.fetchall()
+        ]
+        return render_template('view_announcements.html',
+                              announcements=announcements,
+                              user_details=user_details,
+                              username=session['user_id'])
+    except sqlite3.Error as e:
+        logger.error(f"Database error in view_announcements: {e}. Traceback: {traceback.format_exc()}")
+        flash('An error occurred while fetching announcements.', 'error')
+        return redirect(url_for('doctor_dashboard' if session.get('role') == 'doctor' else 'nurse_dashboard'))
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/mark_helped', methods=['POST'])
 def mark_helped():

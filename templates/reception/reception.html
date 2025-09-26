@@ -95,7 +95,7 @@
         {% for note in notifications %}
           <li class="border-b pb-2" role="listitem">
             <strong>{{ note.title }}</strong> - {{ note.message }}
-            <small class="text-gray-500 ml-2">({{ note.timestamp|default('N/A')|date('%b %d, %H:%M') }})</small>
+            <small class="text-gray-500 ml-2">({{ note.timestamp }})</small>          
           </li>
         {% endfor %}
       </ul>

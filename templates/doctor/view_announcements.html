@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View Announcements</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/defaultPage.css') }}">
+</head>
+<body>
+    <h1>Announcements</h1>
+    <div>
+        {% for announcement in announcements %}
+            <div>
+                <h2>{{ announcement.title }} {% if announcement.pinned %}(Pinned){% endif %}</h2>
+                <p>{{ announcement.message }}</p>
+                <p><strong>Category:</strong> {{ announcement.category }}</p>
+                <p><strong>Author:</strong> {{ announcement.author }}</p>
+                <p><strong>Posted:</strong> {{ announcement.timestamp }}</p>
+            </div>
+        {% endfor %}
+    </div>
+    <a href="{{ url_for('doctor_dashboard' if session.get('role') == 'doctor' else 'nurse_dashboard') }}">Back to Dashboard</a>
+    <script src="{{ url_for('static', filename='defaultPage.js') }}"></script>
+</body>
+</html>
