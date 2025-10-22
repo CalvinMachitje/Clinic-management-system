@@ -10,6 +10,8 @@
   --neutral-dark: #1a202c; /* Dark gray text */
   --gradient-header: linear-gradient(90deg, #00b4d8, #0077b6); /* Teal to blue */
   --gradient-footer: linear-gradient(90deg, #1e40af, #10b981); /* Blue to green */
+  --header-height: 60px;
+  --footer-height: 150px; /* Matches the footer's min-height for consistent spacing calculations */
 }
 
 /* Global styles */
@@ -31,7 +33,7 @@ body {
   background: var(--gradient-header);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 0.5rem 1rem;
-  height: 60px;
+  height: var(--header-height);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -80,10 +82,8 @@ body {
 /* Mobile Menu Sidebar */
 .mobile-menu {
   position: fixed;
-  top: 0;
   left: 0;
   width: 250px;
-  height: 100%;
   background: var(--gradient-header);
   color: white;
   transform: translateX(-100%);
@@ -93,6 +93,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height) - var(--footer-height));
+  overflow-y: auto;
+  overscroll-behavior: contain; /* Prevents scroll-chaining to the page body when menu is open */
 }
 
 .mobile-menu.active {
@@ -235,7 +239,7 @@ img:hover {
   padding: 1rem;
   color: white;
   margin-top: auto;
-  min-height: 150px;
+  min-height: var(--footer-height);
 }
 
 .footer .container {
@@ -284,8 +288,11 @@ img:hover {
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+  :root {
+    --header-height: 50px;
+  }
+
   .header {
-    height: 50px;
     padding: 0.25rem 0.5rem;
   }
 
@@ -339,4 +346,23 @@ img:hover {
 
 .mobile-menu.active {
   animation: slideIn 0.3s ease-out;
+}
+
+/* Custom scrollbar for the mobile menu (optional polish – works in WebKit browsers; fallback to native elsewhere) */
+.mobile-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mobile-menu::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.mobile-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.mobile-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }

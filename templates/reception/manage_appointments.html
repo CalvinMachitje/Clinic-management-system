@@ -1,8 +1,11 @@
 {% extends 'homepage/base.html' %}
 {% block title %}Manage Appointments{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+{% endblock %}
 {% block content %}
 <div class="dashboard-content">
-    <h2>Manage Appointments</h2>
+    <h2 class="text-3xl font-bold mb-8">Manage Appointments</h2>
 
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -14,396 +17,77 @@
     {% endwith %}
 
     <!-- Booking Section -->
-    <div class="manage-appointments">
-        <div class="card">
-            <h3>Book New Appointment</h3>
-            <form id="bookingForm">
-                <input type="hidden" name="action" value="book_appointment">
-                <div class="form-group">
-                    <label for="patientId">Patient</label>
-                    <select id="patientId" name="patient_id" class="form-control" required>
-                        <option value="">Select a patient</option>
-                        {% for patient in patients %}
-                            <option value="{{ patient.id }}">{{ patient.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="appointmentTime">Appointment Date & Time</label>
-                    <input type="datetime-local" id="appointmentTime" name="appointment_time" class="form-control" required />
-                </div>
-                <div class="form-group">
-                    <label for="reasonInput">Reason (optional)</label>
-                    <input type="text" id="reasonInput" name="reason" class="form-control" placeholder="Reason for appointment" />
-                </div>
-                <div class="form-group">
-                    <label for="helperId">Assign Staff (optional)</label>
-                    <select id="helperId" name="helper_id" class="form-control">
-                        <option value="">None</option>
-                        {% for staff in available_staff %}
-                            <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Book Appointment</button>
-                <div id="formMessage" style="margin-top: 10px;"></div>
-            </form>
-        </div>
+    <div class="card">
+        <h3 class="text-2xl font-semibold mb-4">Book New Appointment</h3>
+        <form id="bookingForm">
+            <input type="hidden" name="action" value="book_appointment">
+            <div class="form-group">
+                <label for="patientId">Patient</label>
+                <select id="patientId" name="patient_id" class="form-control" required>
+                    <option value="">Select a patient</option>
+                    {% for patient in patients %}
+                        <option value="{{ patient.id }}">{{ patient.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="appointmentTime">Appointment Date & Time</label>
+                <input type="datetime-local" id="appointmentTime" name="appointment_time" class="form-control" required />
+            </div>
+            <div class="form-group">
+                <label for="reasonInput">Reason (optional)</label>
+                <input type="text" id="reasonInput" name="reason" class="form-control" placeholder="Reason for appointment" />
+            </div>
+            <div class="form-group">
+                <label for="helperId">Assign Staff (optional)</label>
+                <select id="helperId" name="helper_id" class="form-control">
+                    <option value="">None</option>
+                    {% for staff in available_staff %}
+                        <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Book Appointment</button>
+            <div id="formMessage" class="mt-4"></div>
+        </form>
     </div>
 
     <!-- Self-Booked Appointments Section -->
-    <div class="manage-appointments" style="margin-top: 20px;">
-        <div class="card">
-            <h3>Pending Self-Booked Appointments</h3>
-            <table class="table" id="selfBookedTable">
-                <thead>
+    <div class="card mt-8">
+        <h3 class="text-2xl font-semibold mb-4">Pending Self-Booked Appointments</h3>
+        <table class="table" id="selfBookedTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Patient Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Date & Time</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appt in self_booked_appointments %}
                     <tr>
-                        <th>ID</th>
-                        <th>Patient Name</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Date & Time</th>
-                        <th>Reason</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for appt in self_booked_appointments %}
-                        <tr>
-                            <td>{{ appt.id }}</td>
-                            <td>{{ appt.patient_name }}</td>
-                            <td>{{ appt.patient_phone | default('N/A') }}</td>
-                            <td>{{ appt.patient_email | default('N/A') }}</td>
-                            <td>{{ appt.appointment_date }}</td>
-                            <td>{{ appt.reason }}</td>
-                            <td>
-                                <form class="convertForm" data-id="{{ appt.id }}">
-                                    <input type="hidden" name="action" value="convert_self_booked">
-                                    <input type="hidden" name="self_booked_id" value="{{ appt.id }}">
-                                    <select name="patient_id" class="form-control" required>
-                                        <option value="">Select Patient</option>
-                                        {% for patient in patients %}
-                                            <option value="{{ patient.id }}">{{ patient.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <input type="datetime-local" name="appointment_time" value="{{ appt.appointment_date | replace(' ', 'T') }}" class="form-control" required>
-                                    <input type="text" name="reason" value="{{ appt.reason }}" class="form-control">
-                                    <select name="helper_id" class="form-control" required>
-                                        <option value="">Assign Staff</option>
-                                        {% for staff in available_staff %}
-                                            <option value="{{ staff.id }}">{{ staff.name }} ({{ staff.role }})</option>
-                                        {% endfor %}
-                                    </select>
-                                    <button type="submit" class="btn btn-primary">Confirm</button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Filter for appointment status -->
-    <div class="manage-appointments" style="margin-top: 20px;">
-        <label for="statusFilter" style="font-weight: 600; margin-bottom: 8px; display: block;">Filter by Status:</label>
-        <select id="statusFilter" class="form-control" style="max-width: 300px;">
-            <option value="all">All</option>
-            <option value="open">Open (scheduled/waiting)</option>
-            <option value="rescheduled">Rescheduled</option>
-            <option value="missed">Missed</option>
-            <option value="cancelled">Cancelled</option>
-        </select>
-    </div>
-
-    <!-- Appointments Table -->
-    <div class="manage-appointments" style="margin-top: 15px;">
-        <div class="card">
-            <h3>Appointments</h3>
-            <table class="table" id="appointmentsTable">
-                <thead>
-                    <tr>
-                        <th>Patient Name</th>
-                        <th>Date & Time</th>
-                        <th>Status</th>
-                        <th>Reason</th>
-                        <th>Assigned Staff</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for appt in appointments %}
-                        <tr data-status="{{ appt.status | lower }}" class="{% if appt.status in ['rescheduled', 'cancelled'] %}urgent{% endif %}">
-                            <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                            <td>{{ appt.appointment_date }}</td>
-                            <td>{{ appt.status | capitalize }}</td>
-                            <td>{{ appt.reason }}</td>
-                            <td>
-                                {% if appt.helper_name %}
-                                    {{ appt.helper_name }} ({{ appt.helper_role }}) 
-                                {% else %}
-                                    <em>Unassigned</em>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <form class="cancelForm" data-id="{{ appt.id }}">
-                                    <input type="hidden" name="action" value="cancel_appointment">
-                                    <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                                    <button type="submit" class="btn btn-danger">Cancel</button>
-                                </form>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const bookingForm = document.getElementById('bookingForm');
-            const convertForms = document.querySelectorAll('.convertForm');
-            const cancelForms = document.querySelectorAll('.cancelForm');
-            const formMessage = document.getElementById('formMessage');
-            const appointmentsTable = document.getElementById('appointmentsTable').getElementsByTagName('tbody')[0];
-            const statusFilter = document.getElementById('statusFilter');
-
-            // Handle booking form submission with AJAX
-            bookingForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                formMessage.textContent = '';
-                formMessage.style.color = '';
-
-                const formData = new FormData(bookingForm);
-                try {
-                    const response = await fetch('{{ url_for("manage_appointments") }}', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-                    const data = await response.json();
-
-                    if (data.success) {
-                        formMessage.style.color = 'green';
-                        formMessage.textContent = data.message;
-
-                        // Append new appointment row to table
-                        const appt = data.appointment;
-                        const newRow = appointmentsTable.insertRow(0);
-                        newRow.setAttribute('data-status', appt.status.toLowerCase());
-                        if (['rescheduled', 'cancelled'].includes(appt.status.toLowerCase())) {
-                            newRow.classList.add('urgent');
-                        }
-                        newRow.innerHTML = `
-                            <td>${appt.patient_first_name} ${appt.patient_last_name}</td>
-                            <td>${appt.appointment_date}</td>
-                            <td>${appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}</td>
-                            <td>${appt.reason || 'Not specified'}</td>
-                            <td>${appt.helper_name || '<em>Unassigned</em>'} ${appt.helper_role ? '(' + appt.helper_role + ')' : ''}</td>
-                            <td>
-                                <form class="cancelForm" data-id="${appt.id}">
-                                    <input type="hidden" name="action" value="cancel_appointment">
-                                    <input type="hidden" name="appointment_id" value="${appt.id}">
-                                    <button type="submit" class="btn btn-danger">Cancel</button>
-                                </form>
-                            </td>
-                        `;
-                        // Clear form inputs
-                        bookingForm.reset();
-                    } else {
-                        formMessage.style.color = 'red';
-                        formMessage.textContent = data.message || 'Failed to book appointment';
-                    }
-                } catch (error) {
-                    formMessage.style.color = 'red';
-                    formMessage.textContent = 'An error occurred while booking appointment.';
-                    console.error('Booking error:', error);
-                }
-            });
-
-            // Handle convert form submissions with AJAX
-            convertForms.forEach(form => {
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const formData = new FormData(form);
-                    const selfBookedId = form.getAttribute('data-id');
-                    try {
-                        const response = await fetch('{{ url_for("manage_appointments") }}', {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            // Remove the self-booked appointment row
-                            const row = form.closest('tr');
-                            row.remove();
-                            // Add to appointments table
-                            const appt = data.appointment;
-                            const newRow = appointmentsTable.insertRow(0);
-                            newRow.setAttribute('data-status', appt.status.toLowerCase());
-                            if (['rescheduled', 'cancelled'].includes(appt.status.toLowerCase())) {
-                                newRow.classList.add('urgent');
-                            }
-                            newRow.innerHTML = `
-                                <td>${appt.patient_first_name} ${appt.patient_last_name}</td>
-                                <td>${appt.appointment_date}</td>
-                                <td>${appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}</td>
-                                <td>${appt.reason || 'Not specified'}</td>
-                                <td>${appt.helper_name} (${appt.helper_role})</td>
-                                <td>
-                                    <form class="cancelForm" data-id="${appt.id}">
-                                        <input type="hidden" name="action" value="cancel_appointment">
-                                        <input type="hidden" name="appointment_id" value="${appt.id}">
-                                        <button type="submit" class="btn btn-danger">Cancel</button>
-                                    </form>
-                                </td>
-                            `;
-                            formMessage.style.color = 'green';
-                            formMessage.textContent = data.message;
-                        } else {
-                            formMessage.style.color = 'red';
-                            formMessage.textContent = data.message || 'Failed to confirm appointment';
-                        }
-                    } catch (error) {
-                        formMessage.style.color = 'red';
-                        formMessage.textContent = 'An error occurred while confirming appointment.';
-                        console.error('Convert error:', error);
-                    }
-                });
-            });
-
-            // Handle cancel form submissions with AJAX
-            cancelForms.forEach(form => {
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const formData = new FormData(form);
-                    const appointmentId = form.getAttribute('data-id');
-                    try {
-                        const response = await fetch('{{ url_for("manage_appointments") }}', {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        });
-                        const data = await response.json();
-
-                        if (data.success) {
-                            const row = form.closest('tr');
-                            row.setAttribute('data-status', 'cancelled');
-                            row.classList.add('urgent');
-                            row.cells[2].textContent = 'Cancelled';
-                            formMessage.style.color = 'green';
-                            formMessage.textContent = data.message;
-                        } else {
-                            formMessage.style.color = 'red';
-                            formMessage.textContent = data.message || 'Failed to cancel appointment';
-                        }
-                    } catch (error) {
-                        formMessage.style.color = 'red';
-                        formMessage.textContent = 'An error occurred while cancelling appointment.';
-                        console.error('Cancel error:', error);
-                    }
-                });
-            });
-
-            // Filter appointments table rows by status
-            statusFilter.addEventListener('change', () => {
-                const selected = statusFilter.value;
-                Array.from(appointmentsTable.rows).forEach(row => {
-                    const status = row.getAttribute('data-status');
-                    if (selected === 'all') {
-                        row.style.display = '';
-                    } else if (selected === 'open') {
-                        row.style.display = (status === 'scheduled' || status === 'waiting') ? '' : 'none';
-                    } else {
-                        row.style.display = (status === selected) ? '' : 'none';
-                    }
-                });
-            });
-
-            // SSE for real-time updates
-            const source = new EventSource('{{ url_for("stream_appointments") }}');
-            source.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                if (data.type === 'regular') {
-                    const newRow = appointmentsTable.insertRow(0);
-                    newRow.setAttribute('data-status', data.status.toLowerCase());
-                    if (['rescheduled', 'cancelled'].includes(data.status.toLowerCase())) {
-                        newRow.classList.add('urgent');
-                    }
-                    newRow.innerHTML = `
-                        <td>${data.patient_first_name} ${data.patient_last_name}</td>
-                        <td>${data.appointment_date}</td>
-                        <td>${data.status.charAt(0).toUpperCase() + data.status.slice(1)}</td>
-                        <td>${data.reason || 'Not specified'}</td>
-                        <td>${data.helper_name || '<em>Unassigned</em>'} ${data.helper_role ? '(' + data.helper_role + ')' : ''}</td>
+                        <td>{{ appt.id }}</td>
+                        <td>{{ appt.patient_name }}</td>
+                        <td>{{ appt.patient_phone | default('N/A') }}</td>
+                        <td>{{ appt.patient_email | default('N/A') }}</td>
+                        <td>{{ appt.appointment_date }}</td>
+                        <td>{{ appt.reason }}</td>
                         <td>
-                            <form class="cancelForm" data-id="${data.id}">
-                                <input type="hidden" name="action" value="cancel_appointment">
-                                <input type="hidden" name="appointment_id" value="${data.id}">
-                                <button type="submit" class="btn btn-danger">Cancel</button>
-                            </form>
-                        </td>
-                    `;
-                    // Reattach cancel form listeners
-                    const newCancelForm = newRow.querySelector('.cancelForm');
-                    newCancelForm.addEventListener('submit', async (e) => {
-                        e.preventDefault();
-                        const formData = new FormData(newCancelForm);
-                        try {
-                            const response = await fetch('{{ url_for("manage_appointments") }}', {
-                                method: 'POST',
-                                body: formData,
-                                headers: {
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }
-                            });
-                            const data = await response.json();
-                            if (data.success) {
-                                newRow.setAttribute('data-status', 'cancelled');
-                                newRow.classList.add('urgent');
-                                newRow.cells[2].textContent = 'Cancelled';
-                                formMessage.style.color = 'green';
-                                formMessage.textContent = data.message;
-                            } else {
-                                formMessage.style.color = 'red';
-                                formMessage.textContent = data.message || 'Failed to cancel appointment';
-                            }
-                        } catch (error) {
-                            formMessage.style.color = 'red';
-                            formMessage.textContent = 'An error occurred while cancelling appointment.';
-                            console.error('Cancel error:', error);
-                        }
-                    });
-                } else if (data.type === 'self_booked') {
-                    const selfBookedTable = document.getElementById('selfBookedTable').getElementsByTagName('tbody')[0];
-                    const newRow = selfBookedTable.insertRow(0);
-                    newRow.innerHTML = `
-                        <td>${data.id}</td>
-                        <td>${data.patient_name}</td>
-                        <td>${data.patient_phone || 'N/A'}</td>
-                        <td>${data.patient_email || 'N/A'}</td>
-                        <td>${data.appointment_date}</td>
-                        <td>${data.reason || 'Not specified'}</td>
-                        <td>
-                            <form class="convertForm" data-id="${data.id}">
+                            <form class="convertForm" data-id="{{ appt.id }}">
                                 <input type="hidden" name="action" value="convert_self_booked">
-                                <input type="hidden" name="self_booked_id" value="${data.id}">
+                                <input type="hidden" name="self_booked_id" value="{{ appt.id }}">
                                 <select name="patient_id" class="form-control" required>
                                     <option value="">Select Patient</option>
                                     {% for patient in patients %}
                                         <option value="{{ patient.id }}">{{ patient.name }}</option>
                                     {% endfor %}
                                 </select>
-                                <input type="datetime-local" name="appointment_time" value="${data.appointment_date.replace(' ', 'T')}" class="form-control" required>
-                                <input type="text" name="reason" value="${data.reason || ''}" class="form-control">
+                                <input type="datetime-local" name="appointment_time" value="{{ appt.appointment_date | replace(' ', 'T') }}" class="form-control" required>
+                                <input type="text" name="reason" value="{{ appt.reason }}" class="form-control">
                                 <select name="helper_id" class="form-control" required>
                                     <option value="">Assign Staff</option>
                                     {% for staff in available_staff %}
@@ -413,58 +97,63 @@
                                 <button type="submit" class="btn btn-primary">Confirm</button>
                             </form>
                         </td>
-                    `;
-                    // Reattach convert form listener
-                    const newConvertForm = newRow.querySelector('.convertForm');
-                    newConvertForm.addEventListener('submit', async (e) => {
-                        e.preventDefault();
-                        const formData = new FormData(newConvertForm);
-                        try {
-                            const response = await fetch('{{ url_for("manage_appointments") }}', {
-                                method: 'POST',
-                                body: formData,
-                                headers: {
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }
-                            });
-                            const data = await response.json();
-                            if (data.success) {
-                                newRow.remove();
-                                const appt = data.appointment;
-                                const newApptRow = appointmentsTable.insertRow(0);
-                                newApptRow.setAttribute('data-status', appt.status.toLowerCase());
-                                if (['rescheduled', 'cancelled'].includes(appt.status.toLowerCase())) {
-                                    newApptRow.classList.add('urgent');
-                                }
-                                newApptRow.innerHTML = `
-                                    <td>${appt.patient_first_name} ${appt.patient_last_name}</td>
-                                    <td>${appt.appointment_date}</td>
-                                    <td>${appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}</td>
-                                    <td>${appt.reason || 'Not specified'}</td>
-                                    <td>${appt.helper_name} (${appt.helper_role})</td>
-                                    <td>
-                                        <form class="cancelForm" data-id="${appt.id}">
-                                            <input type="hidden" name="action" value="cancel_appointment">
-                                            <input type="hidden" name="appointment_id" value="${appt.id}">
-                                            <button type="submit" class="btn btn-danger">Cancel</button>
-                                        </form>
-                                    </td>
-                                `;
-                                formMessage.style.color = 'green';
-                                formMessage.textContent = data.message;
-                            } else {
-                                formMessage.style.color = 'red';
-                                formMessage.textContent = data.message || 'Failed to confirm appointment';
-                            }
-                        } catch (error) {
-                            formMessage.style.color = 'red';
-                            formMessage.textContent = 'An error occurred while confirming appointment.';
-                            console.error('Convert error:', error);
-                        }
-                    });
-                }
-            };
-        });
-    </script>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Filter for appointment status -->
+    <div class="mt-8">
+        <label for="statusFilter" class="font-semibold mb-2 block">Filter by Status:</label>
+        <select id="statusFilter" class="form-control max-w-xs">
+            <option value="all">All</option>
+            <option value="open">Open (scheduled/waiting)</option>
+            <option value="rescheduled">Rescheduled</option>
+            <option value="missed">Missed</option>
+            <option value="cancelled">Cancelled</option>
+        </select>
+    </div>
+
+    <!-- Appointments Table -->
+    <div class="card mt-8">
+        <h3 class="text-2xl font-semibold mb-4">Appointments</h3>
+        <table class="table" id="appointmentsTable">
+            <thead>
+                <tr>
+                    <th>Patient Name</th>
+                    <th>Date & Time</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th>Assigned Staff</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appt in appointments %}
+                    <tr data-status="{{ appt.status | lower }}" class="{% if appt.status in ['rescheduled', 'cancelled'] %}urgent{% endif %}">
+                        <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                        <td>{{ appt.appointment_date }}</td>
+                        <td>{{ appt.status | capitalize }}</td>
+                        <td>{{ appt.reason }}</td>
+                        <td>
+                            {% if appt.helper_name %}
+                                {{ appt.helper_name }} ({{ appt.helper_role }}) 
+                            {% else %}
+                                <em>Unassigned</em>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form class="cancelForm" data-id="{{ appt.id }}">
+                                <input type="hidden" name="action" value="cancel_appointment">
+                                <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                                <button type="submit" class="btn btn-danger">Cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}

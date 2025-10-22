@@ -8,6 +8,16 @@
   <!-- Icons + Styles -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=2">
+  {% if session.role == 'receptionist' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
+  {% elif session.role == 'doctor' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/doctor.css') }}?v=1">
+  {% elif session.role == 'nurse' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/nurse.css') }}?v=1">
+  {% elif session.role == 'admin' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}?v=1">
+  {% endif %}
+  {% block styles %}{% endblock %}
 
   <!-- Theme system -->
   <script>
@@ -17,7 +27,7 @@
   <!-- Update current-time CSS variable -->
   <style>
     :root {
-      --current-time: "10:52 AM SAST, September 11, 2025";
+      --current-time: "02:35 PM SAST, October 22, 2025";
     }
   </style>
 </head>
@@ -26,24 +36,23 @@
   <button class="menu-toggle">☰</button>
 
   <!-- Sidebar for Logged-in Users (Role-specific) -->
-  <aside class="sidebar">
+  <aside class="sidebar {% if session.role == 'receptionist' %}active{% endif %}">
     <div class="logo">ClinicCare</div>
     <nav>
       {% if session.username %}
         <div class="user-info">
           <img src="{{ url_for('static', filename='images/user-placeholder.png') }}" alt="User Avatar">
-          <span>{{ session.username }}</span>
+          <span>{{ session.username }} ({{ session.role | capitalize }})</span>
         </div>
 
         {% if session.role == 'receptionist' %}
           <ul>
-            <li><a href="{{ url_for('reception_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('manage_appointments') }}"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
-            <li><a href="{{ url_for('check_in_page') }}"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
-            <li><a href="{{ url_for('helped_patients_report') }}"><i class="fas fa-file-alt"></i> Patient Report</a></li>
-            <li><a href="{{ url_for('search_patient') }}"><i class="fas fa-search"></i> Search Patients</a></li>
-            <li><a href="{{ url_for('add_patient') }}"><i class="fas fa-user-plus"></i> Add Patient</a></li>
-            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('reception_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('manage_appointments') }}" class="sidebar-btn"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
+            <li><a href="{{ url_for('check_in_page') }}" class="sidebar-btn"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
+            <li><a href="{{ url_for('helped_patients_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Patient Report</a></li>
+            <li><a href="{{ url_for('search_patient') }}" class="sidebar-btn"><i class="fas fa-search"></i> Search Patients</a></li>
+            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
@@ -68,19 +77,22 @@
           </ul>
         {% endif %}
 
-        <ul>
-          <li><a href="{{ url_for('edit_employee') }}"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
+        <ul class="sidebar-footer">
+          <li><a href="{{ url_for('edit_employee') }}" class="sidebar-btn"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
           <li>
             <form action="{{ url_for('change_theme') }}" method="POST" class="theme-form">
-              <select name="theme" onchange="this.form.submit()">
+              <select name="theme" onchange="this.form.submit()" class="form-control">
                 <option value="dark" {% if session.theme == 'dark' %}selected{% endif %}>Dark</option>
                 <option value="light" {% if session.theme == 'light' %}selected{% endif %}>Light</option>
               </select>
             </form>
           </li>
-          <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+          <li><a href="{{ url_for('logout') }}" class="sidebar-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
-
+      {% else %}
+        <ul>
+          <li><a href="{{ url_for('login_page') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+        </ul>
       {% endif %}
     </nav>
   </aside>
@@ -90,86 +102,21 @@
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">
-            <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
-            {{ message }}
-            <button class="close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
-          </div>
-        {% endfor %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+              {{ message }}
+              <button class="close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
     {% endwith %}
 
     <!-- Page content -->
     {% block content %}{% endblock %}
   </main>
-
-  <!-- Receptionist: Add Patient Modal -->
-  {% if session.role == 'receptionist' %}
-  <div class="modal" id="addPatientModal">
-    <div class="modal__content">
-      <h2>Add New Patient</h2>
-      <form action="{{ url_for('add_patient') }}" method="POST">
-        <div class="form-group">
-          <label for="first_name">First Name</label>
-          <input type="text" id="first_name" name="first_name" class="control" required>
-        </div>
-        <div class="form-group">
-          <label for="last_name">Last Name</label>
-          <input type="text" id="last_name" name="last_name" class="control" required>
-        </div>
-        <div class="form-group">
-          <label for="date_of_birth">Date of Birth</label>
-          <input type="date" id="date_of_birth" name="date_of_birth" class="control" required>
-        </div>
-        <div class="form-group">
-          <label for="gender">Gender</label>
-          <select id="gender" name="gender" class="control">
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="address">Address</label>
-          <input type="text" id="address" name="address" class="control">
-        </div>
-        <div class="form-group">
-          <label for="phone">Phone</label>
-          <input type="text" id="phone" name="phone" class="control">
-        </div>
-        <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" class="control">
-        </div>
-        <div class="form-group">
-          <label for="emergency_contact_name">Emergency Contact Name</label>
-          <input type="text" id="emergency_contact_name" name="emergency_contact_name" class="control">
-        </div>
-        <div class="form-group">
-          <label for="emergency_contact_phone">Emergency Contact Phone</label>
-          <input type="text" id="emergency_contact_phone" name="emergency_contact_phone" class="control">
-        </div>
-        <div class="form-group">
-          <label for="medical_history">Medical History</label>
-          <textarea id="medical_history" name="medical_history" class="control"></textarea>
-        </div>
-        <div class="form-group">
-          <label for="allergies">Allergies</label>
-          <textarea id="allergies" name="allergies" class="control"></textarea>
-        </div>
-        <div class="form-group">
-          <label for="current_medications">Current Medications</label>
-          <textarea id="current_medications" name="current_medications" class="control"></textarea>
-        </div>
-        <div class="flex gap-4 mt-4">
-          <button type="submit" class="btn btn-primary">Add Patient</button>
-          <button type="button" class="btn btn-danger" onclick="closeModal('addPatientModal')">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </div>
-  {% endif %}
 
   <!-- Scripts -->
   <script>
@@ -181,8 +128,24 @@
       document.querySelector('.sidebar').classList.toggle('active');
       document.querySelector('.dashboard').classList.toggle('active');
     });
+
+    // Ensure sidebar is visible on page load for receptionist
+    document.addEventListener('DOMContentLoaded', () => {
+      if ('{{ session.role }}' === 'receptionist') {
+        document.querySelector('.sidebar').classList.add('active');
+      }
+    });
   </script>
-  <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/defaultPage.js') }}?v=1"></script>
+  {% if session.role == 'receptionist' %}
+    <script src="{{ url_for('static', filename='js/reception.js') }}?v=2"></script>
+  {% elif session.role == 'doctor' %}
+    <script src="{{ url_for('static', filename='js/doctor.js') }}?v=1"></script>
+  {% elif session.role == 'nurse' %}
+    <script src="{{ url_for('static', filename='js/nurse.js') }}?v=1"></script>
+  {% elif session.role == 'admin' %}
+    <script src="{{ url_for('static', filename='js/admin.js') }}?v=1"></script>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

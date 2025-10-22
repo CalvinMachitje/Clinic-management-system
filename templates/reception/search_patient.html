@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Search Patients - Township Clinic{% endblock %}
+
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <h1 class="text-3xl font-bold mb-8">Search Patients</h1>
+
+    <!-- Search Patient Form -->
+    <form id="search-form" method="POST" action="{{ url_for('search_patient') }}">
+        {{ csrf_token() }}
+        <div class="form-group">
+            <label for="search_term">Search Patient by ID or Name</label>
+            <input type="text" id="search_term" name="search_term" class="form-control" placeholder="Enter patient ID or name" value="{{ search_term | default('') }}">
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <!-- Search Results Table -->
+    {% if patients is defined and patients %}
+    <h2 class="text-2xl font-semibold mb-4">Search Results</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Patient ID</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Scheduled Appointment</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in patients %}
+            <tr>
+                <td>{{ patient.id }}</td>
+                <td>{{ patient.first_name }}</td>
+                <td>{{ patient.last_name }}</td>
+                <td>
+                    {% if patient.appointment %}
+                    {{ patient.appointment.appointment_date }} ({{ patient.appointment.reason or 'No reason specified' }})
+                    {% else %}
+                    None
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% elif search_term is defined %}
+    <p class="text-center text-gray-600 mb-8">No patients found matching "{{ search_term }}".</p>
+    {% endif %}
+
+    <hr class="my-8">
+
+    <!-- Link to Add Patient -->
+    <div class="text-center">
+        <a href="{{ url_for('add_patient') }}" class="btn btn-secondary">Register New Patient</a>
+    </div>
+</div>
+{% endblock %}
