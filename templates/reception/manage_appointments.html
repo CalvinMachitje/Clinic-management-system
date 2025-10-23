@@ -1,7 +1,7 @@
 {% extends 'homepage/base.html' %}
 {% block title %}Manage Appointments{% endblock %}
 {% block styles %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
 {% endblock %}
 {% block content %}
 <div class="dashboard-content">
@@ -19,8 +19,9 @@
     <!-- Booking Section -->
     <div class="card">
         <h3 class="text-2xl font-semibold mb-4">Book New Appointment</h3>
-        <form id="bookingForm">
+        <form id="bookingForm" onsubmit="bookAppointment(event)">
             <input type="hidden" name="action" value="book_appointment">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="patientId">Patient</label>
                 <select id="patientId" name="patient_id" class="form-control" required>
@@ -77,9 +78,10 @@
                         <td>{{ appt.appointment_date }}</td>
                         <td>{{ appt.reason }}</td>
                         <td>
-                            <form class="convertForm" data-id="{{ appt.id }}">
+                            <form class="convertForm" data-id="{{ appt.id }}" onsubmit="convertSelfBooked(event)">
                                 <input type="hidden" name="action" value="convert_self_booked">
                                 <input type="hidden" name="self_booked_id" value="{{ appt.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <select name="patient_id" class="form-control" required>
                                     <option value="">Select Patient</option>
                                     {% for patient in patients %}
@@ -144,9 +146,10 @@
                             {% endif %}
                         </td>
                         <td>
-                            <form class="cancelForm" data-id="{{ appt.id }}">
+                            <form class="cancelForm" data-id="{{ appt.id }}" onsubmit="cancelAppointment(event)">
                                 <input type="hidden" name="action" value="cancel_appointment">
                                 <input type="hidden" name="appointment_id" value="{{ appt.id }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-danger">Cancel</button>
                             </form>
                         </td>

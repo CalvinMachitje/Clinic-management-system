@@ -1,0 +1,110 @@
+{% extends 'homepage/base.html' %}
+{% block title %}Edit Profile{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
+{% endblock %}
+{% block content %}
+<div class="dashboard-content">
+    <h2 class="text-3xl font-bold mb-8">Edit Profile</h2>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, msg in messages %}
+                <div class="flash-message {{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <form method="POST" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="id" value="{{ employee['id'] }}">
+
+            <div class="form-group">
+                <label for="staff_number">Staff Number</label>
+                <input type="text" id="staff_number" name="staff_number" value="{{ employee['staff_number'] }}" class="form-control" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="first_name">First Name</label>
+                <input type="text" id="first_name" name="first_name" value="{{ employee['first_name'] }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="last_name">Last Name</label>
+                <input type="text" id="last_name" name="last_name" value="{{ employee['last_name'] }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" value="{{ employee['email'] }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role</label>
+                <input type="text" id="role" name="role" value="{{ employee['role'] }}" class="form-control" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="availability">Availability</label>
+                <select id="availability" name="availability" class="form-control" required>
+                    <option value="available" {% if employee['availability'] == 'available' %}selected{% endif %}>Available</option>
+                    <option value="unavailable" {% if employee['availability'] == 'unavailable' %}selected{% endif %}>Unavailable</option>
+                </select>
+            </div>
+
+            {% if employee['role'] == 'doctor' %}
+                <div class="form-group">
+                    <label for="specialization">Specialization</label>
+                    <input type="text" id="specialization" name="specialization" value="{{ employee.get('specialization', '') }}" class="form-control">
+                </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label for="profile_picture">Profile Picture (optional)</label>
+                <input type="file" id="profile_picture" name="profile_picture" class="form-control">
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <div id="formMessage" class="mt-4"></div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/reception.js?v=2') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.querySelector('form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            try {
+                const response = await fetch("{{ url_for('edit_profile') }}", {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                const messageDiv = document.getElementById('formMessage');
+                if (messageDiv) {
+                    messageDiv.textContent = data.message;
+                    messageDiv.className = `mt-4 ${data.success ? 'text-green-600' : 'text-red-600'}`;
+                }
+                if (data.success) {
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } catch (error) {
+                console.error('Profile update error:', error);
+                const messageDiv = document.getElementById('formMessage');
+                if (messageDiv) {
+                    messageDiv.textContent = 'An error occurred while updating the profile.';
+                    messageDiv.className = 'mt-4 text-red-600';
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

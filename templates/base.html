@@ -82,7 +82,7 @@
         {% endif %}
 
         <ul class="sidebar-footer">
-          <li><a href="{{ url_for('edit_employee') }}" class="sidebar-btn"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
+          <li><a href="{{ url_for('edit_profile') }}" class="sidebar-btn"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
           <li>
             <form action="{{ url_for('change_theme') }}" method="POST" class="theme-form">
               <select name="theme" onchange="this.form.submit()" class="form-control">

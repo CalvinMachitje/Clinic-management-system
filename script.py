@@ -20,7 +20,7 @@ import jinja2
 from flask_wtf import FlaskForm
 from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
-from app import appointment_homepage, admin_dashboard, doctor_dashboard, nurse_dashboard, reception_dashboard
+#from app import appointment_homepage, admin_dashboard, doctor_dashboard, nurse_dashboard, reception_dashboard
 
 
 # Initialize Flask app
@@ -225,6 +225,11 @@ def init_db():
                       title TEXT NOT NULL,
                       message TEXT NOT NULL,
                       timestamp TEXT DEFAULT CURRENT_TIMESTAMP)''')
+        
+        c.execute("PRAGMA table_info(employees)")
+        columns = [col[1] for col in c.fetchall()]
+        if 'specialization' not in columns:
+            c.execute("ALTER TABLE employees ADD COLUMN specialization TEXT")
         
         try:
             c.execute('''
@@ -436,71 +441,6 @@ def register():
             if conn:
                 conn.close()
     return render_template('homepage/registerPage.html', form=form)
-
-@app.route('/edit_employee', methods=['GET', 'POST'])
-def edit_employee():
-    if 'user_id' not in session:  # Changed from 'username' to 'user_id'
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        if request.method == 'POST':
-            email = request.form.get('email')
-            first_name = request.form.get('first_name')
-            last_name = request.form.get('last_name')
-            phone = request.form.get('phone')
-            address = request.form.get('address')
-            if not all([email, first_name, last_name]):
-                flash('Email, first name, and last name are required', 'error')
-                return redirect(url_for('edit_employee'))
-            profile_image = None
-            if 'profile_image' in request.files:
-                file = request.files['profile_image']
-                if file and allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    filename = f"{session['user_id']}_{filename}"  # Changed from session['username'] to session['user_id']
-                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    file.save(file_path)
-                    profile_image = filename
-            update_query = """
-                UPDATE employees 
-                SET email = ?, first_name = ?, last_name = ?, phone = ?, address = ?
-            """
-            params = (email, first_name, last_name, phone, address)
-            if profile_image:
-                update_query += ", profile_image = ?"
-                params += (profile_image,)
-            update_query += " WHERE staff_number = ?"
-            params += (session['user_id'],)  # Changed from session['username'] to session['user_id']
-            c.execute(update_query, params)
-            conn.commit()
-            flash('Profile updated successfully!', 'success')
-            role = session.get('role')
-            return redirect(url_for(f'{role}_dashboard'))
-        else:
-            c.execute("SELECT staff_number, email, first_name, last_name, phone, address, profile_image FROM employees WHERE staff_number = ?", (session['user_id'],))
-            user = c.fetchone()
-            if not user:
-                flash('User not found.', 'error')
-                return redirect(url_for('login_page'))
-            user_details = {
-                'staff_number': user['staff_number'],
-                'email': user['email'],
-                'first_name': user['first_name'],
-                'last_name': user['last_name'],
-                'phone': user['phone'],
-                'address': user['address'],
-                'profile_image': user['profile_image'] if user['profile_image'] else 'default.jpg'
-            }
-            return render_template('edit_employee.html', user_details=user_details, username=session['user_id'])  # Changed username to user_id
-    except Exception as e:
-        logger.error(f"Error in edit_employee: {str(e)}")
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('login_page'))
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/search_patient', methods=['GET', 'POST'])
 def search_patient():
@@ -2167,6 +2107,61 @@ def view_emergency_requests():
     finally:
         if conn:
             conn.close()
+
+@app.route('/edit_profile', methods=['GET', 'POST'])
+def edit_profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Fetch current employee data
+    cursor.execute("SELECT id, staff_number, first_name, last_name, email, role, availability, specialization FROM employees WHERE id = ?", (session['user_id'],))
+    employee = cursor.fetchone()
+    if not employee:
+        conn.close()
+        return "Employee not found", 404
+
+    employee = {
+        'id': employee['id'], 'staff_number': employee['staff_number'],
+        'first_name': employee['first_name'], 'last_name': employee['last_name'],
+        'email': employee['email'], 'role': employee['role'],
+        'availability': employee['availability'], 'specialization': employee['specialization'] or ''
+    }
+
+    if request.method == 'POST':
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        email = request.form.get('email')
+        availability = request.form.get('availability')
+        specialization = request.form.get('specialization') if employee['role'] == 'doctor' else None
+        profile_picture = request.files.get('profile_picture')
+
+        try:
+            # Update employee details
+            update_query = """
+                UPDATE employees SET first_name = ?, last_name = ?, email = ?, availability = ?, specialization = ?
+                WHERE id = ?
+            """
+            cursor.execute(update_query, (first_name, last_name, email, availability, specialization, session['user_id']))
+            
+            # Handle profile picture upload
+            if profile_picture and profile_picture.filename:
+                filename = f"profile_{session['user_id']}{os.path.splitext(profile_picture.filename)[1]}"
+                profile_picture.save(os.path.join(app.static_folder, 'uploads', filename))
+                # Optionally update a profile_picture field if added to the schema
+
+            conn.commit()
+            return jsonify({'success': True, 'message': 'Profile updated successfully!'})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'message': f'Error updating profile: {str(e)}'})
+        finally:
+            conn.close()
+
+    conn.close()
+    return render_template('edit_profile.html', employee=employee)            
 
 @app.route('/update_emergency_request/<int:request_id>', methods=['POST'])
 def update_emergency_request(request_id):
