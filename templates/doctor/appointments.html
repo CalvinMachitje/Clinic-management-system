@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Doctor Appointments - Township Clinic{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <main class="main-content" role="main" aria-label="Doctor Appointments Main Content">
+        <section class="dashboard-content">
+            <h1 class="text-2xl font-semibold mb-6">All Appointments</h1>
+
+            <!-- Appointment Table -->
+            <section aria-labelledby="appointments-title" class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="appointments-title" class="text-xl font-semibold">Appointment List</h2>
+                </div>
+                <table aria-describedby="appointments-description" role="grid" class="w-full table-auto border-collapse">
+                    <caption id="appointments-description" class="text-left text-lg font-medium mb-2">All appointments assigned to the doctor</caption>
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left">Appointment ID</th>
+                            <th class="px-4 py-2 text-left">Patient Name</th>
+                            <th class="px-4 py-2 text-left">Appointment Date</th>
+                            <th class="px-4 py-2 text-left">Status</th>
+                            <th class="px-4 py-2 text-left">Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for appointment in appointments %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-2">{{ appointment.id }}</td>
+                            <td class="px-4 py-2">{{ appointment.patient_name }}</td>
+                            <td class="px-4 py-2">{{ appointment.appointment_date | datetime('%H:%M %d-%m-%Y') }}</td>
+                            <td class="px-4 py-2">{{ appointment.status }}</td>
+                            <td class="px-4 py-2">{{ appointment.reason | default('Not specified', true) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="px-4 py-2 text-center">No appointments found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+        </section>
+    </main>
+</div>
+{% endblock %}

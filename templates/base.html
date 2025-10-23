@@ -7,7 +7,7 @@
 
   <!-- Icons + Styles -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}?v=2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/baseSidebar.css') }}?v=2">
   {% if session.role == 'receptionist' %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
   {% elif session.role == 'doctor' %}
@@ -86,9 +86,11 @@
           <li>
             <form action="{{ url_for('change_theme') }}" method="POST" class="theme-form">
               <select name="theme" onchange="this.form.submit()" class="form-control">
-                <option value="dark" {% if session.theme == 'dark' %}selected{% endif %}>Dark</option>
+               <option value="dark" {% if session.theme == 'dark' %}selected{% endif %}>Dark</option>
                 <option value="light" {% if session.theme == 'light' %}selected{% endif %}>Light</option>
               </select>
+              <!-- Add CSRF token for security -->
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             </form>
           </li>
         </ul>
@@ -125,98 +127,75 @@
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
   <!-- Scripts -->
-  <script>
-    // Enhanced sidebar toggle with error handling and accessibility
-    function initSidebar() {
-      const toggleBtn = document.getElementById('menu-toggle-btn');
-      const sidebar = document.getElementById('sidebar');
-      const mainContent = document.getElementById('main-content');
-      const overlay = document.getElementById('sidebar-overlay');
+<script>
+  // Enhanced sidebar toggle with error handling and accessibility
+  function initSidebar() {
+    console.log('Starting sidebar init. Session role: {{ session.get("role", "unknown") }}');  // Debug log
 
-      if (!toggleBtn || !sidebar || !mainContent || !overlay) {
-        console.error('Sidebar elements not found. Check DOM structure.');
-        return;
+    const toggleBtn = document.getElementById('menu-toggle-btn');
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('main-content');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (!toggleBtn || !sidebar || !mainContent || !overlay) {
+      console.error('Sidebar elements not found. Check DOM: toggleBtn=', !!toggleBtn, 'sidebar=', !!sidebar);
+      // Fallback: Force show sidebar if role is set
+      const role = '{{ session.get("role") }}';
+      if (role && sidebar) {
+        sidebar.style.left = '0';
+        sidebar.classList.add('active');
+        console.log('Fallback: Forced sidebar visible for role', role);
       }
-
-      let isOpen = sidebar.classList.contains('active');
-      toggleBtn.setAttribute('aria-expanded', isOpen);
-
-      // Toggle function
-      function toggleSidebar() {
-        isOpen = !isOpen;
-        sidebar.classList.toggle('active', isOpen);
-        mainContent.classList.toggle('active', isOpen);
-        overlay.classList.toggle('active', isOpen);
-        toggleBtn.setAttribute('aria-expanded', isOpen);
-        toggleBtn.innerHTML = isOpen ? '✕' : '☰';
-
-        // Focus management for accessibility
-        if (isOpen) {
-          sidebar.querySelector('a, button, input, select').focus();
-        }
-      }
-
-      // Event listeners
-      toggleBtn.addEventListener('click', toggleSidebar);
-
-      // Overlay click to close
-      overlay.addEventListener('click', toggleSidebar);
-
-      // Keyboard support (Escape to close)
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && isOpen) {
-          toggleSidebar();
-        }
-      });
-
-      // Close on route change (for SPA-like behavior, if applicable)
-      window.addEventListener('popstate', () => {
-        if (isOpen) toggleSidebar();
-      });
-
-      // Auto-open for receptionist
-      if ('{{ session.role }}' === 'receptionist') {
-        setTimeout(() => {
-          toggleSidebar();  // Open immediately
-        }, 100);  // Small delay to ensure DOM ready
-      }
-
-      console.log('Sidebar initialized successfully.');
+      return;
     }
 
-    // Modal functions (fallback-safe)
-    function openModal(id) {
-      const modal = document.getElementById(id);
-      if (modal) {
-        modal.setAttribute("open", "true");
-        modal.showModal();  // Use native dialog if available
-      } else {
-        console.warn(`Modal with ID '${id}' not found.`);
-      }
+    let isOpen = sidebar.classList.contains('active');
+    toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+    function toggleSidebar() {
+      isOpen = !isOpen;
+      sidebar.classList.toggle('active', isOpen);
+      mainContent.classList.toggle('active', isOpen);
+      overlay.classList.toggle('active', isOpen);
+      toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      toggleBtn.innerHTML = isOpen ? '✕' : '☰';
+      console.log('Toggled sidebar to', isOpen ? 'open' : 'closed');  // Debug
     }
 
-    function closeModal(id) {
-      const modal = document.getElementById(id);
-      if (modal) {
-        modal.removeAttribute("open");
-        modal.close();  // Native close
-      } else {
-        console.warn(`Modal with ID '${id}' not found.`);
-      }
-    }
+    toggleBtn.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', toggleSidebar);
 
-    // Initialize on DOM ready
-    document.addEventListener('DOMContentLoaded', () => {
-      initSidebar();
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen) toggleSidebar();
     });
 
-    // Fallback for older browsers or if DOMContentLoaded missed
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initSidebar);
-    } else {
-      initSidebar();
+    // Auto-open for receptionist
+    if ('{{ session.get("role") }}' === 'receptionist') {
+      setTimeout(toggleSidebar, 100);
     }
-  </script>
+
+    console.log('Sidebar initialized successfully.');
+  }
+
+  // Modals
+  function openModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.setAttribute("open", "true");
+  }
+
+  function closeModal(id) {
+    const modal = document.getElementById(id);
+    if (modal) modal.removeAttribute("open");
+  }
+
+  // Init
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSidebar);
+  } else {
+    initSidebar();
+  }
+</script>
+<!-- ... rest of scripts unchanged -->
   <script src="{{ url_for('static', filename='js/defaultPage.js') }}?v=1"></script>
   {% if session.role == 'receptionist' %}
     <script src="{{ url_for('static', filename='js/reception.js') }}?v=2"></script>

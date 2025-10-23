@@ -7,15 +7,15 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8" aria-label="Doctor Statistics">
                 <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
                     <h3 class="text-lg font-semibold mb-2">Total Patients Seen</h3>
-                    <p class="text-3xl font-bold text-primary">{{ total_patients_seen }}</p>
+                    <p class="text-3xl font-bold text-primary">{% if reports %}{{ reports | length }}{% else %}0{% endif %}</p>
                 </div>
                 <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
                     <h3 class="text-lg font-semibold mb-2">Pending Appointments</h3>
-                    <p class="text-3xl font-bold text-primary">{{ pending_appointments }}</p>
+                    <p class="text-3xl font-bold text-primary">{% if reports %}{{ reports | selectattr('status', 'equalto', 'scheduled') | list | length }}{% else %}0{% endif %}</p>
                 </div>
                 <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
                     <h3 class="text-lg font-semibold mb-2">Monthly Consultations</h3>
-                    <p class="text-3xl font-bold text-primary">{{ monthly_consultations }}</p>
+                    <p class="text-3xl font-bold text-primary">0</p> <!-- Placeholder; requires additional query -->
                 </div>
             </div>
 
@@ -23,8 +23,8 @@
             <section aria-labelledby="appointment-preview-title" class="bg-white rounded-lg shadow-md p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 id="appointment-preview-title" class="text-xl font-semibold">Recent Appointments</h2>
-                    <a href="{{ url_for('appointments') }}" class="btn btn-primary" aria-label="Go to full appointments page">View All Appointments</a>
-                </div>
+                    <!-- Replace with a valid route or remove if not needed -->
+                    <a href="{{ url_for('appointments') }}" class="btn btn-primary" aria-label="Go to full appointments page">View All Appointments</a>                </div>
                 <table aria-describedby="appointment-preview-description" role="grid" class="w-full table-auto border-collapse">
                     <caption id="appointment-preview-description" class="text-left text-lg font-medium mb-2">Recent appointments for the doctor</caption>
                     <thead class="bg-gray-100">
@@ -35,11 +35,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for appointment in recent_appointments %}
+                        {% for report in reports %}
                         <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ appointment.patient_name }}</td>
-                            <td class="px-4 py-2">{{ appointment.appointment_time }}</td>
-                            <td class="px-4 py-2">{{ appointment.status }}</td>
+                            <td class="px-4 py-2">{{ report.patient_name }}</td>
+                            <td class="px-4 py-2">{{ report.appointment_date | default('N/A', true) }}</td>
+                            <td class="px-4 py-2">{{ report.status }}</td>
                         </tr>
                         {% else %}
                         <tr><td colspan="3" class="px-4 py-2 text-center">No appointments found.</td></tr>
