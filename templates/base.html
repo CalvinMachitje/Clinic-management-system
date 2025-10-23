@@ -33,10 +33,10 @@
 </head>
 <body class="dashboard-page">
   <!-- Sidebar Toggle Button -->
-  <button class="menu-toggle">☰</button>
+  <button class="menu-toggle" id="menu-toggle-btn" aria-label="Toggle Sidebar" aria-expanded="false">☰</button>
 
   <!-- Sidebar for Logged-in Users (Role-specific) -->
-  <aside class="sidebar {% if session.role == 'receptionist' %}active{% endif %}">
+  <aside class="sidebar {% if session.role == 'receptionist' %}active{% endif %}" id="sidebar" role="navigation" aria-label="Main Navigation">
     <div class="logo">ClinicCare</div>
     <nav>
       {% if session.username %}
@@ -53,27 +53,31 @@
             <li><a href="{{ url_for('helped_patients_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Patient Report</a></li>
             <li><a href="{{ url_for('search_patient') }}" class="sidebar-btn"><i class="fas fa-search"></i> Search Patients</a></li>
             <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
-            <li><a href="{{ url_for('doctor_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('doctor_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
-            <li><a href="{{ url_for('doctor_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
-            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('doctor_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('doctor_overview') }}" class="sidebar-btn"><i class="fas fa-chart-line"></i> Overview</a></li>
+            <li><a href="{{ url_for('doctor_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
+            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'nurse' %}
           <ul>
-            <li><a href="{{ url_for('nurse_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('nurse_overview') }}"><i class="fas fa-chart-line"></i> Overview</a></li>
-            <li><a href="{{ url_for('view_announcements') }}"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('nurse_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('nurse_overview') }}" class="sidebar-btn"><i class="fas fa-chart-line"></i> Overview</a></li>
+            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'admin' %}
           <ul>
-            <li><a href="{{ url_for('admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('admin_manage_users') }}"><i class="fas fa-users"></i> Manage Users</a></li>
-            <li><a href="{{ url_for('admin_system_settings') }}"><i class="fas fa-cog"></i> System Settings</a></li>
-            <li><a href="{{ url_for('admin_report') }}"><i class="fas fa-file-alt"></i> Report</a></li>
-            <li><a href="{{ url_for('announcements') }}"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
+            <li><a href="{{ url_for('admin_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="{{ url_for('admin_manage_users') }}" class="sidebar-btn"><i class="fas fa-users"></i> Manage Users</a></li>
+            <li><a href="{{ url_for('admin_system_settings') }}" class="sidebar-btn"><i class="fas fa-cog"></i> System Settings</a></li>
+            <li><a href="{{ url_for('admin_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
+            <li><a href="{{ url_for('announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
+            <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% endif %}
 
@@ -87,7 +91,6 @@
               </select>
             </form>
           </li>
-          <li><a href="{{ url_for('logout') }}" class="sidebar-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
       {% else %}
         <ul>
@@ -98,7 +101,7 @@
   </aside>
 
   <!-- Dashboard Content -->
-  <main class="dashboard">
+  <main class="dashboard" id="main-content">
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -118,23 +121,101 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Overlay for mobile sidebar -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
   <!-- Scripts -->
   <script>
-    function openModal(id) { document.getElementById(id).setAttribute("open", "true"); }
-    function closeModal(id) { document.getElementById(id).removeAttribute("open"); }
+    // Enhanced sidebar toggle with error handling and accessibility
+    function initSidebar() {
+      const toggleBtn = document.getElementById('menu-toggle-btn');
+      const sidebar = document.getElementById('sidebar');
+      const mainContent = document.getElementById('main-content');
+      const overlay = document.getElementById('sidebar-overlay');
 
-    // Sidebar toggle functionality
-    document.querySelector('.menu-toggle').addEventListener('click', () => {
-      document.querySelector('.sidebar').classList.toggle('active');
-      document.querySelector('.dashboard').classList.toggle('active');
-    });
-
-    // Ensure sidebar is visible on page load for receptionist
-    document.addEventListener('DOMContentLoaded', () => {
-      if ('{{ session.role }}' === 'receptionist') {
-        document.querySelector('.sidebar').classList.add('active');
+      if (!toggleBtn || !sidebar || !mainContent || !overlay) {
+        console.error('Sidebar elements not found. Check DOM structure.');
+        return;
       }
+
+      let isOpen = sidebar.classList.contains('active');
+      toggleBtn.setAttribute('aria-expanded', isOpen);
+
+      // Toggle function
+      function toggleSidebar() {
+        isOpen = !isOpen;
+        sidebar.classList.toggle('active', isOpen);
+        mainContent.classList.toggle('active', isOpen);
+        overlay.classList.toggle('active', isOpen);
+        toggleBtn.setAttribute('aria-expanded', isOpen);
+        toggleBtn.innerHTML = isOpen ? '✕' : '☰';
+
+        // Focus management for accessibility
+        if (isOpen) {
+          sidebar.querySelector('a, button, input, select').focus();
+        }
+      }
+
+      // Event listeners
+      toggleBtn.addEventListener('click', toggleSidebar);
+
+      // Overlay click to close
+      overlay.addEventListener('click', toggleSidebar);
+
+      // Keyboard support (Escape to close)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen) {
+          toggleSidebar();
+        }
+      });
+
+      // Close on route change (for SPA-like behavior, if applicable)
+      window.addEventListener('popstate', () => {
+        if (isOpen) toggleSidebar();
+      });
+
+      // Auto-open for receptionist
+      if ('{{ session.role }}' === 'receptionist') {
+        setTimeout(() => {
+          toggleSidebar();  // Open immediately
+        }, 100);  // Small delay to ensure DOM ready
+      }
+
+      console.log('Sidebar initialized successfully.');
+    }
+
+    // Modal functions (fallback-safe)
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.setAttribute("open", "true");
+        modal.showModal();  // Use native dialog if available
+      } else {
+        console.warn(`Modal with ID '${id}' not found.`);
+      }
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.removeAttribute("open");
+        modal.close();  // Native close
+      } else {
+        console.warn(`Modal with ID '${id}' not found.`);
+      }
+    }
+
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      initSidebar();
     });
+
+    // Fallback for older browsers or if DOMContentLoaded missed
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSidebar);
+    } else {
+      initSidebar();
+    }
   </script>
   <script src="{{ url_for('static', filename='js/defaultPage.js') }}?v=1"></script>
   {% if session.role == 'receptionist' %}

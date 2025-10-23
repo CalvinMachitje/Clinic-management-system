@@ -2,7 +2,7 @@
 {% block title %}Admin Report - Township Clinic{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}
 
@@ -74,10 +74,16 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/admin_report.js') }}"></script>
+
+<!-- Embed JSON data in non-JS script tags to avoid editor/JS parser errors -->
+<script type="application/json" id="staffPieDataJson">{{ staff_pie_data_json|tojson }}</script>
+<script type="application/json" id="appointmentBarDataJson">{{ appointment_bar_data_json|tojson }}</script>
+<script type="application/json" id="monthlyAppointmentsDataJson">{{ monthly_appointments_data_json|tojson }}</script>
+
 <script>
-  // Pass Python variables to JS
-  window.staffPieData = {{ staff_pie_data_json|safe }};
-  window.appointmentBarData = {{ appointment_bar_data_json|safe }};
-  window.monthlyAppointmentsData = {{ monthly_appointments_data_json|safe }};
+  // Read embedded JSON safely at runtime
+  window.staffPieData = JSON.parse(document.getElementById('staffPieDataJson').textContent);
+  window.appointmentBarData = JSON.parse(document.getElementById('appointmentBarDataJson').textContent);
+  window.monthlyAppointmentsData = JSON.parse(document.getElementById('monthlyAppointmentsDataJson').textContent);
 </script>
 {% endblock %}
