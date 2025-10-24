@@ -2,41 +2,38 @@
 
 {% block title %}Township Clinic - Register{% endblock %}
 
+{% block body_class %}register-page{% endblock %} <!-- ADD THIS LINE -->
+
 {% block content %}
 <div class="card">
     <h1>Register</h1>
     <form method="POST" action="">
-        {{ form.hidden_tag() }} <!-- CSRF protection -->
+        {{ form.hidden_tag() }}
         <div class="form-group">
-            <label for="{{ form.first_name.id }}">First Name</label>
             {{ form.first_name(id=form.first_name.id, class="form-control", placeholder="First Name") }}
             {% for error in form.first_name.errors %}
                 <span style="color: red;">{{ error }}</span>
             {% endfor %}
         </div>
         <div class="form-group">
-            <label for="{{ form.last_name.id }}">Last Name</label>
             {{ form.last_name(id=form.last_name.id, class="form-control", placeholder="Last Name") }}
             {% for error in form.last_name.errors %}
                 <span style="color: red;">{{ error }}</span>
             {% endfor %}
         </div>
         <div class="form-group">
-            <label for="{{ form.email.id }}">Email</label>
             {{ form.email(id=form.email.id, class="form-control", placeholder="Email") }}
             {% for error in form.email.errors %}
                 <span style="color: red;">{{ error }}</span>
             {% endfor %}
         </div>
         <div class="form-group">
-            <label for="{{ form.password.id }}">Password</label>
             {{ form.password(id=form.password.id, class="form-control", placeholder="Password") }}
             {% for error in form.password.errors %}
                 <span style="color: red;">{{ error }}</span>
             {% endfor %}
         </div>
         <div class="form-group">
-            <label for="{{ form.confirm_password.id }}">Confirm Password</label>
             {{ form.confirm_password(id=form.confirm_password.id, class="form-control", placeholder="Confirm Password") }}
             {% for error in form.confirm_password.errors %}
                 <span style="color: red;">{{ error }}</span>

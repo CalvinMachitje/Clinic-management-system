@@ -2,48 +2,56 @@
 
 {% block title %}Township Clinic - Book Appointment{% endblock %}
 
+{% block body_class %}book-appointment-page{% endblock %}  <!-- ADD THIS LINE -->
+
 {% block content %}
 <div class="card">
     <h1>Book an Appointment</h1>
     <form method="POST" action="">
-        {{ form.hidden_tag() }} <!-- CSRF protection -->
+        {{ form.hidden_tag() }}
+
         <div class="form-group">
-            {{ form.patient_name.label }}<br>
-            {{ form.patient_name(class="form-control", placeholder="Full Name") }}<br>
+            {{ form.patient_name.label(class="form-label") }}
+            {{ form.patient_name(class="form-control", placeholder="Full Name") }}
             {% for error in form.patient_name.errors %}
-                <span style="color: red;">{{ error }}</span><br>
+                <span class="text-danger">{{ error }}</span>
             {% endfor %}
         </div>
+
         <div class="form-group">
-            {{ form.patient_phone.label }}<br>
-            {{ form.patient_phone(class="form-control", placeholder="Phone Number") }}<br>
+            {{ form.patient_phone.label(class="form-label") }}
+            {{ form.patient_phone(class="form-control", placeholder="Phone Number") }}
             {% for error in form.patient_phone.errors %}
-                <span style="color: red;">{{ error }}</span><br>
+                <span class="text-danger">{{ error }}</span>
             {% endfor %}
         </div>
+
         <div class="form-group">
-            {{ form.patient_email.label }}<br>
-            {{ form.patient_email(class="form-control", placeholder="Email") }}<br>
+            {{ form.patient_email.label(class="form-label") }}
+            {{ form.patient_email(class="form-control", placeholder="Email") }}
             {% for error in form.patient_email.errors %}
-                <span style="color: red;">{{ error }}</span><br>
+                <span class="text-danger">{{ error }}</span>
             {% endfor %}
         </div>
+
         <div class="form-group">
-            {{ form.date.label }}<br>
-            {{ form.date(class="form-control", type="datetime-local") }}<br>
+            {{ form.date.label(class="form-label") }}
+            {{ form.date(class="form-control", type="datetime-local") }}
             {% for error in form.date.errors %}
-                <span style="color: red;">{{ error }}</span><br>
+                <span class="text-danger">{{ error }}</span>
             {% endfor %}
         </div>
+
         <div class="form-group">
-            {{ form.reason.label }}<br>
-            {{ form.reason(class="form-control", placeholder="Reason for Appointment") }}<br>
+            {{ form.reason.label(class="form-label") }}
+            {{ form.reason(class="form-control", placeholder="Reason for Appointment") }}
             {% for error in form.reason.errors %}
-                <span style="color: red;">{{ error }}</span><br>
+                <span class="text-danger">{{ error }}</span>
             {% endfor %}
         </div>
+
         <div class="form-group">
-            <label>Doctor</label><br>
+            <label class="form-label">Doctor</label>
             <select name="doctor" class="form-control">
                 <option value="">Select a Doctor</option>
                 {% for doctor in doctors %}
@@ -51,10 +59,12 @@
                 {% endfor %}
             </select>
         </div>
+
         <div class="form-group">
             {{ form.submit(class="btn btn-primary") }}
         </div>
     </form>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}

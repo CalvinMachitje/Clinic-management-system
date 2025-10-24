@@ -4,18 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Township Clinic{% endblock %}</title>
+
+    <!-- Default CSS (contains the new header rules) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/defaultPage.css') }}">
+
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
 </head>
-<body>
-    <!-- Header -->
+<body class="{% block body_class %}{% endblock %}">
+    <!-- ==================== HEADER ==================== -->
     <nav class="header">
+        <!-- LOGO – LEFT -->
         <div class="logo"><i class="fas fa-clinic-medical mr-2"></i>Township Clinic</div>
-        <input type="text" class="search-bar" placeholder="Search services..." />
+
+        <!-- SEARCH BAR – CENTERED (wrapper is required) -->
+        <div class="search-bar-wrapper">
+            <input type="text" class="search-bar" placeholder="Search services..." />
+        </div>
+
+        <!-- MENU ICON – RIGHT -->
         <i class="fas fa-bars menu-icon" id="menu-toggle"></i>
     </nav>
 
-    <!-- Mobile Menu Sidebar -->
+    <!-- ==================== MOBILE MENU ==================== -->
     <div class="mobile-menu" id="mobile-menu">
         <a href="{{ url_for('default_page') }}" aria-label="Home"><i class="fas fa-home mr-1"></i>Home</a>
         <div class="dropdown">
@@ -33,12 +44,12 @@
         <a href="{{ url_for('register') }}" aria-label="Register"><i class="fas fa-user-plus mr-1"></i>Register</a>
     </div>
 
-    <!-- Main Content -->
+    <!-- ==================== MAIN CONTENT ==================== -->
     <main class="main-content" id="main-content">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
+    <!-- ==================== FOOTER ==================== -->
     <footer class="footer">
         <div class="container">
             <div class="footer-section">
@@ -71,6 +82,7 @@
         <div class="copyright">© 2025 Township Clinic. All rights reserved.</div>
     </footer>
 
+    <!-- Default JS (menu toggle, etc.) -->
     <script src="{{ url_for('static', filename='js/defaultPage.js') }}"></script>
 </body>
 </html>
