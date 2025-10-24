@@ -1,14 +1,14 @@
 {% extends "homepage/base2.html" %}
 
 {% block title %}Township Clinic - Book Appointment{% endblock %}
-
-{% block body_class %}book-appointment-page{% endblock %}  <!-- ADD THIS LINE -->
+{% block body_class %}book-appointment-page{% endblock %}
 
 {% block content %}
 <div class="card">
     <h1>Book an Appointment</h1>
-    <form method="POST" action="">
-        {{ form.hidden_tag() }}
+
+    <form method="POST" action="" novalidate>
+        {{ form.hidden_tag() }}  <!-- CSRF TOKEN -->
 
         <div class="form-group">
             {{ form.patient_name.label(class="form-label") }}
@@ -52,10 +52,10 @@
 
         <div class="form-group">
             <label class="form-label">Doctor</label>
-            <select name="doctor" class="form-control">
+            <select name="doctor" class="form-control" required>
                 <option value="">Select a Doctor</option>
                 {% for doctor in doctors %}
-                    <option value="{{ doctor.staff_number }}">{{ doctor.first_name }} {{ doctor.last_name }}</option>
+                    <option value="{{ doctor[0] }}">{{ doctor[1] }} {{ doctor[2] }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -64,13 +64,28 @@
             {{ form.submit(class="btn btn-primary") }}
         </div>
     </form>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
 </div>
+
+<!-- SUCCESS POPUP -->
+<div class="success-popup" 
+     id="successPopup"
+     data-date="{{ success_data.date if success_data else '' }}"
+     data-doctor="{{ success_data.doctor if success_data else '' }}">
+    <div class="success-icon">
+        <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="success-message">
+        <h3>Appointment Booked!</h3>
+        <p>Your appointment has been successfully scheduled.</p>
+        <p><strong>Date:</strong> <span id="popupDate">—</span></p>
+        <p><strong>Doctor:</strong> <span id="popupDoctor">—</span></p>
+    </div>
+    <button class="success-close" id="closePopup">×</button>
+</div>
+
+<div class="popup-overlay" id="popupOverlay"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/success-popup.js') }}"></script>
 {% endblock %}

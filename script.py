@@ -802,57 +802,115 @@ def check_in_page():
 def patient_book_appointment():
     form = AppointmentForm()
     doctors = []
+
+    # ────── FETCH DOCTORS ──────
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT staff_number, first_name, last_name FROM employees WHERE role = 'doctor'")
+        c.execute(
+            "SELECT staff_number, first_name, last_name FROM employees WHERE role = 'doctor'"
+        )
         doctors = c.fetchall()
     except sqlite3.Error as e:
         logger.error(f"Error fetching doctors: {e}")
     finally:
         if conn:
             conn.close()
+
+    # ────── FORM SUBMITTED ──────
     if form.validate_on_submit():
-        patient_name = form.patient_name.data.strip()
-        patient_phone = form.patient_phone.data.strip()
-        patient_email = form.patient_email.data.strip()
-        appointment_date = form.date.data.strftime('%Y-%m-%d %H:%M:%S')
-        reason = form.reason.data.strip()
-        doctor = request.form.get('doctor')
+        patient_name   = form.patient_name.data.strip()
+        patient_phone  = form.patient_phone.data.strip()
+        patient_email  = form.patient_email.data.strip()
+        appointment_dt = form.date.data                # datetime object
+        appointment_date = appointment_dt.strftime('%Y-%m-%d %H:%M:%S')
+        reason         = form.reason.data.strip()
+        doctor_staff   = request.form.get('doctor')
+
+        # ────── INSERT APPOINTMENT ──────
         conn = None
         try:
             conn = get_db_connection()
             if not conn:
                 flash('Database connection failed.', 'error')
-                return render_template('homepage/patient_book_appointment.html', form=form, doctors=doctors)
+                return render_template(
+                    'homepage/patient_book_appointment.html',
+                    form=form, doctors=doctors
+                )
+
             c = conn.cursor()
-            c.execute("""
-                INSERT INTO self_booked_appointments (patient_name, patient_phone, patient_email, appointment_date, reason, status, doctor_staff_number)
+            c.execute(
+                """
+                INSERT INTO self_booked_appointments
+                (patient_name, patient_phone, patient_email,
+                 appointment_date, reason, status, doctor_staff_number)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (patient_name, patient_phone, patient_email, appointment_date, reason, 'pending', doctor))
+                """,
+                (patient_name, patient_phone, patient_email,
+                 appointment_date, reason, 'pending', doctor_staff)
+            )
             appointment_id = c.lastrowid
             conn.commit()
+
+            # ────── QUEUE ──────
             with queue_lock:
                 appointment_queue.put({
-                    'id': appointment_id,
-                    'patient_name': patient_name,
-                    'appointment_date': appointment_date,
-                    'reason': reason,
-                    'status': 'pending',
-                    'type': 'self_booked',
-                    'doctor': doctor
+                    'id'               : appointment_id,
+                    'patient_name'     : patient_name,
+                    'appointment_date' : appointment_date,
+                    'reason'           : reason,
+                    'status'           : 'pending',
+                    'type'             : 'self_booked',
+                    'doctor'           : doctor_staff
                 })
-            flash('Your appointment request has been submitted successfully! Please wait for confirmation.', 'success')
-            return redirect(url_for('default_page'))
+
+            # ────── PREPARE POP-UP DATA ──────
+            # Find doctor name for the popup
+            doctor_name = ''
+            for d in doctors:
+                if str(d[0]) == doctor_staff:          # staff_number is first column
+                    doctor_name = f"Dr. {d[1]} {d[2]}"
+                    break
+
+            success_data = {
+                'date'   : appointment_dt.strftime('%b %d, %Y at %I:%M %p'),  # e.g. Oct 24, 2025 at 03:30 PM
+                'doctor' : doctor_name or 'Unknown Doctor'
+            }
+
+            # Store in session – popup reads it on the next GET
+            session['appointment_success'] = success_data
+
+            # Flash is optional – you already have one, keep it
+            flash(
+                'Your appointment request has been submitted successfully! '
+                'Please wait for confirmation.',
+                'success'
+            )
+
+            # Redirect to the same page → GET → popup shows
+            return redirect(url_for('patient_book_appointment'))
+
         except sqlite3.Error as e:
             logger.error(f"Database error in patient_book_appointment: {e}")
             flash(f'An error occurred: {str(e)}', 'error')
-            return render_template('homepage/patient_book_appointment.html', form=form, doctors=doctors)
+            return render_template(
+                'homepage/patient_book_appointment.html',
+                form=form, doctors=doctors
+            )
         finally:
             if conn:
                 conn.close()
-    return render_template('homepage/patient_book_appointment.html', form=form, doctors=doctors)
+
+    # ────── GET REQUEST (first load or after redirect) ──────
+    success_data = session.pop('appointment_success', None)
+
+    return render_template(
+        'homepage/patient_book_appointment.html',
+        form=form,
+        doctors=doctors,
+        success_data=success_data
+    )
 
 @app.route('/manage_appointments', methods=['GET', 'POST'])
 def manage_appointments():

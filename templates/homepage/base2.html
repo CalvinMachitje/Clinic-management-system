@@ -5,32 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Township Clinic{% endblock %}</title>
 
-    <!-- Default CSS (contains the new header rules) -->
+    <!-- Default CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/defaultPage.css') }}">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
 </head>
 <body class="{% block body_class %}{% endblock %}">
+
+    <!-- ==================== FLASH MESSAGES ==================== -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-container">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <!-- ==================== HEADER ==================== -->
     <nav class="header">
-        <!-- LOGO – LEFT -->
         <div class="logo"><i class="fas fa-clinic-medical mr-2"></i>Township Clinic</div>
-
-        <!-- SEARCH BAR – CENTERED (wrapper is required) -->
         <div class="search-bar-wrapper">
             <input type="text" class="search-bar" placeholder="Search services..." />
         </div>
-
-        <!-- MENU ICON – RIGHT -->
         <i class="fas fa-bars menu-icon" id="menu-toggle"></i>
     </nav>
 
     <!-- ==================== MOBILE MENU ==================== -->
     <div class="mobile-menu" id="mobile-menu">
-        <a href="{{ url_for('default_page') }}" aria-label="Home"><i class="fas fa-home mr-1"></i>Home</a>
+        <a href="{{ url_for('default_page') }}"><i class="fas fa-home mr-1"></i>Home</a>
         <div class="dropdown">
-            <a href="#" class="dropbtn" aria-label="Services"><i class="fas fa-stethoscope mr-1"></i>Services</a>
+            <a href="#" class="dropbtn"><i class="fas fa-stethoscope mr-1"></i>Services</a>
             <div class="dropdown-content">
                 <a href="{{ url_for('patient_book_appointment') }}">Book Appointment</a>
                 <a href="{{ url_for('vaccinations_homepage') }}">Vaccinations</a>
@@ -38,10 +45,10 @@
                 <a href="{{ url_for('emergency_homepage') }}">Emergency Care</a>
             </div>
         </div>
-        <a href="{{ url_for('about') }}" aria-label="About Us"><i class="fas fa-info-circle mr-1"></i>About Us</a>
-        <a href="{{ url_for('contact') }}" aria-label="Contact"><i class="fas fa-envelope mr-1"></i>Contact</a>
-        <a href="{{ url_for('login_page') }}" aria-label="Sign In"><i class="fas fa-sign-in-alt mr-1"></i>Sign In</a>
-        <a href="{{ url_for('register') }}" aria-label="Register"><i class="fas fa-user-plus mr-1"></i>Register</a>
+        <a href="{{ url_for('about') }}"><i class="fas fa-info-circle mr-1"></i>About Us</a>
+        <a href="{{ url_for('contact') }}"><i class="fas fa-envelope mr-1"></i>Contact</a>
+        <a href="{{ url_for('login_page') }}"><i class="fas fa-sign-in-alt mr-1"></i>Sign In</a>
+        <a href="{{ url_for('register') }}"><i class="fas fa-user-plus mr-1"></i>Register</a>
     </div>
 
     <!-- ==================== MAIN CONTENT ==================== -->
@@ -82,7 +89,10 @@
         <div class="copyright">© 2025 Township Clinic. All rights reserved.</div>
     </footer>
 
-    <!-- Default JS (menu toggle, etc.) -->
+    <!-- Default JS -->
     <script src="{{ url_for('static', filename='js/defaultPage.js') }}"></script>
+
+    <!-- Child template scripts (e.g. popup) -->
+    {% block scripts %}{% endblock %}
 </body>
 </html>
