@@ -31,7 +31,7 @@
     }
   </style>
 </head>
-<body class="dashboard-page">
+<body class="dashboard-page" data-role="{{ session.role }}">
   <!-- Sidebar Toggle Button -->
   <button class="menu-toggle" id="menu-toggle-btn" aria-label="Toggle Sidebar" aria-expanded="false">☰</button>
 
@@ -52,22 +52,20 @@
             <li><a href="{{ url_for('check_in_page') }}" class="sidebar-btn"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
             <li><a href="{{ url_for('helped_patients_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Patient Report</a></li>
             <li><a href="{{ url_for('search_patient') }}" class="sidebar-btn"><i class="fas fa-search"></i> Search Patients</a></li>
-            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('reception_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
             <li><a href="{{ url_for('doctor_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('doctor_overview') }}" class="sidebar-btn"><i class="fas fa-chart-line"></i> Overview</a></li>
             <li><a href="{{ url_for('doctor_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
-            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('doctor_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'nurse' %}
           <ul>
             <li><a href="{{ url_for('nurse_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
-            <li><a href="{{ url_for('nurse_overview') }}" class="sidebar-btn"><i class="fas fa-chart-line"></i> Overview</a></li>
-            <li><a href="{{ url_for('view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
+            <li><a href="{{ url_for('nurse_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% elif session.role == 'admin' %}

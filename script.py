@@ -50,9 +50,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 bcrypt = Bcrypt(app)
 
 # In-memory queues for notifications
+announcement_queue = Queue()
 appointment_queue = Queue()
-waiting_patients_queue = Queue()
 queue_lock = Lock()
+waiting_patients_queue = Queue()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -985,7 +986,7 @@ def manage_appointments():
             conn.close()
             return jsonify({'success': True, 'message': 'Appointment cancelled!'})
 
-    return render_template('manage_appointments.html', patients=patients, available_staff=available_staff, self_booked_appointments=self_booked_appointments, appointments=appointments)
+    return render_template('reception/manage_appointments.html', patients=patients, available_staff=available_staff, self_booked_appointments=self_booked_appointments, appointments=appointments)
 
 @app.route('/stream_appointments')
 def stream_appointments():
@@ -1010,70 +1011,8 @@ def helped_patients_report():
     cursor.execute("SELECT * FROM helped_patients")
     helped_patients = cursor.fetchall()
     conn.close()
-    return render_template('helped_patients_report.html', helped_patients=helped_patients)
+    return render_template('reception/helped_patients_report.html', helped_patients=helped_patients)
 
-@app.route('/doctor_overview')
-def doctor_overview():
-    if 'username' not in session or session.get('role') != 'doctor':
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
-        c.execute("SELECT COUNT(*) FROM patients")
-        total_patients = c.fetchone()[0]
-        today = datetime.now().strftime('%Y-%m-%d')
-        c.execute("""
-            SELECT p.first_name, p.last_name, a.id, a.appointment_date, a.status, a.reason
-            FROM appointments a 
-            JOIN patients p ON a.patient_id = p.id 
-            WHERE a.appointment_date LIKE ?
-        """, (f'{today}%',))
-        patients_today = [
-            {
-                'first_name': row['first_name'],
-                'last_name': row['last_name'],
-                'id': row['id'],
-                'appointment_time': datetime.strptime(row['appointment_date'], "%Y-%m-%d %H:%M:%S") if row['appointment_date'] else None,
-                'appointment_reason': row['reason'],
-                'urgent_flag': random.choice([True, False])
-            } for row in c.fetchall()
-        ]
-        urgent_flags = sum(1 for patient in patients_today if patient.get('urgent_flag'))
-        c.execute("SELECT COUNT(*) FROM messages WHERE title LIKE '%Doctor%'")
-        unread_messages = c.fetchone()[0]
-        health_alerts = [
-            {
-                'patient_name': f"{p['first_name']} {p['last_name']}",
-                'alert_type': "High Blood Pressure",
-                'message': "BP reading above safe limits.",
-                'date_reported': datetime.now()
-            } for p in patients_today if p['urgent_flag']
-        ]
-        recent_messages = [
-            {
-                'sender_profile': user_details.get('profile_image', 'default.jpg'),
-                'sender_name': "Admin User",
-                'timestamp': datetime.now(),
-                'preview': "Don't forget the staff meeting at 10am."
-            }
-        ]
-        return render_template('doctor/doctorOverview.html',
-                              user_details=user_details,
-                              now=datetime.now(),
-                              total_patients=total_patients,
-                              patients_today=patients_today,
-                              urgent_flags=urgent_flags,
-                              unread_messages=unread_messages,
-                              health_alerts=health_alerts,
-                              recent_messages=recent_messages)
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('login_page'))
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/prescription_page/<int:patient_id>', methods=['GET', 'POST'])
 def prescription_page(patient_id):
@@ -1451,41 +1390,100 @@ def reception_dashboard():
         flash('An unexpected error occurred.', 'error')
         return redirect(url_for('login_page'))
 
-@app.route('/view_announcements')
-def view_announcements():
-    if 'user_id' not in session or session.get('role') not in ['doctor', 'nurse', 'receptionist']:
-        flash('Please log in as a doctor, nurse, or receptionist to view announcements.', 'error')
-        return redirect(url_for('login_page'))
-    conn = None
+@app.template_filter('nl2br')
+def nl2br_filter(s):
+    return s.replace('\n', '<br>\n') if s else ''
+
+def _get_announcements_for_role(role):
+    """Return list of announcements visible to the given role."""
+    conn = get_db_connection()
+    c = conn.cursor()
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['user_id'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
-        c.execute("SELECT id, title, message, category, author, timestamp, pinned FROM announcements ORDER BY pinned DESC, timestamp DESC")
-        announcements = [
+        c.execute("""
+            SELECT id, title, message, category, author, timestamp, pinned
+            FROM announcements
+            WHERE target_role = ? OR target_role = 'all'
+            ORDER BY pinned DESC, timestamp DESC
+        """, (role,))
+        rows = c.fetchall()
+        return [
             {
                 'id': row['id'],
                 'title': row['title'],
                 'message': row['message'],
                 'category': row['category'],
                 'author': row['author'],
-                'timestamp': datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%b %d, %H:%M') if row['timestamp'] else 'N/A'
-            } for row in c.fetchall()
+                'pinned': bool(row['pinned']),
+                'timestamp': datetime.strptime(row['timestamp'],
+                                              '%Y-%m-%d %H:%M:%S').strftime('%b %d, %H:%M')
+            } for row in rows
         ]
-        return render_template('view_announcements.html',
-                              announcements=announcements,
-                              user_details=user_details,
-                              username=session['user_id'])
-    except sqlite3.Error as e:
-        logger.error(f"Database error in view_announcements: {e}. Traceback: {traceback.format_exc()}")
-        flash('An error occurred while fetching announcements.', 'error')
-        return redirect(url_for('doctor_dashboard' if session.get('role') == 'doctor' else 'nurse_dashboard'))
     finally:
-        if conn:
-            conn.close()
+        conn.close()
+
+@app.route('/doctor_view_announcements')
+def doctor_view_announcements():
+    if session.get('role') != 'doctor':
+        flash('Access denied.', 'error')
+        return redirect(url_for('login_page'))
+
+    announcements = _get_announcements_for_role('doctor')
+    user_details = get_user_details(get_db_connection(), session['user_id'])
+
+    return render_template('doctor/view_announcements.html',
+                           announcements=announcements,
+                           user_details=user_details,
+                           username=session['user_id'])
+
+
+@app.route('/nurse_view_announcements')
+def nurse_view_announcements():
+    if session.get('role') != 'nurse':
+        flash('Access denied.', 'error')
+        return redirect(url_for('login_page'))
+
+    announcements = _get_announcements_for_role('nurse')
+    user_details = get_user_details(get_db_connection(), session['user_id'])
+
+    return render_template('nurse/view_announcements.html',
+                           announcements=announcements,
+                           user_details=user_details,
+                           username=session['user_id'])
+
+
+@app.route('/reception_view_announcements')
+def reception_view_announcements():
+    if session.get('role') != 'receptionist':
+        flash('Access denied.', 'error')
+        return redirect(url_for('login_page'))
+
+    announcements = _get_announcements_for_role('receptionist')
+    user_details = get_user_details(get_db_connection(), session['user_id'])
+
+    return render_template('reception/view_announcements.html',
+                           announcements=announcements,
+                           user_details=user_details,
+                           username=session['user_id'])
+
+@app.route('/api/announcements/stream')
+def stream_announcements():
+    role = session.get('role')
+    if role not in ['doctor', 'nurse', 'receptionist']:
+        return "Unauthorized", 403
+
+    def event_stream():
+        while True:
+            try:
+                with queue_lock:
+                    if not announcement_queue.empty():
+                        msg = announcement_queue.get()
+                        # Only send if visible to this role
+                        if msg['target_role'] in ['all', role]:
+                            yield f"data: {json.dumps(msg)}\n\n"
+                time.sleep(1)
+            except GeneratorExit:
+                break
+    return Response(event_stream(), mimetype='text/event-stream')
 
 @app.route('/mark_helped', methods=['POST'])
 def mark_helped():
@@ -1707,89 +1705,6 @@ def nurse_prescribe_medication(patient_id):
         return redirect(url_for('nurse_dashboard'))
     finally:
         conn.close()
-
-@app.route('/nurse_overview')
-def nurse_overview():
-    if 'username' not in session or session.get('role') != 'nurse':
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
-        
-        # Fetch assigned patients
-        c.execute("""
-            SELECT id, first_name, last_name 
-            FROM patients 
-            WHERE employee_id = (SELECT id FROM employees WHERE staff_number = ?)
-        """, (session['username'],))
-        assigned_patients = [
-            {
-                'id': row['id'],
-                'first_name': row['first_name'],
-                'last_name': row['last_name']
-            } for row in c.fetchall()
-        ]
-        total_patients_today = len(assigned_patients)
-        
-        # Fetch visits for today
-        today_date = datetime.now().strftime('%Y-%m-%d')
-        c.execute("""
-            SELECT COUNT(DISTINCT patient_id) 
-            FROM visits 
-            WHERE visit_time LIKE ? 
-            AND patient_id IN (
-                SELECT id 
-                FROM patients 
-                WHERE employee_id = (SELECT id FROM employees WHERE staff_number = ?)
-            )
-        """, (f'{today_date}%', session['username']))
-        visits_today = c.fetchone()[0] or 0
-        
-        # Fetch pending appointments
-        c.execute("""
-            SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ? 
-            AND a.status = 'scheduled'
-            AND p.employee_id = (SELECT id FROM employees WHERE staff_number = ?)
-        """, (f'{today_date}%', session['username']))
-        appointments = [
-            {
-                'id': row['id'],
-                'first_name': row['first_name'],
-                'last_name': row['last_name'],
-                'appointment_date': row['appointment_date'],
-                'reason': row['reason'] or 'Not specified'
-            } for row in c.fetchall()
-        ]
-        
-        # Sample metrics
-        pending_vitals = visits_today
-        emergency_requests = 0  # Placeholder, adjust based on emergency_requests table if needed
-        new_messages = 0  # Placeholder, adjust based on messages table if needed
-        
-        return render_template('nurse/nurseOverview.html',
-                              user_details=user_details,
-                              assigned_patients=assigned_patients,
-                              total_patients_today=total_patients_today,
-                              visits_today=visits_today,
-                              appointments=appointments,
-                              pending_vitals=pending_vitals,
-                              emergency_requests=emergency_requests,
-                              new_messages=new_messages)
-    except Exception as e:
-        logger.error(f"Error in nurse_overview: {e}")
-        flash('An error occurred while fetching data.', 'error')
-        return redirect(url_for('nurse_dashboard'))
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/manage_users', methods=['GET', 'POST'])
 def manage_users():
