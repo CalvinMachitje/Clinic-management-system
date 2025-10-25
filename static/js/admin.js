@@ -198,6 +198,86 @@
     }
   }
 
+  // static/js/admin.js
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('announcement-form');
+  const previewCard = document.getElementById('preview-card');
+  const previewContent = document.getElementById('preview-content');
+
+  if (!form || !previewCard) return;
+
+  const updatePreview = () => {
+    const title = form.title.value.trim();
+    const message = form.message.value.trim();
+    const category = form.category.value;
+    const target = form.target_role.value;
+    const pinned = form.pinned.checked;
+
+    if (!title && !message) {
+      previewCard.style.display = 'none';
+      return;
+    }
+
+    previewCard.style.display = 'block';
+    previewContent.innerHTML = `
+      <div class="announcement-item ${pinned ? 'pinned' : ''}">
+        <div class="announcement-header">
+          <h3>${title || '<em>Untitled</em>'}</h3>
+          <div class="announcement-meta">
+            <span class="author">You</span>
+            <span class="timestamp">Just now</span>
+            ${category ? `<span class="badge">${category}</span>` : ''}
+            <span class="target-role">
+              ${target === 'all' ? 'All' : target.charAt(0).toUpperCase() + target.slice(1)}
+            </span>
+            ${pinned ? `<i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>` : ''}
+          </div>
+        </div>
+        <div class="announcement-body">
+          <p>${message.replace(/\n/g, '<br>') || '<em>No message</em>'}</p>
+        </div>
+      </div>
+    `;
+  };
+
+  // Live preview
+  ['title', 'message', 'category', 'target_role'].forEach(id => {
+    form[id].addEventListener('input', updatePreview);
+  });
+  form.pinned.addEventListener('change', updatePreview);
+
+  // Auto-save draft
+  const saveDraft = () => {
+    const draft = {
+      title: form.title.value,
+      message: form.message.value,
+      category: form.category.value,
+      target_role: form.target_role.value,
+      pinned: form.pinned.checked
+    };
+    localStorage.setItem('announcement_draft', JSON.stringify(draft));
+  };
+
+  form.addEventListener('input', () => setTimeout(saveDraft, 500));
+
+  // Load saved draft
+  const saved = localStorage.getItem('announcement_draft');
+  if (saved) {
+    const data = JSON.parse(saved);
+    form.title.value = data.title || '';
+    form.message.value = data.message || '';
+    form.category.value = data.category || '';
+    form.target_role.value = data.target_role || 'all';
+    form.pinned.checked = data.pinned || false;
+    updatePreview();
+  }
+
+  // Clear draft on submit
+  form.addEventListener('submit', () => {
+    setTimeout(() => localStorage.removeItem('announcement_draft'), 1000);
+  });
+});
+
   // User Management Interactions (for manageUsers.html)
   function initUserManagement() {
     const deleteButtons = document.querySelectorAll('.delete-user');

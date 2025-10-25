@@ -571,6 +571,7 @@ def reschedule_appointment():
         if conn:
             conn.close()
 
+@csrf.exempt
 # Add patient route
 @app.route('/add_patient', methods=['GET', 'POST'])
 def add_patient():
@@ -620,6 +621,7 @@ def add_patient():
             conn.close()
     return render_template('reception/patientRegistration.html', form=form)
 
+@csrf.exempt
 @app.route('/add_walkin', methods=['POST'])
 def add_walkin():
     if 'user_id' not in session or session.get('role') != 'receptionist':
@@ -798,6 +800,7 @@ def check_in_page():
         if conn:
             conn.close()
 
+@csrf.exempt
 #patient self-service appointment booking
 @app.route('/patient_book_appointment', methods=['GET', 'POST'])
 def patient_book_appointment():
@@ -913,6 +916,7 @@ def patient_book_appointment():
         success_data=success_data
     )
 
+@csrf.exempt
 @app.route('/manage_appointments', methods=['GET', 'POST'])
 def manage_appointments():
     if 'user_id' not in session or session.get('role') != 'receptionist':
@@ -1859,7 +1863,7 @@ def doctor_report():
             } for row in c.fetchall()
         ]
         user_details = get_user_details(conn, session['user_id'])
-        return render_template('doctor/report.html', reports=reports, user_details=user_details)
+        return render_template('doctor/doctor_report.html', reports=reports, user_details=user_details)
     except sqlite3.Error as e:
         logger.error(f"Database error in doctor_report: {e}")
         flash('An error occurred while fetching reports.', 'error')
@@ -1921,22 +1925,37 @@ def announcements():
             return redirect(url_for('login_page'))
         
         if request.method == 'POST':
-            title = request.form.get('title', '').strip()
-            message = request.form.get('message', '').strip()
-            category = request.form.get('category', '').strip()
-            pinned = request.form.get('pinned') == 'on'
+            title       = request.form.get('title', '').strip()
+            message     = request.form.get('message', '').strip()
+            category    = request.form.get('category', '').strip()
+            target_role = request.form.get('target_role', 'all').strip()  # New: 'all', 'doctor', 'nurse', 'receptionist'
+            pinned      = request.form.get('pinned') == 'on'
+
             if not title or not message or not category:
-                flash('All fields are required.', 'error')
+                flash('Title, message and category are required.', 'error')
                 return redirect(url_for('announcements'))
+
+            if target_role not in ['all', 'doctor', 'nurse', 'receptionist']:
+                flash('Invalid target role selected.', 'error')
+                return redirect(url_for('announcements'))
+
             c.execute("""
-                INSERT INTO announcements (title, message, category, author, pinned)
-                VALUES (?, ?, ?, ?, ?)
-            """, (title, message, category, f"{user_details['first_name']} {user_details['last_name']}", pinned))
+                INSERT INTO announcements
+                (title, message, category, author, pinned, target_role)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (title, message, category,
+                  f"{user_details['first_name']} {user_details['last_name']}",
+                  pinned, target_role))
             conn.commit()
             flash('Announcement created successfully!', 'success')
             return redirect(url_for('announcements'))
         
-        c.execute("SELECT id, title, message, category, author, timestamp, pinned FROM announcements ORDER BY pinned DESC, timestamp DESC")
+        # GET: List all announcements (admin sees everything)
+        c.execute("""
+            SELECT id, title, message, category, author, timestamp, pinned, target_role
+            FROM announcements
+            ORDER BY pinned DESC, timestamp DESC
+        """)
         announcements = [
             {
                 'id': row['id'],
@@ -1945,10 +1964,11 @@ def announcements():
                 'category': row['category'],
                 'author': row['author'],
                 'timestamp': row['timestamp'],
-                'pinned': row['pinned']
+                'pinned': row['pinned'],
+                'target_role': row['target_role'] or 'all'  # Safety
             } for row in c.fetchall()
         ]
-        return render_template('admin/announcements.html',
+        return render_template('admin/announcement.html',
                               announcements=announcements,
                               user_details=user_details,
                               username=session['username'])
@@ -1960,6 +1980,7 @@ def announcements():
         if conn:
             conn.close()
 
+@csrf.exempt
 @app.route('/delete_announcement/<int:announcement_id>', methods=['POST'])
 def delete_announcement(announcement_id):
     if 'username' not in session or session.get('role') != 'admin':
@@ -1980,6 +2001,7 @@ def delete_announcement(announcement_id):
     finally:
         if conn:
             conn.close()
+
 
 @app.route('/toggle_availability', methods=['POST'])
 def toggle_availability():
@@ -2010,6 +2032,7 @@ def toggle_availability():
         if conn:
             conn.close()
 
+@csrf.exempt
 @app.route('/emergency_request', methods=['POST'])
 def emergency_request():
     if 'username' not in session:
@@ -2037,6 +2060,7 @@ def emergency_request():
     finally:
         if conn:
             conn.close()
+
 
 @app.route('/view_emergency_requests')
 def view_emergency_requests():
@@ -2080,7 +2104,7 @@ def view_emergency_requests():
     finally:
         if conn:
             conn.close()
-
+            
 @app.route('/edit_profile', methods=['GET', 'POST'])
 def edit_profile():
     if 'user_id' not in session:

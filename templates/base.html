@@ -192,15 +192,16 @@
   } else {
     initSidebar();
   }
+
 </script>
 <!-- ... rest of scripts unchanged -->
   <script src="{{ url_for('static', filename='js/defaultPage.js') }}?v=1"></script>
   {% if session.role == 'receptionist' %}
     <script src="{{ url_for('static', filename='js/reception.js') }}?v=2"></script>
   {% elif session.role == 'doctor' %}
-    <script src="{{ url_for('static', filename='js/doctor.js') }}?v=1"></script>
+    <script src="{{ url_for('static', filename='js/doctorDashboard.js') }}?v=1"></script>
   {% elif session.role == 'nurse' %}
-    <script src="{{ url_for('static', filename='js/nurse.js') }}?v=1"></script>
+    <script src="{{ url_for('static', filename='js/nurseDashboard.js') }}?v=1"></script>
   {% elif session.role == 'admin' %}
     <script src="{{ url_for('static', filename='js/admin.js') }}?v=1"></script>
   {% endif %}
