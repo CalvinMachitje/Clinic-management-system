@@ -1,202 +1,430 @@
 {% extends 'base.html' %}
 {% block title %}Check-In Desk - Township Clinic{% endblock %}
 {% block styles %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
+    <style>
+        .priority-low { background-color: #d4edda; }
+        .priority-medium { background-color: #fff3cd; }
+        .priority-high { background-color: #f8d7da; }
+        .priority-emergency { background-color: #f5c6cb; font-weight: bold; }
+        .over-30 { animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .waiting-time { font-weight: bold; }
+    </style>
 {% endblock %}
+
 {% block content %}
 <div class="dashboard-content">
-    <h2 class="text-3xl font-bold mb-8">Check-In Desk</h2>
+    <h2 class="text-3xl font-bold mb-6">Check-In Desk</h2>
 
-    <!-- Show Pre-selected Patient -->
-    {% if patient %}
-    <div class="alert alert-info mb-4">
-        <strong>Patient Selected:</strong> {{ patient.first_name }} {{ patient.last_name }} (#{{ patient.id }})
+    <!-- Priority Queue (Walk-in + Scheduled) -->
+    <div class="card mb-8">
+        <h3 class="text-2xl font-semibold mb-4 flex justify-between items-center">
+            <span>Patient Queue (First Come, First Served)</span>
+            <span id="queue-count" class="badge badge-primary">0</span>
+        </h3>
+
+        <div class="mb-4">
+            <button onclick="openWalkinModal()" class="btn btn-success">
+                <i class="fas fa-plus"></i> Add Walk-in Patient
+            </button>
+        </div>
+
+        <table class="table" id="queueTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Patient</th>
+                    <th>Priority</th>
+                    <th>Reason</th>
+                    <th>Arrived</th>
+                    <th>Waiting</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="queueBody">
+                <!-- Filled via JS -->
+            </tbody>
+        </table>
+
+        <div id="noQueue" class="text-center text-gray-600 py-8" style="display: none;">
+            <i class="fas fa-chair fa-3x mb-3 text-gray-400"></i>
+            <p>No patients in queue.</p>
+        </div>
     </div>
-    {% endif %}
 
-    <h3 class="text-2xl font-semibold mb-4">Scheduled Appointments</h3>
-    {% if scheduled_appointments %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Helper</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for appt in scheduled_appointments %}
-            <tr data-appointment-id="{{ appt.id }}">
-                <td>{{ appt.id }}</td>
-                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                <td>{{ appt.appointment_date }}</td>
-                <td>{{ appt.status }}</td>
-                <td>{{ appt.reason }}</td>
-                <td>{{ appt.helper_name or 'None' }} ({{ appt.helper_role or 'N/A' }})</td>
-                <td>
-                    {% if appt.status == 'scheduled' %}
-                    <form action="{{ url_for('cancel_appointment') }}" method="POST" class="inline">
-                        <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                        <button type="submit" class="btn btn-danger">Cancel</button>
-                    </form>
-                    {% else %}
-                    <span>{{ appt.status|capitalize }}</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="text-center text-gray-600 mb-8">No scheduled appointments.</p>
-    {% endif %}
+    <!-- Scheduled Appointments -->
+    <div class="card mb-8">
+        <h3 class="text-2xl font-semibold mb-4">Today's Scheduled Appointments</h3>
+        {% if scheduled_appointments %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Patient</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for appt in scheduled_appointments %}
+                <tr>
+                    <td>{{ appt.appointment_date | strftime('%H:%M') }}</td>
+                    <td>{{ appt.first_name }} {{ appt.last_name }}</td>
+                    <td>{{ appt.reason or '—' }}</td>
+                    <td><span class="badge badge-info">{{ appt.status|capitalize }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-center text-gray-600">No scheduled appointments today.</p>
+        {% endif %}
+    </div>
 
-    <h3 class="text-2xl font-semibold mb-4">Waitlist</h3>
-    {% if waitlist %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Reason</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody id="waitlist-table-body">
-            {% for appt in waitlist %}
-            <tr data-appointment-id="{{ appt.id }}">
-                <td>{{ appt.id }}</td>
-                <td>{{ appt.first_name }} {{ appt.last_name }}</td>
-                <td>{{ appt.appointment_date }}</td>
-                <td>{{ appt.status }}</td>
-                <td>{{ appt.reason }}</td>
-                <td>
-                    <form action="{{ url_for('assign_staff') }}" method="POST" class="inline">
-                        <input type="hidden" name="appointment_id" value="{{ appt.id }}">
-                        <select name="staff_id" required class="form-control mr-2">
-                            <option value="">Select Staff</option>
-                            {% for staff in available_staff %}
-                            <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-primary">Assign</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="text-center text-gray-600 mb-8">No patients in waitlist.</p>
-    {% endif %}
+    <!-- Helped Patients -->
+    <div class="card">
+        <h3 class="text-2xl font-semibold mb-4">Recently Helped</h3>
+        {% if helped_patients %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Helped At</th>
+                    <th>By</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in helped_patients %}
+                <tr>
+                    <td>{{ p.patient_name }}</td>
+                    <td>{{ p.helped_timestamp | strftime('%H:%M') }}</td>
+                    <td>{{ p.nurse_name or '—' }}</td>
+                    <td>{{ p.notes or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="text-center text-gray-600">No patients helped yet.</p>
+        {% endif %}
+    </div>
+</div>
 
-    <h3 class="text-2xl font-semibold mb-4">Available Staff</h3>
-    {% if available_staff %}
-    <ul class="space-y-2 mb-8">
-        {% for staff in available_staff %}
-        <li class="card">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }}) - {{ staff.staff_number }}</li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p class="text-center text-gray-600 mb-8">No staff available.</p>
-    {% endif %}
+<!-- Smart Walk-in Modal -->
+<div id="walkinModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeWalkinModal()">×</span>
+        <h3 id="modalTitle">Add Walk-in Patient</h3>
 
-    <h3 class="text-2xl font-semibold mb-4">Helped Patients</h3>
-    {% if helped_patients %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Patient</th>
-                <th>Appointment Date</th>
-                <th>Nurse</th>
-                <th>Timestamp</th>
-                <th>Reason</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for patient in helped_patients %}
-            <tr>
-                <td>{{ patient.id }}</td>
-                <td>{{ patient.patient_name }}</td>
-                <td>{{ patient.appointment_date }}</td>
-                <td>{{ patient.nurse_name }}</td>
-                <td>{{ patient.helped_timestamp }}</td>
-                <td>{{ patient.reason }}</td>
-                <td>{{ patient.notes }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="text-center text-gray-600">No helped patients found.</p>
-    {% endif %}
+        <div id="searchSection">
+            <div class="form-group">
+                <label>Search Patient by Phone <span class="text-danger">*</span></label>
+                <input type="text" id="searchPhone" class="form-control" placeholder="Enter phone number" />
+                <button onclick="searchPatient()" class="btn btn-info mt-2">Search</button>
+            </div>
+            <div id="searchResult"></div>
+        </div>
+
+        <div id="existingPatientSection" style="display: none;">
+            <form id="existingForm">
+                <input type="hidden" name="action" value="add_to_queue">
+                <input type="hidden" name="patient_id" id="existingPatientId">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <p><strong>Patient:</strong> <span id="existingPatientName"></span></p>
+
+                <div class="form-group">
+                    <label>Priority <span class="text-danger">*</span></label>
+                    <select name="priority" class="form-control" required>
+                        <option value="low">Low (Routine)</option>
+                        <option value="medium">Medium (Pain/Discomfort)</option>
+                        <option value="high">High (Severe)</option>
+                        <option value="emergency">Emergency (Critical)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea name="reason" class="form-control" rows="2"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-success">Add to Queue</button>
+                <button type="button" onclick="showRegisterForm()" class="btn btn-link">Not this patient? Register new</button>
+            </form>
+        </div>
+
+        <div id="registerSection" style="display: none;">
+            <form id="registerForm">
+                <input type="hidden" name="action" value="register_patient">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label>First Name <span class="text-danger">*</span></label>
+                    <input type="text" name="first_name" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label>Last Name <span class="text-danger">*</span></label>
+                    <input type="text" name="last_name" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label>Phone <span class="text-danger">*</span></label>
+                    <input type="text" name="phone" class="form-control" required />
+                </div>
+                <div class="form-group">
+                    <label>Email (optional)</label>
+                    <input type="email" name="email" class="form-control" />
+                </div>
+
+                <div class="form-group">
+                    <label>Priority <span class="text-danger">*</span></label>
+                    <select name="priority" class="form-control" required>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="emergency">Emergency</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea name="reason" class="form-control" rows="2"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Register & Add to Queue</button>
+                <button type="button" onclick="showSearch()" class="btn btn-link">Back to Search</button>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    fetch('/check_in_page', {
-        headers: { 'Accept': 'application/json' },
-        credentials: 'include'
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Network response was not ok');
-        return response.json();
-    })
-    .then(data => {
-        console.log('Scheduled Appointments:', data.scheduled_appointments);
-        console.log('Waitlist:', data.waitlist);
-        console.log('Available Staff:', data.available_staff);
-        console.log('Helped Patients:', data.helped_patients);
-    })
-    .catch(error => console.error('Error fetching check-in data:', error));
+const queue = [];
+let queueIdCounter = 1;
 
-    const source = new EventSource('/stream_appointments');
-    source.onmessage = function(event) {
-        try {
-            const update = JSON.parse(event.data);
-            console.log('Appointment update:', update);
-            const waitlistTbody = document.getElementById('waitlist-table-body');
-            if (waitlistTbody) {
-                const row = waitlistTbody.querySelector(`tr[data-appointment-id="${update.id}"]`);
-                if (update.status === 'helped' && row) {
-                    row.remove();
-                } else if (!row && update.status === 'waiting') {
-                    const newRow = document.createElement('tr');
-                    newRow.setAttribute('data-appointment-id', update.id);
-                    newRow.innerHTML = `
-                        <td>${update.id}</td>
-                        <td>${update.first_name} ${update.last_name}</td>
-                        <td>${update.appointment_date}</td>
-                        <td>${update.status}</td>
-                        <td>${update.reason || 'Not specified'}</td>
-                        <td>
-                            <form action="/assign_staff" method="POST" class="inline">
-                                <input type="hidden" name="appointment_id" value="${update.id}">
-                                <select name="staff_id" required class="form-control mr-2">
-                                    <option value="">Select Staff</option>
-                                    {% for staff in available_staff %}
-                                    <option value="{{ staff.staff_number }}">{{ staff.first_name }} {{ staff.last_name }} ({{ staff.role }})</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" class="btn btn-primary">Assign</button>
-                            </form>
-                        </td>
-                    `;
-                    waitlistTbody.prepend(newRow);
-                }
-            }
-        } catch (e) {
-            console.error('Error processing SSE data:', e);
+// Open Modal
+function openPriorityModal() {
+    document.getElementById('priorityModal').style.display = 'block';
+}
+function closePriorityModal() {
+    document.getElementById('priorityModal').style.display = 'none';
+}
+
+// Add to Queue
+document.getElementById('walkinForm').onsubmit = function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const data = new FormData(form);
+
+    fetch('/check_in_desk', {
+        method: 'POST',
+        body: data
+    })
+    .then(r => r.json())
+    .then(resp => {
+        if (resp.success) {
+            closePriorityModal();
+            form.reset();
+            alert('Patient added to queue!');
+            // Will be updated via SSE
+        } else {
+            alert('Error: ' + resp.message);
         }
-    };
+    });
+};
+
+// Update Queue UI
+function renderQueue() {
+    const tbody = document.getElementById('queueBody');
+    const noQueue = document.getElementById('noQueue');
+    const count = document.getElementById('queue-count');
+
+    if (queue.length === 0) {
+        noQueue.style.display = 'block';
+        tbody.innerHTML = '';
+        count.textContent = '0';
+        return;
+    }
+
+    noQueue.style.display = 'none';
+    count.textContent = queue.length;
+
+    tbody.innerHTML = queue.map((p, i) => {
+        const waited = Math.floor((Date.now() - p.arrivedAt) / 1000);
+        const mins = Math.floor(waited / 60);
+        const secs = waited % 60;
+        const over30 = mins >= 30;
+        const priorityClass = `priority-${p.priority}${over30 ? ' over-30' : ''}`;
+
+        return `
+            <tr class="${priorityClass}" data-id="${p.id}">
+                <td>${i + 1}</td>
+                <td>${p.name}</td>
+                <td><span class="badge badge-${p.priority === 'emergency' ? 'danger' : p.priority === 'high' ? 'warning' : p.priority === 'medium' ? 'info' : 'success'}">
+                    ${p.priority.toUpperCase()}
+                </span></td>
+                <td>${p.reason || '—'}</td>
+                <td>${new Date(p.arrivedAt).toLocaleTimeString()}</td>
+                <td class="waiting-time ${over30 ? 'text-danger' : ''}">${mins}m ${secs}s</td>
+                <td>
+                    <button onclick="callNext(${p.id})" class="btn btn-primary btn-sm">Call Next</button>
+                    <button onclick="removeFromQueue(${p.id})" class="btn btn-danger btn-sm">Remove</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Update waiting time every second
+setInterval(() => {
+    document.querySelectorAll('#queueBody tr').forEach(row => {
+        const id = row.dataset.id;
+        const patient = queue.find(p => p.id == id);
+        if (patient) {
+            const waited = Math.floor((Date.now() - patient.arrivedAt) / 1000);
+            const mins = Math.floor(waited / 60);
+            const secs = waited % 60;
+            const cell = row.querySelector('.waiting-time');
+            cell.textContent = `${mins}m ${secs}s`;
+            if (mins >= 30 && !cell.classList.contains('text-danger')) {
+                cell.classList.add('text-danger');
+                row.classList.add('over-30');
+            }
+        }
+    });
+}, 1000);
+
+// SSE for real-time updates
+const source = new EventSource('/stream_queue');
+source.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+    if (data.action === 'added') {
+        queue.unshift(data.patient);
+    } else if (data.action === 'called') {
+        const idx = queue.findIndex(p => p.id == data.id);
+        if (idx > -1) queue.splice(idx, 1);
+    } else if (data.action === 'removed') {
+        const idx = queue.findIndex(p => p.id == data.id);
+        if (idx > -1) queue.splice(idx, 1);
+    }
+    renderQueue();
+};
+
+// Call Next Patient
+function callNext(id) {
+    if (!confirm('Call this patient now?')) return;
+    fetch('/call_next', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queue_id: id })
+    }).then(() => location.reload());
+}
+
+function removeFromQueue(id) {
+    if (!confirm('Remove patient from queue?')) return;
+    fetch('/remove_queue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queue_id: id })
+    }).then(() => location.reload());
+}
+
+// Load initial queue
+fetch('/api/queue').then(r => r.json()).then(data => {
+    queue.push(...data);
+    renderQueue();
+});
+</script>
+
+<script>
+// ──────────────────────────────────────────────────────────────
+// NEW: Smart Walk-in Modal (Search → Register → Queue)
+// ──────────────────────────────────────────────────────────────
+const walkinModal = document.getElementById('walkinModal');
+const searchSection = document.getElementById('searchSection');
+const existingSection = document.getElementById('existingPatientSection');
+const registerSection = document.getElementById('registerSection');
+
+function openWalkinModal() {
+    walkinModal.style.display = 'block';
+    searchSection.style.display = 'block';
+    existingSection.style.display = 'none';
+    registerSection.style.display = 'none';
+    document.getElementById('searchPhone').focus();
+    document.getElementById('searchPhone').value = '';
+    document.getElementById('searchResult').innerHTML = '';
+}
+
+function closeWalkinModal() {
+    walkinModal.style.display = 'none';
+}
+
+// Search Patient by Phone
+function searchPatient() {
+    const phone = document.getElementById('searchPhone').value.trim();
+    if (!phone) return alert('Please enter a phone number');
+
+    fetch(`/api/search_patient?phone=${encodeURIComponent(phone)}`)
+        .then(r => r.json())
+        .then(data => {
+            const result = document.getElementById('searchResult');
+            if (data.patients && data.patients.length > 0) {
+                const p = data.patients[0];
+                result.innerHTML = `<p class="text-success">Found: <strong>${p.name}</strong></p>`;
+                document.getElementById('existingPatientId').value = p.id;
+                document.getElementById('existingPatientName').textContent = p.name;
+                existingSection.style.display = 'block';
+                searchSection.style.display = 'none';
+            } else {
+                result.innerHTML = `<p class="text-warning">Not found. <a href="javascript:showRegisterForm()">Register new patient</a></p>`;
+            }
+        })
+        .catch(() => alert('Search failed. Try again.'));
+}
+
+function showRegisterForm() {
+    registerSection.style.display = 'block';
+    searchSection.style.display = 'none';
+    existingSection.style.display = 'none';
+}
+
+function showSearch() {
+    searchSection.style.display = 'block';
+    registerSection.style.display = 'none';
+    existingSection.style.display = 'none';
+}
+
+// Submit Existing Patient to Queue
+document.getElementById('existingForm').onsubmit = function(e) {
+    e.preventDefault();
+    const data = new FormData(this);
+    fetch('/check_in_desk', { method: 'POST', body: data })
+        .then(r => r.json())
+        .then(resp => {
+            alert(resp.message);
+            if (resp.success) {
+                closeWalkinModal();
+                location.reload(); // Refresh queue
+            }
+        });
+};
+
+// Submit New Patient Registration + Queue
+document.getElementById('registerForm').onsubmit = function(e) {
+    e.preventDefault();
+    const data = new FormData(this);
+    fetch('/check_in_desk', { method: 'POST', body: data })
+        .then(r => r.json())
+        .then(resp => {
+            alert(resp.message);
+            if (resp.success) {
+                closeWalkinModal();
+                location.reload();
+            }
+        });
+};
 </script>
 {% endblock %}

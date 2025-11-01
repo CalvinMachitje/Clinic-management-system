@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Doctor – Announcements{% endblock %}
+{% block title %}Nurse – Announcements{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <h1><i class="fas fa-bullhorn"></i> Announcements</h1>
-    <p class="subtitle">Important updates for nursing staff</p>
+    <p class="subtitle">Front desk & admin notices</p>
 </div>
 
 <div class="card">
@@ -22,10 +22,10 @@
                             <span class="category badge">{{ a.category | capitalize }}</span>
                         {% endif %}
 
-                        {% if 'all' in a.roles_list() %}
+                        {% if a.target_role == 'all' %}
                             <span class="target badge">All Staff</span>
                         {% else %}
-                            {% for r in a.roles_list() %}
+                            {% if a.target_role == 'all' %}
                                 <span class="target badge">{{ r | capitalize }}</span>
                             {% endfor %}
                         {% endif %}

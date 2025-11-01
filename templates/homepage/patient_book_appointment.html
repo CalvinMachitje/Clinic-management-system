@@ -48,14 +48,17 @@
             {% for error in form.reason.errors %}
                 <span class="text-danger">{{ error }}</span>
             {% endfor %}
+        
         </div>
 
         <div class="form-group">
-            <label class="form-label">Doctor</label>
+            <label class="form-label">Doctor <span class="text-danger">*</span></label>
             <select name="doctor" class="form-control" required>
                 <option value="">Select a Doctor</option>
                 {% for doctor in doctors %}
-                    <option value="{{ doctor[0] }}">{{ doctor[1] }} {{ doctor[2] }}</option>
+                    <option value="{{ doctor.staff_number }}">
+                        Dr. {{ doctor.first_name }} {{ doctor.last_name }}
+                    </option>
                 {% endfor %}
             </select>
         </div>

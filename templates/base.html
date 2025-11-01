@@ -49,7 +49,7 @@
           <ul>
             <li><a href="{{ url_for('reception_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="{{ url_for('manage_appointments') }}" class="sidebar-btn"><i class="fas fa-calendar-check"></i> Manage Appointments</a></li>
-            <li><a href="{{ url_for('check_in_page') }}" class="sidebar-btn"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
+            <li><a href="{{ url_for('check_in_desk') }}" class="sidebar-btn"><i class="fas fa-user-check"></i> Check-In Desk</a></li>
             <li><a href="{{ url_for('helped_patients_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Patient Report</a></li>
             <li><a href="{{ url_for('search_patient') }}" class="sidebar-btn"><i class="fas fa-search"></i> Search Patients</a></li>
             <li><a href="{{ url_for('reception_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
@@ -74,7 +74,7 @@
             <li><a href="{{ url_for('manage_users') }}" class="sidebar-btn"><i class="fas fa-users"></i> Manage Users</a></li>
             <li><a href="{{ url_for('system_settings') }}" class="sidebar-btn"><i class="fas fa-cog"></i> System Settings</a></li>
             <li><a href="{{ url_for('doctor_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
-            <li><a href="{{ url_for('announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
+            <li><a href="{{ url_for('admin_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
           </ul>
         {% endif %}
