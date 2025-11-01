@@ -1,62 +1,135 @@
 {% extends "base.html" %}
-{% block title %}Search Patients - Township Clinic{% endblock %}
+{% block title %}Search Patient - Township Clinic{% endblock %}
 
 {% block styles %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=3">
+    <style>
+        .search-section { max-width: 600px; margin: 0 auto 2rem; }
+        .results-section { margin-top: 2rem; }
+        .no-results { text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 8px; }
+        .register-prompt { text-align: center; margin: 2rem 0; }
+        .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+        .btn-group .btn { min-width: 110px; }
+    </style>
 {% endblock %}
 
 {% block content %}
 <div class="content-container">
-    <h1 class="text-3xl font-bold mb-8">Search Patients</h1>
+    <h1 class="text-3xl font-bold mb-8 text-center">Search Patient</h1>
 
-    <!-- Search Patient Form -->
-    <form id="search-form" method="POST" action="{{ url_for('search_patient') }}">
-        {{ csrf_token() }}
-        <div class="form-group">
-            <label for="search_term">Search Patient by ID or Name</label>
-            <input type="text" id="search_term" name="search_term" class="form-control" placeholder="Enter patient ID or name" value="{{ search_term | default('') }}">
-        </div>
-        <button type="submit" class="btn btn-primary">Search</button>
-    </form>
-
-    <!-- Search Results Table -->
-    {% if patients is defined and patients %}
-    <h2 class="text-2xl font-semibold mb-4">Search Results</h2>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Patient ID</th>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Scheduled Appointment</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for patient in patients %}
-            <tr>
-                <td>{{ patient.id }}</td>
-                <td>{{ patient.first_name }}</td>
-                <td>{{ patient.last_name }}</td>
-                <td>
-                    {% if patient.appointment %}
-                    {{ patient.appointment.appointment_date }} ({{ patient.appointment.reason or 'No reason specified' }})
-                    {% else %}
-                    None
-                    {% endif %}
-                </td>
-            </tr>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} text-center mb-4">
+                    {{ message }}
+                </div>
             {% endfor %}
-        </tbody>
-    </table>
-    {% elif search_term is defined %}
-    <p class="text-center text-gray-600 mb-8">No patients found matching "{{ search_term }}".</p>
-    {% endif %}
+        {% endif %}
+    {% endwith %}
 
-    <hr class="my-8">
-
-    <!-- Link to Add Patient -->
-    <div class="text-center">
-        <a href="{{ url_for('add_patient') }}" class="btn btn-secondary">Register New Patient</a>
+    <!-- Search Form -->
+    <div class="search-section">
+        <form id="search-form" method="POST" action="{{ url_for('search_patient') }}">
+            {{ search_form.csrf_token }}
+            <div class="form-group">
+                <label for="search_term"><strong>Search by ID, First Name, or Last Name</strong></label>
+                <input 
+                    type="text" 
+                    id="search_term" 
+                    name="search_term" 
+                    class="form-control" 
+                    placeholder="e.g. 123 or John or Doe" 
+                    value="{{ search_term | default('') }}" 
+                    required 
+                    autofocus
+                >
+            </div>
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    Search Patient
+                </button>
+            </div>
+        </form>
     </div>
+
+    <!-- Search Results -->
+    {% if search_performed is defined and search_performed %}
+        <div class="results-section">
+            {% if patients and patients|length > 0 %}
+                <h2 class="text-2xl font-semibold mb-4">Search Results ({{ patients|length }})</h2>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Patient ID</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for patient in patients %}
+                            <tr>
+                                <td><strong>#{{ patient.id }}</strong></td>
+                                <td>{{ patient.first_name }}</td>
+                                <td>{{ patient.last_name }}</td>
+                                <td class="btn-group">
+                                    <!-- CHECK-IN BUTTON -->
+                                    <a href="{{ url_for('add_walkin') }}?patient_id={{ patient.id }}" 
+                                       class="btn btn-success btn-sm" 
+                                       onclick="return confirm('Check in {{ patient.first_name }} {{ patient.last_name }}?')">
+                                        Check In
+                                    </a>
+
+                                    <!-- BOOK APPOINTMENT BUTTON -->
+                                    <a href="{{ url_for('manage_appointments') }}?patient_id={{ patient.id }}" 
+                                       class="btn btn-info btn-sm text-white">
+                                        Book Appointment
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="register-prompt mt-4">
+                    <p class="text-muted">Want to register a <strong>different</strong> patient?</p>
+                    <a href="{{ url_for('add_patient') }}" class="btn btn-outline-primary">
+                        Register New Patient
+                    </a>
+                </div>
+
+            {% else %}
+                <!-- No Results Found -->
+                <div class="no-results">
+                    <h3>No patient found for "<strong>{{ search_term }}</strong>"</h3>
+                    <p class="text-muted">This patient is not in the system yet.</p>
+                    <hr>
+                    <a href="{{ url_for('add_patient') }}?search_term={{ search_term | urlencode }}" 
+                       class="btn btn-success btn-lg">
+                        Register This Patient Now
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    {% else %}
+        <!-- First Load -->
+        <div class="text-center mt-5 p-4 bg-light rounded">
+            <p class="lead text-muted">
+                Please <strong>search for the patient first</strong> before taking action.
+            </p>
+        </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const input = document.getElementById('search_term');
+        if (input) input.focus();
+    });
+</script>
 {% endblock %}

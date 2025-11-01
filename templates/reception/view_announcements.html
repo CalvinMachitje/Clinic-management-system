@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Reception – Announcements{% endblock %}
+{% block title %}Doctor – Announcements{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -16,10 +16,20 @@
                     <h3>{{ a.title }}</h3>
                     <div class="meta">
                         <span class="author">{{ a.author }}</span>
-                        <span class="timestamp">{{ a.timestamp }}</span>
+                        <span class="timestamp">{{ a.timestamp.strftime('%Y-%m-%d %H:%M') if a.timestamp else '' }}</span>
+
                         {% if a.category %}
                             <span class="category badge">{{ a.category | capitalize }}</span>
                         {% endif %}
+
+                        {% if 'all' in a.roles_list() %}
+                            <span class="target badge">All Staff</span>
+                        {% else %}
+                            {% for r in a.roles_list() %}
+                                <span class="target badge">{{ r | capitalize }}</span>
+                            {% endfor %}
+                        {% endif %}
+
                         {% if a.pinned %}
                             <i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>
                         {% endif %}
@@ -34,7 +44,7 @@
     {% else %}
         <div class="empty-state">
             <i class="fas fa-bell-slash fa-3x"></i>
-            <p>No announcements for reception at this time.</p>
+            <p>No announcements for doctors at this time.</p>
         </div>
     {% endif %}
 </div>

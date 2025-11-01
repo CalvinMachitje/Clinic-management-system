@@ -2,70 +2,121 @@
 {% block title %}Register New Patient - Township Clinic{% endblock %}
 
 {% block styles %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reception.css') }}?v=2">
+    <style>
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+        .required::after { content: " *"; color: red; }
+    </style>
 {% endblock %}
 
 {% block content %}
 <div class="content-container">
-    <h1 class="text-3xl font-bold mb-8">Register New Patient</h1>
+    <h1 class="text-3xl font-bold mb-8 text-center">Register New Patient</h1>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="alert-container">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} text-center">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Form Errors -->
+    {% if form.errors %}
+        <div class="alert alert-danger">
+            <strong>Please fix the following errors:</strong>
+            <ul>
+                {% for field, errors in form.errors.items() %}
+                    {% for error in errors %}
+                        <li>{{ form[field].label.text }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
 
     <!-- Patient Registration Form -->
-    <form id="register-form" method="POST" action="{{ url_for('add_patient') }}">
-        {{ csrf_token() }}
-        <div class="form-group">
-            <label for="first_name">First Name *</label>
-            <input type="text" id="first_name" name="first_name" class="form-control" required>
+    <form method="POST" action="{{ url_for('add_patient') }}" novalidate>
+        {{ form.csrf_token }} <!-- CORRECT WAY -->
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="first_name" class="required">{{ form.first_name.label }}</label>
+                {{ form.first_name(class="form-control", placeholder="e.g. John") }}
+            </div>
+            <div class="form-group">
+                <label for="last_name" class="required">{{ form.last_name.label }}</label>
+                {{ form.last_name(class="form-control", placeholder="e.g. Doe") }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="last_name">Last Name *</label>
-            <input type="text" id="last_name" name="last_name" class="form-control" required>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="date_of_birth" class="required">{{ form.date_of_birth.label }}</label>
+                {{ form.date_of_birth(class="form-control") }}
+            </div>
+            <div class="form-group">
+                <label for="gender">{{ form.gender.label }}</label>
+                {{ form.gender(class="form-control") }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="date_of_birth">Date of Birth *</label>
-            <input type="date" id="date_of_birth" name="date_of_birth" class="form-control" required>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="phone">{{ form.phone.label }}</label>
+                {{ form.phone(class="form-control", placeholder="e.g. 0821234567") }}
+            </div>
+            <div class="form-group">
+                <label for="email">{{ form.email.label }}</label>
+                {{ form.email(class="form-control", placeholder="patient@example.com") }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="gender">Gender</label>
-            <select id="gender" name="gender" class="form-control">
-                <option value="" selected disabled>Choose gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-            </select>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="address">{{ form.address.label }}</label>
+                {{ form.address(class="form-control", rows=2) }}
+            </div>
+            <div class="form-group">
+                <label for="emergency_contact_name">{{ form.emergency_contact_name.label }}</label>
+                {{ form.emergency_contact_name(class="form-control") }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="address">Address</label>
-            <input type="text" id="address" name="address" class="form-control">
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="emergency_contact_phone">{{ form.emergency_contact_phone.label }}</label>
+                {{ form.emergency_contact_phone(class="form-control") }}
+            </div>
+            <div class="form-group">
+                <label for="medical_history">{{ form.medical_history.label }}</label>
+                {{ form.medical_history(class="form-control", rows=3) }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="phone">Phone</label>
-            <input type="text" id="phone" name="phone" class="form-control">
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="allergies">{{ form.allergies.label }}</label>
+                {{ form.allergies(class="form-control", rows=2) }}
+            </div>
+            <div class="form-group">
+                <label for="current_medications">{{ form.current_medications.label }}</label>
+                {{ form.current_medications(class="form-control", rows=2) }}
+            </div>
         </div>
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" class="form-control">
+
+        <div class="text-center mt-6">
+            {{ form.submit(class="btn btn-success btn-lg") }}
+            <a href="{{ url_for('search_patient') }}" class="btn btn-secondary btn-lg ml-3">
+                Back to Search
+            </a>
         </div>
-        <div class="form-group">
-            <label for="emergency_contact_name">Emergency Contact Name</label>
-            <input type="text" id="emergency_contact_name" name="emergency_contact_name" class="form-control">
-        </div>
-        <div class="form-group">
-            <label for="emergency_contact_phone">Emergency Contact Phone</label>
-            <input type="text" id="emergency_contact_phone" name="emergency_contact_phone" class="form-control">
-        </div>
-        <div class="form-group">
-            <label for="medical_history">Medical History</label>
-            <textarea id="medical_history" name="medical_history" class="form-control"></textarea>
-        </div>
-        <div class="form-group">
-            <label for="allergies">Allergies</label>
-            <textarea id="allergies" name="allergies" class="form-control"></textarea>
-        </div>
-        <div class="form-group">
-            <label for="current_medications">Current Medications</label>
-            <textarea id="current_medications" name="current_medications" class="form-control"></textarea>
-        </div>
-        <button type="submit" class="btn btn-success">Register Patient</button>
     </form>
 </div>
 {% endblock %}

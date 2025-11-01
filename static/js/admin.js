@@ -370,3 +370,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('Admin JS loaded successfully.');
 })();
+
+// --- Additional Enhancement for Announcement Preview (non-destructive) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('announcement-form');
+  const preview = document.getElementById('preview-content');
+  const card = document.getElementById('preview-card');
+
+  // Only run if the announcement form exists
+  if (!form || !preview || !card) return;
+
+  const render = () => {
+    const title = document.getElementById('title')?.value.trim() || '(no title)';
+    const msg = (document.getElementById('message')?.value.trim() || '(no message)').replace(/\n/g, '<br>');
+    const cat = document.getElementById('category')?.value || '';
+    const role = document.getElementById('target_role')?.value || 'all';
+    const pinned = document.getElementById('pinned')?.checked || false;
+
+    let html = `
+      <div class="announcement-item ${pinned ? 'pinned' : ''}">
+        <div class="announcement-header">
+          <h3>${title}</h3>
+          <div class="announcement-meta">
+            ${cat ? `<span class="badge">${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>` : ''}
+            <span>${role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}</span>
+            ${pinned ? '<i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>' : ''}
+          </div>
+        </div>
+        <div class="announcement-body">
+          <p>${msg}</p>
+        </div>
+      </div>
+    `;
+
+    preview.innerHTML = html;
+    card.style.display = 'block';
+  };
+
+  // Live preview updates
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+});
