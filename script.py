@@ -249,8 +249,15 @@ def init_db():
                      reason TEXT,
                      doctor_staff_number TEXT,
                      status TEXT DEFAULT 'pending',
-                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )''')
+                     created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS audit_log (
+                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     action TEXT NOT NULL,
+                     performed_by TEXT NOT NULL,
+                     target_user TEXT,
+                     details TEXT,
+                     timestamp TEXT NOT NULL)''')
 
         # Check if original table exists and is missing created_at
         c.execute("PRAGMA table_info(self_booked_appointments)")
@@ -435,56 +442,112 @@ def login_page():
                 conn.close()
     return render_template('homepage/login_page.html', form=form)
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    form = RegisterForm()
-    if form.validate_on_submit():
-        first_name = form.first_name.data.strip()
-        last_name = form.last_name.data.strip()
-        password = form.password.data.strip()
-        email = form.email.data.strip()
-        role = form.role.data.strip()
-        terms = form.terms.data
+# --------------------------------------------------------------
+# POST: Create New User (Admin Only) – FIXED CSRF
+# --------------------------------------------------------------
+@app.route('/create_user', methods=['POST'])
+def create_user():
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            if not conn:
-                flash('Database connection failed.', 'error')
-                logger.error("Failed to connect to database")
-                return render_template('homepage/registerPage.html', form=form)
-            c = conn.cursor()
+    # Flask-WTF automatically validates csrf_token if in form
+    if not request.form.get('csrf_token'):
+        return jsonify({'success': False, 'message': 'CSRF token missing'}), 403
 
-            c.execute("SELECT id FROM employees WHERE email = ?", (email,))
-            if c.fetchone():
-                flash('Email address is already registered.', 'error')
-                logger.error(f"Email already registered: {email}")
-                return render_template('homepage/registerPage.html', form=form)
+    data = request.form
+    first_name = data.get('first_name', '').strip()
+    last_name = data.get('last_name', '').strip()
+    email = data.get('email', '').strip()
+    role = data.get('role')
 
-            c.execute("SELECT MAX(id) AS max_id FROM employees")
-            max_id = c.fetchone()['max_id'] or 0
-            staff_number = f"STAFF{str(max_id + 1).zfill(3)}"
-            logger.debug(f"Generated staff_number: {staff_number}")
+    if not all([first_name, last_name, email, role]):
+        return jsonify({'success': False, 'message': 'All fields required'}), 400
 
-            hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+    if role not in ['doctor', 'nurse', 'receptionist']:
+        return jsonify({'success': False, 'message': 'Invalid role'}), 400
 
-            c.execute("""
-                INSERT INTO employees (staff_number, first_name, last_name, email, password, role, availability, profile_image)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (staff_number, first_name, last_name, email, hashed_password, role, 'available', 'default.jpg'))
-            conn.commit()
-            logger.info(f"User registered successfully: {staff_number}")
+    conn = get_db_connection()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT id FROM employees WHERE email = ?", (email,))
+        if c.fetchone():
+            return jsonify({'success': False, 'message': 'Email already exists'}), 400
 
-            flash(f'Registration successful! Your staff number is: {staff_number}', 'success')
-            return redirect(url_for('login_page'))
-        except sqlite3.Error as e:
-            logger.error(f"Database error in register: {e}")
-            flash(f'An error occurred: {str(e)}', 'error')
-            return render_template('homepage/registerPage.html', form=form)
-        finally:
-            if conn:
-                conn.close()
-    return render_template('homepage/registerPage.html', form=form)
+        c.execute("SELECT MAX(id) AS max_id FROM employees")
+        max_id = c.fetchone()['max_id'] or 0
+        staff_number = f"STAFF{str(max_id + 1).zfill(3)}"
+        temp_password = "Temp123!"
+        hashed = bcrypt.generate_password_hash(temp_password).decode('utf-8')
+
+        c.execute('''
+            INSERT INTO employees 
+            (staff_number, first_name, last_name, email, password, role, availability, profile_image)
+            VALUES (?, ?, ?, ?, ?, ?, 'available', 'default.jpg')
+        ''', (staff_number, first_name, last_name, email, hashed, role))
+        conn.commit()
+
+        c.execute('''
+            INSERT INTO audit_log (action, performed_by, target_user, details, timestamp)
+            VALUES (?, ?, ?, ?, datetime('now'))
+        ''', ('create_user', session['username'], staff_number, f"Temp: {staff_number}/{temp_password}"))
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'staff_number': staff_number,
+            'temp_password': temp_password
+        })
+    except Exception as e:
+        logger.error(f"Create user error: {e}")
+        return jsonify({'success': False, 'message': 'Database error'}), 500
+    finally:
+        conn.close()
+
+
+# --------------------------------------------------------------
+# POST: Delete User – FIXED CSRF
+# --------------------------------------------------------------
+@app.route('/delete_user', methods=['POST'])
+def delete_user():
+    if session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    if not request.form.get('csrf_token'):
+        logger.warning("CSRF token missing in delete_user")
+        return jsonify({'success': False, 'message': 'CSRF token missing'}), 403
+
+    user_id = request.form.get('user_id')
+    reason = request.form.get('reason')
+
+    if not user_id or not reason:
+        return jsonify({'success': False, 'message': 'Missing ID or reason'}), 400
+
+    conn = get_db_connection()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT id, staff_number, first_name, last_name, role FROM employees WHERE id = ?", (user_id,))
+        user = c.fetchone()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+        if user['role'] == 'admin':
+            return jsonify({'success': False, 'message': 'Cannot delete admin'}), 403
+
+        c.execute("DELETE FROM employees WHERE id = ?", (user_id,))
+        conn.commit()
+
+        c.execute('''
+            INSERT INTO audit_log (action, performed_by, target_user, details, timestamp)
+            VALUES (?, ?, ?, ?, datetime('now'))
+        ''', ('delete_user', session['username'], user['staff_number'], f"Reason: {reason}"))
+        conn.commit()
+
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+    except Exception as e:
+        logger.error(f"Delete user error: {e}")
+        return jsonify({'success': False, 'message': 'Database error'}), 500
+    finally:
+        conn.close()
 
 @app.route('/search_patient', methods=['GET', 'POST'])
 def search_patient():

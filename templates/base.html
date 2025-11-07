@@ -32,10 +32,8 @@
   </style>
 </head>
 <body class="dashboard-page" data-role="{{ session.role }}">
-  <!-- Sidebar Toggle Button -->
-  <button class="menu-toggle" id="menu-toggle-btn" aria-label="Toggle Sidebar" aria-expanded="false">☰</button>
-
-  <!-- Sidebar for Logged-in Users (Role-specific) -->
+  <i class="fas fa-bars menu-icon" id="menu-toggle-btn"></i>
+    <!-- Sidebar for Logged-in Users (Role-specific) -->
   <aside class="sidebar {% if session.role == 'receptionist' %}active{% endif %}" id="sidebar" role="navigation" aria-label="Main Navigation">
     <div class="logo">ClinicCare</div>
     <nav>
@@ -54,6 +52,18 @@
             <li><a href="{{ url_for('search_patient') }}" class="sidebar-btn"><i class="fas fa-search"></i> Search Patients</a></li>
             <li><a href="{{ url_for('reception_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <!-- NEW: Dark Mode Toggle + Hidden Theme Form -->
+            <li class="theme-toggle-wrapper">
+              <!-- Visual Toggle (client-side) -->
+              <label class="switch ms-3">
+                <input type="checkbox" id="darkModeToggle"
+                      {% if session.theme == 'dark' %}checked{% endif %}>
+                <span class="slider round">
+                  <i class="fas fa-moon"></i>
+                  <i class="fas fa-sun"></i>
+                </span>
+              </label>
+            </li>
           </ul>
         {% elif session.role == 'doctor' %}
           <ul>
@@ -61,12 +71,36 @@
             <li><a href="{{ url_for('doctor_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
             <li><a href="{{ url_for('doctor_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <!-- NEW: Dark Mode Toggle + Hidden Theme Form -->
+            <li class="theme-toggle-wrapper">
+              <!-- Visual Toggle (client-side) -->
+              <label class="switch ms-3">
+                <input type="checkbox" id="darkModeToggle"
+                      {% if session.theme == 'dark' %}checked{% endif %}>
+                <span class="slider round">
+                  <i class="fas fa-moon"></i>
+                  <i class="fas fa-sun"></i>
+                </span>
+              </label>
+            </li>
           </ul>
         {% elif session.role == 'nurse' %}
           <ul>
             <li><a href="{{ url_for('nurse_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>
             <li><a href="{{ url_for('nurse_view_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> View Announcements</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <!-- NEW: Dark Mode Toggle + Hidden Theme Form -->
+            <li class="theme-toggle-wrapper">
+              <!-- Visual Toggle (client-side) -->
+              <label class="switch ms-3">
+                <input type="checkbox" id="darkModeToggle"
+                      {% if session.theme == 'dark' %}checked{% endif %}>
+                <span class="slider round">
+                  <i class="fas fa-moon"></i>
+                  <i class="fas fa-sun"></i>
+                </span>
+              </label>
+            </li>
           </ul>
         {% elif session.role == 'admin' %}
           <ul>
@@ -75,23 +109,22 @@
             <li><a href="{{ url_for('system_settings') }}" class="sidebar-btn"><i class="fas fa-cog"></i> System Settings</a></li>
             <li><a href="{{ url_for('doctor_report') }}" class="sidebar-btn"><i class="fas fa-file-alt"></i> Report</a></li>
             <li><a href="{{ url_for('admin_announcements') }}" class="sidebar-btn"><i class="fas fa-bullhorn"></i> Manage Announcements</a></li>
+            <li><a href="{{ url_for('edit_profile') }}" class="sidebar-btn"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
             <li><a href="{{ url_for('logout') }}" class="sidebar-btn logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            <!-- NEW: Dark Mode Toggle + Hidden Theme Form -->
+            <li class="theme-toggle-wrapper">
+              <!-- Visual Toggle (client-side) -->
+              <label class="switch ms-3">
+                <input type="checkbox" id="darkModeToggle"
+                      {% if session.theme == 'dark' %}checked{% endif %}>
+                <span class="slider round">
+                  <i class="fas fa-moon"></i>
+                  <i class="fas fa-sun"></i>
+                </span>
+              </label>
+            </li>
           </ul>
         {% endif %}
-
-        <ul class="sidebar-footer">
-          <li><a href="{{ url_for('edit_profile') }}" class="sidebar-btn"><i class="fas fa-user-edit"></i> Edit Profile</a></li>
-          <li>
-            <form action="{{ url_for('change_theme') }}" method="POST" class="theme-form">
-              <select name="theme" onchange="this.form.submit()" class="form-control">
-               <option value="dark" {% if session.theme == 'dark' %}selected{% endif %}>Dark</option>
-                <option value="light" {% if session.theme == 'light' %}selected{% endif %}>Light</option>
-              </select>
-              <!-- Add CSRF token for security -->
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            </form>
-          </li>
-        </ul>
       {% else %}
         <ul>
           <li><a href="{{ url_for('login_page') }}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
@@ -125,76 +158,73 @@
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
   <!-- Scripts -->
-<script>
-  // Enhanced sidebar toggle with error handling and accessibility
-  function initSidebar() {
-    console.log('Starting sidebar init. Session role: {{ session.get("role", "unknown") }}');  // Debug log
+  <script>
+    // Enhanced sidebar toggle with error handling and accessibility
+    function initSidebar() {
+      console.log('Starting sidebar init. Session role: {{ session.get("role", "unknown") }}');
 
-    const toggleBtn = document.getElementById('menu-toggle-btn');
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('main-content');
-    const overlay = document.getElementById('sidebar-overlay');
+      const toggleBtn = document.getElementById('menu-toggle-btn');
+      const sidebar = document.getElementById('sidebar');
+      const mainContent = document.getElementById('main-content');
+      const overlay = document.getElementById('sidebar-overlay');
 
-    if (!toggleBtn || !sidebar || !mainContent || !overlay) {
-      console.error('Sidebar elements not found. Check DOM: toggleBtn=', !!toggleBtn, 'sidebar=', !!sidebar);
-      // Fallback: Force show sidebar if role is set
-      const role = '{{ session.get("role") }}';
-      if (role && sidebar) {
-        sidebar.style.left = '0';
-        sidebar.classList.add('active');
-        console.log('Fallback: Forced sidebar visible for role', role);
+      if (!toggleBtn || !sidebar || !mainContent || !overlay) {
+        console.error('Sidebar elements not found. Check DOM: toggleBtn=', !!toggleBtn, 'sidebar=', !!sidebar);
+        const role = '{{ session.get("role") }}';
+        if (role && sidebar) {
+          sidebar.style.left = '0';
+          sidebar.classList.add('active');
+          console.log('Fallback: Forced sidebar visible for role', role);
+        }
+        return;
       }
-      return;
-    }
 
-    let isOpen = sidebar.classList.contains('active');
-    toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-
-    function toggleSidebar() {
-      isOpen = !isOpen;
-      sidebar.classList.toggle('active', isOpen);
-      mainContent.classList.toggle('active', isOpen);
-      overlay.classList.toggle('active', isOpen);
+      let isOpen = sidebar.classList.contains('active');
       toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      toggleBtn.innerHTML = isOpen ? '✕' : '☰';
-      console.log('Toggled sidebar to', isOpen ? 'open' : 'closed');  // Debug
+
+      function toggleSidebar() {
+        isOpen = !isOpen;
+        sidebar.classList.toggle('active', isOpen);
+        mainContent.classList.toggle('active', isOpen);
+        overlay.classList.toggle('active', isOpen);
+        toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        toggleBtn.innerHTML = isOpen ? '' : '';
+        console.log('Toggled sidebar to', isOpen ? 'open' : 'closed');
+      }
+
+      toggleBtn.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', toggleSidebar);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen) toggleSidebar();
+      });
+
+      if ('{{ session.get("role") }}' === 'receptionist') {
+        setTimeout(toggleSidebar, 100);
+      }
+
+      console.log('Sidebar initialized successfully.');
     }
 
-    toggleBtn.addEventListener('click', toggleSidebar);
-    overlay.addEventListener('click', toggleSidebar);
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && isOpen) toggleSidebar();
-    });
-
-    // Auto-open for receptionist
-    if ('{{ session.get("role") }}' === 'receptionist') {
-      setTimeout(toggleSidebar, 100);
+    // Modals
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.setAttribute("open", "true");
     }
 
-    console.log('Sidebar initialized successfully.');
-  }
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.removeAttribute("open");
+    }
 
-  // Modals
-  function openModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.setAttribute("open", "true");
-  }
+    // Init
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initSidebar);
+    } else {
+      initSidebar();
+    }
+  </script>
 
-  function closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.removeAttribute("open");
-  }
-
-  // Init
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSidebar);
-  } else {
-    initSidebar();
-  }
-
-</script>
-<!-- ... rest of scripts unchanged -->
   <script src="{{ url_for('static', filename='js/defaultPage.js') }}?v=1"></script>
   {% if session.role == 'receptionist' %}
     <script src="{{ url_for('static', filename='js/reception.js') }}?v=2"></script>

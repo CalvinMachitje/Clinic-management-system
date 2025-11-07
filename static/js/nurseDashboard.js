@@ -74,4 +74,36 @@ function prependAnnouncement(ann) {
 document.addEventListener('DOMContentLoaded', () => {
     loadAnnouncements();
     startAnnouncementStream();
+
+    // === DARK MODE TOGGLE (ADDED) ===
+    function initDarkMode() {
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        if (!darkModeToggle) return;
+
+        const savedTheme = localStorage.getItem('preferredTheme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+
+        document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+        darkModeToggle.checked = isDark;
+
+        darkModeToggle.addEventListener('change', function () {
+            const newTheme = this.checked ? 'dark' : 'light';
+            document.documentElement.dataset.theme = newTheme;
+            localStorage.setItem('preferredTheme', newTheme);
+            if (typeof showToast === 'function') {
+                showToast(`Switched to ${newTheme} mode`, 'info');
+            }
+        });
+
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (!localStorage.getItem('preferredTheme')) {
+                const newTheme = e.matches ? 'dark' : 'light';
+                document.documentElement.dataset.theme = newTheme;
+                darkModeToggle.checked = e.matches;
+            }
+        });
+    }
+
+    initDarkMode();
 });

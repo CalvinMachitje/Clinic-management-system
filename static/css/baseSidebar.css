@@ -484,3 +484,22 @@ summary:hover {
   outline: 2px solid var(--link-color);
   outline-offset: 2px;
 }
+
+#menu-toggle-btn {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  font-size: 1.5rem;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 1001;
+  padding: 8px;
+  border-radius: 4px;
+  transition: color 0.3s;
+}
+
+#menu-toggle-btn:hover {
+  color: var(--primary);
+}

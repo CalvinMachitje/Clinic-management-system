@@ -1,75 +1,187 @@
 {% extends "base.html" %}
 {% block title %}User Management - Township Clinic{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}?v=1">
+{% endblock %}
+
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <!-- User List Panel -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h3 class="text-xl font-semibold mb-4">User List</h3>
-        <table id="user-table" class="w-full table-auto border-collapse">
-            <caption class="text-left text-lg font-medium mb-2">Registered users in the system</caption>
-            <thead>
-                <tr class="bg-gray-100">
-                    <th class="px-4 py-2 text-left">Username</th>
-                    <th class="px-4 py-2 text-left">Email</th>
-                    <th class="px-4 py-2 text-left">Role</th>
-                    <th class="px-4 py-2 text-left">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="user-table-body">
-                {% for user in employees %}
-                <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-2">{{ user.username }}</td>
-                    <td class="px-4 py-2">{{ user.email }}</td>
-                    <td class="px-4 py-2">{{ user.role }}</td>
-                    <td class="px-4 py-2">
-                        <button class="btn btn-danger delete-user" data-user-id="{{ user.id }}" aria-label="Delete user {{ user.username }}">Delete</button>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="4" class="px-4 py-2 text-center">No users found.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="admin-dash-container">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>User Management</h1>
+    <p>Securely manage clinic staff accounts and permissions</p>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="icon">Users</div>
+      <div class="number">{{ employees|length }}</div>
+      <div class="label">Total Users</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">Doctor</div>
+      <div class="number">{{ employees|selectattr('role', 'equalto', 'doctor')|list|length }}</div>
+      <div class="label">Doctors</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">Nurse</div>
+      <div class="number">{{ employees|selectattr('role', 'equalto', 'nurse')|list|length }}</div>
+      <div class="label">Nurses</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon">Receptionist</div>
+      <div class="number">{{ employees|selectattr('role', 'equalto', 'receptionist')|list|length }}</div>
+      <div class="label">Receptionists</div>
+    </div>
+  </div>
+
+  <!-- User Table Header with Role Filter -->
+    <div class="table-header">
+    <h2>All Staff Members</h2>
+        <div class="table-controls">
+            <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Search users..." class="table-search">
+            </div>
+            <select id="roleFilter" class="role-filter">
+            <option value="">All Roles</option>
+            <option value="doctor">Doctor</option>
+            <option value="nurse">Nurse</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="admin">Admin</option>
+            </select>
+            <button onclick="openCreateModal()" class="btn btn-primary">
+            Add New User
+            </button>
+        </div>
     </div>
 
-    <!-- Delete Confirmation (Hidden by default) -->
-    <div id="delete-confirmation" class="bg-white rounded-lg shadow-md p-6 hidden">
-        <h3 class="text-xl font-semibold mb-4">Confirm User Deletion</h3>
-        <p class="mb-4">Are you sure you want to delete the selected user?</p>
-        <form id="delete-user-form" action="{{ url_for('admin_manage_users') }}" method="POST">
-            <input type="hidden" id="delete-user-id" name="user_id">
-            <input type="hidden" name="action" value="delete">
-            <div class="form-group mb-4">
-                <label for="delete-reason" class="block text-sm font-medium text-gray-700">Reason for Deletion</label>
-                <select id="delete-reason" name="reason" required class="mt-1 p-2 w-full border rounded-md">
-                    <option value="contract_termination">Contract Termination</option>
-                    <option value="performance_issues">Performance Issues</option>
-                    <option value="retirement">Retirement</option>
-                    <option value="other">Other</option>
-                </select>
+    <table id="user-table">
+      <thead>
+        <tr>
+          <th>Profile</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Staff #</th>
+          <th>Role</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in employees %}
+        <tr>
+          <td>
+            <img src="{{ url_for('static', filename='images/avatars/default.jpg') }}" 
+                 alt="{{ user.first_name }}" class="user-avatar">
+          </td>
+          <td>
+            <div class="user-info">
+              <h4>{{ user.first_name }} {{ user.last_name }}</h4>
             </div>
-            <div class="flex justify-end gap-4">
-                <button type="submit" class="btn btn-danger">Confirm Delete</button>
-                <button type="button" id="cancel-delete" class="btn btn-secondary">Cancel</button>
-            </div>
-        </form>
+          </td>
+          <td>{{ user.email }}</td>
+          <td><strong>{{ user.staff_number }}</strong></td>
+          <td data-role="{{ user.role }}">
+            <span class="role-badge role-{{ user.role }}">
+                {{ user.role|capitalize }}
+            </span>
+          </td>
+          <td>
+            {% if user.role != 'admin' %}
+            <button class="action-btn danger delete-user" 
+                    data-id="{{ user.id }}" 
+                    data-name="{{ user.first_name }} {{ user.last_name }}">
+              Delete
+            </button>
+            {% else %}
+            <em class="text-muted">Protected</em>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">
+            <i class="fas fa-users-slash"></i>
+            <p>No users found. Create your first staff member!</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Create User Modal -->
+  <div id="createModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create New Staff Member</h3>
+        <button class="modal-close" onclick="closeCreateModal()">×</button>
+      </div>
+      <form id="createForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>First Name <span class="text-danger">*</span></label>
+            <input type="text" name="first_name" required />
+          </div>
+          <div class="form-group">
+            <label>Last Name <span class="text-danger">*</span></label>
+            <input type="text" name="last_name" required />
+          </div>
+          <div class="form-group">
+            <label>Email Address <span class="text-danger">*</span></label>
+            <input type="email" name="email" required />
+          </div>
+          <div class="form-group">
+            <label>Role <span class="text-danger">*</span></label>
+            <select name="role" required>
+              <option value="doctor">Doctor</option>
+              <option value="nurse">Nurse</option>
+              <option value="receptionist">Receptionist</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Create User</button>
+          <button type="button" onclick="closeCreateModal()" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
     </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Confirm Deletion</h3>
+        <button class="modal-close" onclick="closeDeleteModal()">×</button>
+      </div>
+      <form id="deleteForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-body">
+          <input type="hidden" name="user_id" id="deleteId">
+          <p>Permanently delete <strong id="deleteName" class="text-danger"></strong>?</p>
+          <div class="form-group">
+            <label>Reason for Deletion <span class="text-danger">*</span></label>
+            <select name="reason" required>
+              <option value="contract_termination">Contract Termination</option>
+              <option value="performance_issues">Performance Issues</option>
+              <option value="retirement">Retirement</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-danger">Delete User</button>
+          <button type="button" onclick="closeDeleteModal()" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
-<script src="{{ url_for('static', filename='js/user_management.js') }}"></script>
-<script>
-    document.querySelectorAll('.delete-user').forEach(button => {
-        button.addEventListener('click', function() {
-            const userId = this.getAttribute('data-user-id');
-            document.getElementById('delete-user-id').value = userId;
-            document.getElementById('delete-confirmation').style.display = 'block';
-        });
-    });
-
-    document.getElementById('cancel-delete').addEventListener('click', function() {
-        document.getElementById('delete-confirmation').style.display = 'none';
-        document.getElementById('delete-user-id').value = '';
-    });
-</script>
+<script src="{{ url_for('static', filename='js/admin.js') }}?v=1"></script>
 {% endblock %}
