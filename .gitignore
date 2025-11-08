@@ -25,3 +25,7 @@ dist-ssr
 /dist
 
 .env
+__pycache__/
+*.pyc
+clinicinfo.db
+dump.sql
