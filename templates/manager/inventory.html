@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Inventory{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Inventory Management</h1>
+  <button class="btn btn-primary" onclick="openModal('addItemModal')">Add Item</button>
+</div>
+
+<div class="card mb-6 p-4 bg-warning text-dark" {% if not low_stock_alerts %}style="display:none"{% endif %}>
+  <h3>Urgent Reorder</h3>
+  <ul>
+    {% for item in low_stock_alerts %}
+    <li><strong>{{ item.item_name }}</strong>: {{ item.quantity }} → Reorder <strong>{{ item.reorder_qty }}</strong></li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="card">
+  <table class="table" id="inventory-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Qty</th>
+        <th>Daily Use</th>
+        <th>Days Left</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in inventory %}
+      <tr class="{{ 'table-danger' if item.quantity == 0 else 'table-warning' if item.quantity <= item.min_stock else '' }}">
+        <td>{{ item.item_name }}</td>
+        <td>{{ item.quantity }} {{ item.unit }}</td>
+        <td>{{ "%.1f"|format(item.avg_daily_use) }}</td>
+        <td>{{ "%.1f"|format(item.quantity / item.avg_daily_use) if item.avg_daily_use > 0 else 'Infinite' }}</td>
+        <td>
+          <span class="badge badge-{{ 'danger' if item.quantity == 0 else 'warning' if item.quantity <= item.min_stock else 'success' }}">
+            {{ 'Out' if item.quantity == 0 else 'Low' if item.quantity <= item.min_stock else 'OK' }}
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-sm btn-success" onclick="reorder((( item.id )), (( item.reorder_qty )))">Reorder</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<dialog id="addItemModal">
+  <form method="dialog">
+    <h3>Add Item</h3>
+    <input type="text" placeholder="Name" name="item_name" required>
+    <input type="number" placeholder="Qty" name="quantity" required>
+    <input type="text" placeholder="Unit" name="unit">
+    <button type="submit" class="btn btn-primary">Add</button>
+  </form>
+</dialog>
+
+<script>
+function reorder(id, qty) {
+  if (confirm(`Reorder ${qty} units?`)) {
+    fetch('/reorder_item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, quantity: qty })
+    }).then(() => location.reload());
+  }
+}
+</script>
+{% endblock %}

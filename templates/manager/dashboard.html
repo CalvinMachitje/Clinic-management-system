@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Manager Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Manager Dashboard</h1>
+  <p class="subtitle">Clinic operations, staff, inventory, and performance</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+  <div class="card p-6 text-center">
+    <h3>Total Staff</h3>
+    <p class="text-3xl font-bold text-primary">{{ stats.total_staff }}</p>
+  </div>
+  <div class="card p-6 text-center">
+    <h3>Patients Today</h3>
+    <p class="text-3xl font-bold text-success">{{ stats.patients_today }}</p>
+  </div>
+  <div class="card p-6 text-center">
+    <h3>Low Stock</h3>
+    <p class="text-3xl font-bold text-warning">{{ stats.low_stock }}</p>
+  </div>
+  <div class="card p-6 text-center">
+    <h3>Revenue (MTD)</h3>
+    <p class="text-3xl font-bold text-info">R{{ "%.2f"|format(stats.revenue_mtd) }}</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="card p-6">
+    <h3>Pending Tasks</h3>
+    <ul class="list-disc pl-6">
+      {% for t in tasks %}
+      <li><strong>{{ t.title }}</strong> → {{ t.assigned_name }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card p-6">
+    <h3>Quick Actions</h3>
+    <a href="{{ url_for('inventory') }}" class="btn btn-primary block mb-2">Inventory</a>
+    <a href="{{ url_for('executive_report') }}" class="btn btn-success block">Executive Report</a>
+  </div>
+</div>
+{% endblock %}

@@ -48,7 +48,8 @@
         <h3>Preview</h3>
         <div id="preview-content" style="padding: 0.5rem 0;"></div>
     </div>
-</div> {# <-- THIS WAS MISSING #}
+</div>
+<!-- ^^^ FIXED: Closing </div> for .announcement-form ^^^ -->
 
 <!-- List -->
 <div class="card">
@@ -82,6 +83,7 @@
     </div>
     {% endif %}
 </div>
+<!-- ^^^ FIXED: {% endif %} now correctly closes the {% if announcements %} block ^^^ -->
 {% endblock %}
 
 {% block scripts %}

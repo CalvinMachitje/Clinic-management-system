@@ -102,6 +102,16 @@
               </label>
             </li>
           </ul>
+        {% elif session.role == 'manager' %}
+          <ul>
+            <li><a href="{{ url_for('manager_dashboard') }}" class="sidebar-btn">Dashboard</a></li>
+            <li><a href="{{ url_for('inventory') }}" class="sidebar-btn">Inventory</a></li>
+            <li><a href="{{ url_for('executive_report') }}" class="sidebar-btn">Executive Report</a></li>
+            <li><a href="{{ url_for('manage_staff') }}" class="sidebar-btn">Manage Staff</a></li>
+            <li><a href="{{ url_for('staff_schedule') }}" class="sidebar-btn">Staff Schedule</a></li>
+            <li><a href="{{ url_for('manager_announcements') }}" class="sidebar-btn">Announcements</a></li>
+            <li><a href="{{ url_for('download_guide') }}" class="sidebar-btn">Download Guide</a></li>
+          </ul>
         {% elif session.role == 'admin' %}
           <ul>
             <li><a href="{{ url_for('admin_dashboard') }}" class="sidebar-btn"><i class="fas fa-home"></i> Dashboard</a></li>

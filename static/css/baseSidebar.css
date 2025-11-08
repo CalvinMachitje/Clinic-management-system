@@ -72,25 +72,29 @@ html, body {
   transform: scale(1.05);
 }
 
-/* Sidebar */
+/* --------------------------------------------------------------
+   SIDEBAR – Always visible by default, collapsible
+   -------------------------------------------------------------- */
 .sidebar {
   position: fixed;
   top: 0;
-  left: -300px; /* Hidden by default */
+  left: 0;                     /* Always starts visible */
   width: 300px;
   height: 100vh;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--sidebar-border);
-  transition: var(--transition);
+  transition: transform 0.3s ease;
   z-index: 999;
   overflow-y: auto;
   box-shadow: var(--shadow);
 }
 
-.sidebar.active {
-  left: 0;
+/* Collapsed state (minimized) */
+.sidebar.collapsed {
+  transform: translateX(-100%);
 }
 
+/* Logo */
 .sidebar .logo {
   padding: 1.5rem;
   text-align: center;
@@ -100,10 +104,7 @@ html, body {
   border-bottom: 1px solid var(--border-color);
 }
 
-.sidebar nav {
-  padding: 1rem 0;
-}
-
+/* User Info */
 .user-info {
   padding: 1rem 1.5rem;
   display: flex;
@@ -129,6 +130,8 @@ html, body {
 /* Sidebar Navigation */
 .sidebar ul {
   list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .sidebar ul li {
@@ -161,58 +164,18 @@ html, body {
   font-size: 1.1rem;
 }
 
-/* Sidebar Footer */
-.sidebar-footer {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  border-top: 1px solid var(--border-color);
-  background: var(--sidebar-bg);
-}
-
-.sidebar-footer .theme-form {
-  padding: 1rem 1.5rem;
-}
-
-.sidebar-footer .form-control {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.25rem;
-  background: var(--card-bg);
-  color: var(--text-color);
-}
-
 /* Main Dashboard Content */
 .dashboard {
   flex: 1;
-  margin-left: 0;
-  transition: var(--transition);
+  margin-left: 300px;          /* Matches sidebar width */
+  transition: margin-left 0.3s ease;
   padding: 2rem;
   background: var(--bg-color);
 }
 
-.dashboard.active {
-  margin-left: 300px; /* Offset for open sidebar */
-}
-
-@media (max-width: 768px) {
-  .dashboard.active {
-    margin-left: 0;
-    padding: 1rem;
-  }
-  
-  .sidebar {
-    left: -100%; /* Full hide on mobile */
-  }
-  
-  .sidebar.active {
-    left: 0;
-  }
-  
-  .menu-toggle {
-    display: block;
-  }
+/* When sidebar is collapsed */
+.dashboard.expanded {
+  margin-left: 0;
 }
 
 /* Flash Messages */
@@ -432,28 +395,32 @@ summary:hover {
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 100%;
     left: -100%;
+    width: 100%;
   }
-  
-  .sidebar.active {
+
+  .sidebar:not(.collapsed) {
     left: 0;
   }
-  
-  .dashboard.active {
+
+  .dashboard {
     margin-left: 0;
   }
-  
+
+  .dashboard.expanded {
+    margin-left: 0;
+  }
+
   .flash-messages {
     right: 0.5rem;
     left: 0.5rem;
     max-width: none;
   }
-  
+
   .table {
     font-size: 0.875rem;
   }
-  
+
   .table th,
   .table td {
     padding: 0.5rem;
@@ -466,7 +433,7 @@ summary:hover {
   .menu-toggle {
     display: none;
   }
-  
+
   .dashboard {
     margin-left: 0;
   }
@@ -490,7 +457,7 @@ summary:hover {
   top: 1rem;
   left: 1rem;
   font-size: 1.5rem;
-  color: var(--text);
+  color: var(--text-color);
   background: none;
   border: none;
   cursor: pointer;
@@ -501,5 +468,5 @@ summary:hover {
 }
 
 #menu-toggle-btn:hover {
-  color: var(--primary);
+  color: var(--link-color);
 }

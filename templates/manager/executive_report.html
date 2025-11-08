@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Executive Report{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Executive Monthly Report</h1>
+  <div>
+    <button id="download-pdf" class="btn btn-primary">Download PDF</button>
+    <button id="download-csv" class="btn btn-secondary">Download CSV</button>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+  <div class="card p-6">
+    <h3>Revenue vs Expenses</h3>
+    <canvas id="financeChart"></canvas>
+  </div>
+  <div class="card p-6">
+    <h3>Patient Volume</h3>
+    <canvas id="patientChart"></canvas>
+  </div>
+</div>
+
+<div class="card p-6">
+  <h3>KPIs</h3>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="text-center">
+      <p class="text-3xl font-bold text-success">R{{ "%.2f"|format(kpi.revenue) }}</p>
+      <p>Revenue</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold text-danger">R{{ "%.2f"|format(kpi.expenses) }}</p>
+      <p>Expenses</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold text-primary">{{ kpi.patients }}</p>
+      <p>Patients</p>
+    </div>
+    <div class="text-center">
+      <p class="text-3xl font-bold text-info">R{{ "%.1f"|format(kpi.avg_per_patient) }}</p>
+      <p>Avg per Patient</p>
+    </div>
+  </div>
+</div>
+
+<a href="{{ url_for('download_guide') }}" class="btn btn-success mt-6 block w-fit">
+  Download Full Guide as PDF
+</a>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1"></script>
+<script>
+const data = (( report_data | tojson ));
+
+new Chart(document.getElementById('financeChart'), {
+  type: 'bar',
+  data: {
+    labels: data.months,
+    datasets: [
+      { label: 'Revenue', data: data.revenue, backgroundColor: '#28a745' },
+      { label: 'Expenses', data: data.expenses, backgroundColor: '#dc3545' }
+    ]
+  }
+});
+
+new Chart(document.getElementById('patientChart'), {
+  type: 'line',
+  data: {
+    labels: data.months,
+    datasets: [{ label: 'Patients', data: data.patients, borderColor: '#007bff', tension: 0.4 }]
+  }
+});
+
+document.getElementById('download-pdf').onclick = () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.text('Township Clinic - Executive Report', 20, 20);
+  doc.setFontSize(12);
+  doc.text(`Period: ${data.months[0]} - ${data.months[data.months.length-1]}`, 20, 30);
+  doc.text(`Total Revenue: R${data.revenue.reduce((a,b)=>a+b,0).toFixed(2)}`, 20, 40);
+  doc.save('executive-report.pdf');
+};
+</script>
+{% endblock %}

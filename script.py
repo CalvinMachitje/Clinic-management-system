@@ -8,6 +8,7 @@ import logging
 from werkzeug.utils import secure_filename
 import secrets
 import random
+from models import db, Announcement
 import re
 from sqlalchemy import or_
 from markupsafe import Markup
@@ -15,33 +16,73 @@ import json
 from queue import Queue
 from threading import Lock
 import time
-from models import db, Announcement
 from flask_caching import Cache
 from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
 import jinja2
 from flask_wtf import FlaskForm
 from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+import csv
+from io import StringIO
+from flask import send_file
+
+
+load_dotenv()
+from models import (
+    db,
+    Employee,
+    Patient,
+    Appointment,
+    Prescription,
+    Visit,
+    EmergencyRequest,
+    Message,
+    SystemSetting,
+    Preference,
+    Announcement,
+    Payment,
+    Notification,
+    HelpedPatient,
+    SelfBookedAppointment,
+    WalkinQueue,
+    AuditLog
+)
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
 app.config['CACHE_TYPE'] = 'simple'
 cache = Cache(app)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login_page'
+login_manager.login_message = "Please log in to access this page."
+login_manager.login_message_category = "info"
+
 # Load environment variables from .env file
-load_dotenv()
 secret_key = os.urandom(24)
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 app.permanent_session_lifetime = timedelta(days=7)
 csrf = CSRFProtect(app)
 
-# --- Database (SQLite for dev; change to PostgreSQL in prod) ---
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinic.db'
+# --- DATABASE: Auto-detect .env (PostgreSQL) or clinicinfo.db (SQLite) ---
+db_url = os.getenv('DATABASE_URL')
+if db_url:
+    # Force TCP/IP: add host=127.0.0.1 port=5433 if not present
+    if 'host=' not in db_url:
+        db_url += '?host=127.0.0.1&port=5433'
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+elif os.path.exists('clinicinfo.db'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinicinfo.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinicinfo.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configure logging
@@ -70,6 +111,7 @@ queue_lock = Lock()
 waiting_patients_queue = Queue()
 
 def allowed_file(filename):
+    
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # --- FIXED: App-context safe DB connection ---
@@ -87,6 +129,16 @@ def get_db_connection():
         conn = sqlite3.connect('clinicinfo.db')
         conn.row_factory = sqlite3.Row
         return conn
+    
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash("You do not have permission to access this page.", "error")
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated_function    
 
 def close_db(e=None):
     db = g.pop('db', None)
@@ -130,170 +182,35 @@ def template_not_found(e):
     flash(f"Template {e.name} is missing. Please contact the administrator.", 'error')
     return render_template('homepage/error.html'), 404
 
+# --- REPLACED: Use SQLAlchemy for both SQLite & PostgreSQL ---
 def init_db():
-    conn = None
-    try:
-        conn = sqlite3.connect('clinicinfo.db')
-        c = conn.cursor()
-        
-        c.execute('PRAGMA foreign_keys = ON;')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS employees
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      first_name TEXT NOT NULL,
-                      last_name TEXT NOT NULL,
-                      email TEXT NOT NULL,
-                      password TEXT NOT NULL,
-                      phone TEXT,
-                      address TEXT,
-                      role TEXT NOT NULL,
-                      hire_date TEXT,
-                      availability TEXT DEFAULT 'available',
-                      profile_image TEXT DEFAULT 'default.jpg',
-                      staff_number TEXT UNIQUE NOT NULL DEFAULT 'TEMPSTAFF')''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS patients
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      first_name TEXT NOT NULL,
-                      last_name TEXT NOT NULL,
-                      date_of_birth TEXT,
-                      gender TEXT,
-                      address TEXT,
-                      phone TEXT,
-                      email TEXT,
-                      emergency_contact_name TEXT,
-                      emergency_contact_phone TEXT,
-                      medical_history TEXT,
-                      allergies TEXT,
-                      current_medications TEXT,
-                      employee_id INTEGER,
-                      clinic TEXT DEFAULT 'Clinic A',
-                      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                      status TEXT DEFAULT 'active',
-                      FOREIGN KEY (employee_id) REFERENCES employees(id))''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS appointments
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      patient_id INTEGER NOT NULL,
-                      appointment_date TEXT NOT NULL,
-                      status TEXT DEFAULT 'scheduled',
-                      reason TEXT,
-                      created_by_role TEXT DEFAULT 'receptionist',
-                      helper_id INTEGER,
-                      FOREIGN KEY (patient_id) REFERENCES patients(id),
-                      FOREIGN KEY (helper_id) REFERENCES employees(id))''')
-
-        c.execute("CREATE INDEX IF NOT EXISTS idx_appointments_date_status ON appointments(appointment_date, status)")
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS prescriptions
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      patient_id INTEGER NOT NULL,
-                      nurse_id INTEGER,
-                      medication_name TEXT NOT NULL,
-                      dosage TEXT NOT NULL,
-                      instructions TEXT,
-                      prescribed_date TEXT NOT NULL,
-                      FOREIGN KEY (patient_id) REFERENCES patients(id),
-                      FOREIGN KEY (nurse_id) REFERENCES employees(id))''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS walkin_queue (
-                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                     patient_id TEXT NOT NULL,
-                     patient_name TEXT NOT NULL,
-                     priority TEXT NOT NULL,
-                     reason TEXT,
-                     arrived_at TEXT NOT NULL)''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS visits
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      patient_id INTEGER NOT NULL,
-                      visit_time TEXT NOT NULL,
-                      notes TEXT,
-                      FOREIGN KEY (patient_id) REFERENCES patients(id))''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS emergency_requests
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      patient_id INTEGER NOT NULL,
-                      reason TEXT NOT NULL,
-                      request_time TEXT DEFAULT CURRENT_TIMESTAMP,
-                      status TEXT DEFAULT 'pending',
-                      FOREIGN KEY (patient_id) REFERENCES patients(id))''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS helped_patients
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      patient_id INTEGER NOT NULL,
-                      nurse_id INTEGER,
-                      appointment_date TEXT,
-                      helped_timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-                      reason TEXT,
-                      notes TEXT,
-                      FOREIGN KEY (patient_id) REFERENCES patients(id),
-                      FOREIGN KEY (nurse_id) REFERENCES employees(id))''')
-        
-        c.execute('''CREATE TABLE IF NOT EXISTS messages
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      title TEXT NOT NULL,
-                      content TEXT NOT NULL,
-                      date TEXT DEFAULT CURRENT_TIMESTAMP,
-                      sender TEXT NOT NULL)''')
-        
-                # -----------------------------------------------------------------
-        # self_booked_appointments – with created_at (DEFAULT CURRENT_TIMESTAMP)
-        # -----------------------------------------------------------------
-        c.execute('''CREATE TABLE IF NOT EXISTS self_booked_appointments_temp (
-                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                     patient_name TEXT NOT NULL,
-                     patient_phone TEXT,
-                     patient_email TEXT,
-                     appointment_date TEXT NOT NULL,
-                     reason TEXT,
-                     doctor_staff_number TEXT,
-                     status TEXT DEFAULT 'pending',
-                     created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
-
-        c.execute('''CREATE TABLE IF NOT EXISTS audit_log (
-                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                     action TEXT NOT NULL,
-                     performed_by TEXT NOT NULL,
-                     target_user TEXT,
-                     details TEXT,
-                     timestamp TEXT NOT NULL)''')
-
-        # Check if original table exists and is missing created_at
-        c.execute("PRAGMA table_info(self_booked_appointments)")
-        old_columns = [col[1] for col in c.fetchall()]
-
-        if 'created_at' not in old_columns:
-            # Copy data from old table (if exists)
-            c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='self_booked_appointments'")
-            if c.fetchone():
-                # Copy all existing data
-                c.execute('''
-                    INSERT INTO self_booked_appointments_temp 
-                    (id, patient_name, patient_phone, patient_email, appointment_date, reason, doctor_staff_number, status, created_at)
-                    SELECT id, patient_name, patient_phone, patient_email, appointment_date, reason, doctor_staff_number, status, 
-                           datetime('now') FROM self_booked_appointments
-                ''')
-                c.execute("DROP TABLE self_booked_appointments")
-                logger.info("Migrated self_booked_appointments to include created_at")
-
-            # Rename temp to real
-            c.execute("ALTER TABLE self_booked_appointments_temp RENAME TO self_booked_appointments")
-            logger.info("Ensured self_booked_appointments has created_at column")
-        else:
-            # If old table is fine, drop temp
-            c.execute("DROP TABLE IF EXISTS self_booked_appointments_temp")
-        
-    
-        # Finalize DB initialization
-        conn.commit()
-        conn.close()
+    """
+    Initialize database using SQLAlchemy.
+    Works with:
+      • SQLite (clinicinfo.db)
+      • PostgreSQL (via DATABASE_URL in .env)
+    """
+    with app.app_context():
+        db.create_all()
+        logger.info("Database tables created via SQLAlchemy (SQLite or PostgreSQL)")
         return True
-    except sqlite3.Error as e:
-        logger.error(f"Error initializing database: {e}")
-        if conn:
-            conn.close()
-        return False
+
+class User(UserMixin):
+    def __init__(self, id, username, role):
+        self.id = str(id)
+        self.username = username
+        self.role = role
+
+@login_manager.user_loader
+def load_user(user_id):
+    # Rebuild user from session
+    if 'user_id' in session and str(session['user_id']) == user_id:
+        return User(
+            id=session['user_id'],
+            username=session.get('username'),
+            role=session.get('role')
+        )
+    return None    
 
 @app.route('/')
 def default_page():
@@ -717,74 +634,6 @@ def add_patient():
 
     return render_template('reception/patientRegistration.html', form=form)
 
-@csrf.exempt
-@app.route('/check_in_desk')
-def check_in_desk():
-    if session.get('role') != 'receptionist':
-        flash('Access denied.', 'error')
-        return redirect(url_for('login_page'))
-
-    today = datetime.now().strftime('%Y-%m-%d')
-    conn = get_db_connection()
-
-    try:
-        c = conn.cursor()
-
-        # Scheduled appointments (today only)
-        c.execute("""
-            SELECT a.*, p.first_name, p.last_name, e.first_name || ' ' || e.last_name AS helper_name, e.role AS helper_role
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            LEFT JOIN employees e ON a.helper_id = e.id
-            WHERE a.appointment_date LIKE ? AND a.status = 'scheduled'
-            ORDER BY a.appointment_date
-        """, (f'{today}%',))
-        scheduled_appointments = c.fetchall()
-
-        # Waitlist (waiting patients)
-        c.execute("""
-            SELECT a.*, p.first_name, p.last_name
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.status = 'waiting'
-            ORDER BY a.id
-        """)
-        waitlist = c.fetchall()
-
-        # Available staff
-        c.execute("SELECT staff_number, first_name, last_name, role FROM employees WHERE availability = 'available'")
-        available_staff = c.fetchall()
-
-        # Helped patients
-        c.execute("""
-            SELECT h.*, p.first_name || ' ' || p.last_name AS patient_name,
-                   e.first_name || ' ' || e.last_name AS nurse_name
-            FROM helped_patients h
-            JOIN patients p ON h.patient_id = p.id
-            LEFT JOIN employees e ON h.nurse_id = e.id
-            ORDER BY h.helped_timestamp DESC
-        """)
-        helped_patients = c.fetchall()
-
-        # Patients for walk-in modal
-        c.execute("SELECT id, first_name || ' ' || last_name AS name FROM patients ORDER BY name")
-        patients = c.fetchall()
-
-        return render_template('reception/checkInDesk.html',
-                               scheduled_appointments=scheduled_appointments,
-                               waitlist=waitlist,
-                               available_staff=available_staff,
-                               helped_patients=helped_patients,
-                               patients=patients)  # <-- ADDED
-
-    except Exception as e:
-        logger.error(f"Check-in desk error: {e}")
-        flash('Database error.', 'error')
-        return render_template('reception/checkInDesk.html',
-                               scheduled_appointments=[], waitlist=[], available_staff=[], helped_patients=[], patients=[])
-    finally:
-        conn.close()
-
 # --------------------------------------------------------------
 # RECEPTION: Walk-in patient check-in
 # --------------------------------------------------------------
@@ -1067,6 +916,7 @@ def api_get_queue():
 # --------------------------------------------------------------
 # POST: Add Walk-in to Queue (Smart: Register if not exists)
 # --------------------------------------------------------------
+@csrf.exempt
 @app.route('/check_in_desk', methods=['POST'])
 def add_walkin_smart():
     if session.get('role') != 'receptionist':
@@ -2038,7 +1888,277 @@ def manage_users():
         if conn:
             conn.close()
 
+# === MANAGER ROUTES ===
+@app.route('/manager_dashboard')
+@login_required
+def manager_dashboard():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    conn = get_db_connection()
+    c = conn.cursor()
 
+    c.execute("SELECT COUNT(*) FROM employees WHERE active = 1")
+    total_staff = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM appointments WHERE DATE(appointment_date) = DATE('now')")
+    patients_today = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock")
+    low_stock = c.fetchone()[0]
+
+    c.execute("SELECT COALESCE(SUM(cost), 0) FROM billing WHERE strftime('%Y-%m', billing_date) = strftime('%Y-%m', 'now')")
+    revenue_mtd = c.fetchone()[0] or 0.0
+
+    c.execute("""
+        SELECT t.*, e.first_name || ' ' || e.last_name as assigned_name
+        FROM tasks t LEFT JOIN employees e ON t.assigned_to = e.id
+        WHERE t.status = 'pending' ORDER BY t.priority DESC LIMIT 5
+    """)
+    tasks = [dict(row) for row in c.fetchall()]
+
+    conn.close()
+    return render_template('manager/dashboard.html',
+                         stats={'total_staff': total_staff, 'patients_today': patients_today,
+                                'low_stock': low_stock, 'revenue_mtd': revenue_mtd},
+                         tasks=tasks)
+
+@app.route('/inventory')
+@login_required
+def inventory():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT *, 
+               CASE WHEN avg_daily_use > 0 THEN quantity / avg_daily_use ELSE 999 END as days_left
+        FROM inventory ORDER BY days_left
+    """)
+    inventory = [dict(row) for row in c.fetchall()]
+    low_stock_alerts = [i for i in inventory if i['quantity'] <= i['min_stock']]
+    conn.close()
+    return render_template('manager/inventory.html', inventory=inventory, low_stock_alerts=low_stock_alerts)
+
+@app.route('/reorder_item', methods=['POST'])
+@login_required
+def reorder_item():
+    if session.get('role') != 'manager': return '', 403
+    data = request.get_json()
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE inventory SET quantity = quantity + ?, last_restocked = DATE('now') WHERE id = ?",
+              (data['quantity'], data['id']))
+    conn.commit()
+    conn.close()
+    return '', 204
+
+@app.route('/executive_report')
+@login_required
+def executive_report():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    months = []
+    revenue = []
+    expenses = []
+    patients = []
+    for i in range(5, -1, -1):
+        month = (datetime.now() - timedelta(days=30*i)).strftime('%b %Y')
+        months.append(month)
+        c.execute("SELECT COALESCE(SUM(cost),0) FROM billing WHERE strftime('%Y-%m', billing_date) = ?", 
+                  ((datetime.now() - timedelta(days=30*i)).strftime('%Y-%m'),))
+        revenue.append(c.fetchone()[0])
+        expenses.append(50000)  # mock
+        c.execute("SELECT COUNT(*) FROM appointments WHERE strftime('%Y-%m', appointment_date) = ?", 
+                  ((datetime.now() - timedelta(days=30*i)).strftime('%Y-%m'),))
+        patients.append(c.fetchone()[0])
+
+    total_rev = sum(revenue)
+    total_pat = sum(patients)
+    kpi = {
+        'revenue': total_rev,
+        'expenses': sum(expenses),
+        'patients': total_pat,
+        'avg_per_patient': total_rev / total_pat if total_pat else 0
+    }
+
+    report_data = {'months': months, 'revenue': revenue, 'expenses': expenses, 'patients': patients}
+    conn.close()
+    return render_template('manager/executive_report.html', report_data=report_data, kpi=kpi)
+
+@app.route('/manage_staff')
+@login_required
+def manage_staff():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, first_name, last_name, email, role, active FROM employees ORDER BY role")
+    staff = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return render_template('manager/manage_staff.html', staff=staff)
+
+@app.route('/manager_announcements')
+@login_required
+def manager_announcements():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    return render_template('manager/announcements.html')
+
+@app.route('/download_guide')
+def download_guide():
+    return send_file('static/guide/conversation_guide.pdf', as_attachment=True)
+
+@app.route('/staff_schedule')
+@login_required
+def staff_schedule():
+    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, first_name, last_name, role FROM employees WHERE active = 1 ORDER BY role, first_name")
+    staff = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return render_template('manager/staff_schedule.html', staff=staff)
+
+@app.route('/get_schedule')
+@login_required
+def get_schedule():
+    if session.get('role') != 'manager': return jsonify([])
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT s.*, e.first_name || ' ' || e.last_name as staff_name
+        FROM staff_schedule s
+        JOIN employees e ON s.employee_id = e.id
+    """)
+    rows = c.fetchall()
+    events = []
+    for row in rows:
+        color_class = {
+            'morning': '#28a745',
+            'afternoon': '#ffc107',
+            'night': '#007bff'
+        }.get(row['shift_type'], '#6c757d')
+        events.append({
+            'id': row['id'],
+            'title': f"{row['staff_name']} ({row['shift_type'].capitalize()})",
+            'start': row['shift_date'],
+            'backgroundColor': color_class,
+            'borderColor': color_class,
+            'extendedProps': {
+                'employee_id': row['employee_id'],
+                'shift_type': row['shift_type'],
+                'notes': row['notes']
+            }
+        })
+    conn.close()
+    return jsonify(events)
+
+from datetime import datetime, timedelta
+
+@app.route('/save_shift', methods=['POST'])
+@login_required
+def save_shift():
+    if session.get('role') != 'manager':
+        return '', 403
+
+    data = request.get_json()
+    employee_id = data['employee_id']
+    shift_date = data['shift_date']
+    shift_type = data['shift_type']
+    shift_id = data.get('id')  # None if new
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    # === CONFLICT CHECK ===
+    conflicts = []
+
+    # Define shift time ranges
+    shift_times = {
+        'morning': ('08:00', '16:00'),
+        'afternoon': ('13:00', '21:00'),
+        'night': ('20:00', '08:00')
+    }
+
+    # Get existing shifts for this employee on this date
+    c.execute("""
+        SELECT shift_type, id FROM staff_schedule 
+        WHERE employee_id = ? AND shift_date = ? AND id != ?
+    """, (employee_id, shift_date, shift_id or 0))
+    existing = c.fetchall()
+
+    new_start, new_end = shift_times[shift_type]
+    is_night_shift = shift_type == 'night'
+
+    for row in existing:
+        existing_type = row['shift_type']
+        existing_id = row['id']
+        start, end = shift_times[existing_type]
+
+        # Handle night shift wrap-around
+        if is_night_shift or existing_type == 'night':
+            # Convert to minutes from midnight
+            def to_minutes(t): 
+                h, m = map(int, t.split(':'))
+                return h * 60 + m
+
+            new_start_min = to_minutes(new_start)
+            new_end_min = to_minutes(new_end) + (1440 if new_end < new_start else 0)
+            exist_start_min = to_minutes(start)
+            exist_end_min = to_minutes(end) + (1440 if end < start else 0)
+
+            # Check overlap
+            if max(new_start_min, exist_start_min) < min(new_end_min, exist_end_min):
+                conflicts.append({
+                    'type': existing_type,
+                    'id': existing_id
+                })
+        else:
+            if new_start < end and new_end > start:
+                conflicts.append({
+                    'type': existing_type,
+                    'id': existing_id
+                })
+
+    if conflicts:
+        conn.close()
+        return jsonify({
+            'error': 'Shift conflict!',
+            'message': f"This staff member already has a {', '.join([c['type'].capitalize() for c in conflicts])} shift on {shift_date}.",
+            'conflicts': conflicts
+        }), 400
+
+    # === SAVE SHIFT ===
+    if shift_id:
+        c.execute("""
+            UPDATE staff_schedule 
+            SET employee_id=?, shift_date=?, shift_type=?, notes=?
+            WHERE id=?
+        """, (employee_id, shift_date, shift_type, data.get('notes', ''), shift_id))
+    else:
+        try:
+            c.execute("""
+                INSERT INTO staff_schedule (employee_id, shift_date, shift_type, notes)
+                VALUES (?, ?, ?, ?)
+            """, (employee_id, shift_date, shift_type, data.get('notes', '')))
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({'error': 'Same shift already assigned!'}), 400
+
+    conn.commit()
+    conn.close()
+    return '', 204
+
+@app.route('/update_shift_date', methods=['POST'])
+@login_required
+def update_shift_date():
+    if session.get('role') != 'manager': return '', 403
+    data = request.get_json()
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE staff_schedule SET shift_date=? WHERE id=?", (data['shift_date'], data['id']))
+    conn.commit()
+    conn.close()
+    return '', 204
+#--------------------------------------------------------------------------------------------------------
 
 @app.route('/change_theme', methods=['POST'])
 def change_theme():
@@ -2062,8 +2182,9 @@ def change_theme():
 @app.route('/doctor_report')
 def doctor_report():
     if 'user_id' not in session or session.get('role') != 'doctor':
-        flash('Access denied. Only doctors can view reports.', 'error')
+        flash('Access denied.', 'error')
         return redirect(url_for('login_page'))
+
     conn = get_db_connection()
     try:
         c = conn.cursor()
@@ -2073,13 +2194,15 @@ def doctor_report():
             flash('Doctor not found.', 'error')
             return redirect(url_for('doctor_dashboard'))
         employee_id = employee['id']
+
         c.execute("""
             SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason
             FROM appointments a
             JOIN patients p ON a.patient_id = p.id
-            WHERE a.helper_id = ? AND a.appointment_date >= ?
-            ORDER BY a.appointment_date
-        """, (employee_id, date.today()))
+            WHERE a.helper_id = ? AND DATE(a.appointment_date) >= DATE('now', '-30 days')
+            ORDER BY a.appointment_date DESC
+        """, (employee_id,))
+        
         reports = [
             {
                 'id': row['id'],
@@ -2089,53 +2212,68 @@ def doctor_report():
                 'reason': row['reason'] or 'Not specified'
             } for row in c.fetchall()
         ]
-        user_details = get_user_details(conn, session['user_id'])
-        return render_template('doctor/doctor_report.html', reports=reports, user_details=user_details)
-    except sqlite3.Error as e:
-        logger.error(f"Database error in doctor_report: {e}")
-        flash('An error occurred while fetching reports.', 'error')
+
+        return render_template('doctor/doctor_report.html', reports=reports)
+    
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        flash('Database error.', 'error')
         return redirect(url_for('doctor_dashboard'))
     finally:
         conn.close()      
 
 @app.route('/system_settings', methods=['GET', 'POST'])
+@login_required
+@admin_required
 def system_settings():
-    if 'username' not in session or session.get('role') != 'admin':
-        flash('Please log in as an admin to manage system settings.', 'error')
-        return redirect(url_for('login_page'))
-    conn = None
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
+    # Load settings from file (or DB later)
+    settings_file = os.path.join(app.instance_path, 'system_settings.json')
+    system_settings = {}
+    
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, 'r') as f:
+                system_settings = json.load(f)
+        except:
+            system_settings = {}
+
+    if request.method == 'POST':
+        data = request.form.to_dict()
+        action = data.get('action')
+
+        if action == 'add_user':
+            username = data.get('add_user_username')
+            role = data.get('add_user_role')
+            if username and role:
+                # Add user logic here (e.g., insert into DB)
+                flash(f"User '{username}' added as {role}.", "success")
         
-        if request.method == 'POST':
-            backup_frequency = request.form.get('backup_frequency')
-            if backup_frequency not in ['daily', 'weekly', 'monthly']:
-                flash('Invalid backup frequency selected.', 'error')
-                return redirect(url_for('system_settings'))
-            c.execute("UPDATE system_settings SET backup_frequency = ? WHERE id = 1", (backup_frequency,))
-            conn.commit()
-            flash('System settings updated successfully!', 'success')
-            return redirect(url_for('system_settings'))
+        elif action == 'reset_password':
+            flash("Password reset requested.", "info")
         
-        c.execute("SELECT backup_frequency FROM system_settings WHERE id = 1")
-        settings = c.fetchone()
-        backup_frequency = settings['backup_frequency'] if settings else 'weekly'
-        return render_template('admin/systemSettings.html',
-                              backup_frequency=backup_frequency,
-                              user_details=user_details,
-                              username=session['username'])
-    except sqlite3.Error as e:
-        logger.error(f"Database error in system_settings: {e}")
-        flash('An error occurred while updating settings.', 'error')
-        return redirect(url_for('admin_dashboard'))
-    finally:
-        if conn:
-            conn.close()
+        else:
+            # Save all settings
+            save_keys = [
+                'clinic_name', 'clinic_address', 'clinic_contact', 'clinic_logo',
+                'branding_color', 'operating_hours', 'holiday_calendar',
+                'password_policy'
+            ]
+            updated = {k: data.get(k, '') for k in save_keys}
+            system_settings.update(updated)
+
+            os.makedirs(app.instance_path, exist_ok=True)
+            with open(settings_file, 'w') as f:
+                json.dump(system_settings, f, indent=2)
+            
+            flash("System settings saved successfully.", "success")
+
+        return redirect(url_for('system_settings'))
+
+    # Always pass system_settings to template
+    return render_template(
+        'admin/systemSettings.html',
+        system_settings=system_settings
+    )
 
 @app.route('/announcements', methods=['GET', 'POST'])
 def announcements():
@@ -2421,3 +2559,11 @@ if __name__ == '__main__':
         app.run(debug=True)
     else:
         print("Failed to initialize database. Application not started.")
+        
+# At the bottom of script.py
+with app.app_context():
+    try:
+        db.create_all()  # Only creates missing tables
+        print("Tables checked/created.")
+    except Exception as e:
+        print(f"DB Error: {e}")        

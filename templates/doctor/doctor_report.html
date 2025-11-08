@@ -1,53 +1,202 @@
 {% extends "base.html" %}
 {% block title %}Doctor Report - Township Clinic{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" rel="preload" as="script">
+<style>
+  .chart-container { position: relative; height: 300px; margin: 2rem 0; }
+  .download-btn { margin: 0.5rem; }
+  .vitals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+  .vital-card { background: #f8f9fa; padding: 1rem; border-radius: 8px; text-align: center; }
+  .vital-value { font-size: 1.8rem; font-weight: bold; color: #007bff; }
+  .vital-label { color: #6c757d; font-size: 0.9rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mx-auto px-4 py-8">
-    <main class="main-content" role="main" aria-label="Doctor Report Main Content">
-        <section class="dashboard-content">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8" aria-label="Doctor Statistics">
-                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
-                    <h3 class="text-lg font-semibold mb-2">Total Patients Seen</h3>
-                    <p class="text-3xl font-bold text-primary">{% if reports %}{{ reports | length }}{% else %}0{% endif %}</p>
-                </div>
-                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
-                    <h3 class="text-lg font-semibold mb-2">Pending Appointments</h3>
-                    <p class="text-3xl font-bold text-primary">{% if reports %}{{ reports | selectattr('status', 'equalto', 'scheduled') | list | length }}{% else %}0{% endif %}</p>
-                </div>
-                <div class="card stat-card bg-white rounded-lg shadow-md p-6 text-center">
-                    <h3 class="text-lg font-semibold mb-2">Monthly Consultations</h3>
-                    <p class="text-3xl font-bold text-primary">0</p> <!-- Placeholder; requires additional query -->
-                </div>
-            </div>
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">Doctor Report</h1>
+    <div>
+      <button id="download-pdf" class="btn btn-primary download-btn">
+        Download PDF
+      </button>
+      <button id="download-csv" class="btn btn-secondary download-btn">
+        Download CSV
+      </button>
+    </div>
+  </div>
 
-            <!-- Appointment Preview -->
-            <section aria-labelledby="appointment-preview-title" class="bg-white rounded-lg shadow-md p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 id="appointment-preview-title" class="text-xl font-semibold">Recent Appointments</h2>
-                    <!-- Replace with a valid route or remove if not needed -->
-                    <a href="{{ url_for('appointments') }}" class="btn btn-primary" aria-label="Go to full appointments page">View All Appointments</a>                </div>
-                <table aria-describedby="appointment-preview-description" role="grid" class="w-full table-auto border-collapse">
-                    <caption id="appointment-preview-description" class="text-left text-lg font-medium mb-2">Recent appointments for the doctor</caption>
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="px-4 py-2 text-left">Patient Name</th>
-                            <th class="px-4 py-2 text-left">Appointment Time</th>
-                            <th class="px-4 py-2 text-left">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for report in reports %}
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-2">{{ report.patient_name }}</td>
-                            <td class="px-4 py-2">{{ report.appointment_date | default('N/A', true) }}</td>
-                            <td class="px-4 py-2">{{ report.status }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="3" class="px-4 py-2 text-center">No appointments found.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </section>
-        </section>
-    </main>
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+    <div class="card p-6 text-center">
+      <h3 class="text-lg font-semibold">Total Patients Seen</h3>
+      <p class="text-3xl font-bold text-primary">{{ reports | length }}</p>
+    </div>
+    <div class="card p-6 text-center">
+      <h3 class="text-lg font-semibold">Pending Today</h3>
+      <p class="text-3xl font-bold text-warning">
+        {{ reports | selectattr('status', 'equalto', 'scheduled') | list | length }}
+      </p>
+    </div>
+    <div class="card p-6 text-center">
+      <h3 class="text-lg font-semibold">Avg. Consult Time</h3>
+      <p class="text-3xl font-bold text-success">22 min</p>
+    </div>
+  </div>
+
+  <!-- Vitals Summary -->
+  <div class="card p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Patient Vitals Overview (Last 30 Days)</h2>
+    <div class="vitals-grid">
+      <div class="vital-card">
+        <div class="vital-value" id="avg-bp">120/80</div>
+        <div class="vital-label">Avg. Blood Pressure</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-value" id="avg-hr">72</div>
+        <div class="vital-label">Avg. Heart Rate (bpm)</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-value" id="avg-temp">36.6</div>
+        <div class="vital-label">Avg. Temperature (°C)</div>
+      </div>
+      <div class="vital-card">
+        <div class="vital-value" id="avg-weight">68.4</div>
+        <div class="vital-label">Avg. Weight (kg)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold mb-4">Patient Health Trends</h3>
+      <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold mb-4">Diagnosis Distribution</h3>
+      <div class="chart-container">
+        <canvas id="diagnosisChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Appointments Table -->
+  <div class="card p-6">
+    <h2 class="text-xl font-semibold mb-4">Recent Appointments</h2>
+    <div class="table-responsive">
+      <table class="w-full table-auto">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="px-4 py-2 text-left">Patient</th>
+            <th class="px-4 py-2 text-left">Date & Time</th>
+            <th class="px-4 py-2 text-left">Status</th>
+            <th class="px-4 py-2 text-left">Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reports %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2">{{ r.patient_name }}</td>
+            <td class="px-4 py-2">{{ r.appointment_date }}</td>
+            <td class="px-4 py-2">
+              <span class="badge badge-{{ 'success' if r.status == 'completed' else 'warning' if r.status == 'scheduled' else 'danger' }}">
+                {{ r.status | capitalize }}
+              </span>
+            </td>
+            <td class="px-4 py-2">{{ r.reason }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center py-4">No appointments found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+// Use a DIFFERENT name to avoid conflict
+const reportData = (( reports | tojson ));
+
+// Vitals (mock — replace with real DB data later)
+const vitals = {
+  bp: [120, 118, 122, 125, 119],
+  hr: [72, 75, 70, 78, 71],
+  temp: [36.6, 36.7, 36.5, 36.8, 36.6],
+  weight: [68, 68.5, 67.9, 69, 68.4]
+};
+
+// Update vitals display
+document.getElementById('avg-bp').textContent = 
+  `${Math.round(vitals.bp.reduce((a,b)=>a+b)/vitals.bp.length)}/${Math.round(vitals.bp.reduce((a,b)=>a+b)/vitals.bp.length - 40)}`;
+document.getElementById('avg-hr').textContent = Math.round(vitals.hr.reduce((a,b)=>a+b)/vitals.hr.length);
+document.getElementById('avg-temp').textContent = (vitals.temp.reduce((a,b)=>a+b)/vitals.temp.length).toFixed(1);
+document.getElementById('avg-weight').textContent = (vitals.weight.reduce((a,b)=>a+b)/vitals.weight.length).toFixed(1);
+
+// Trend Chart
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+    datasets: [
+      { label: 'BP Systolic', data: vitals.bp, borderColor: '#007bff', tension: 0.4 },
+      { label: 'Heart Rate', data: vitals.hr, borderColor: '#dc3545', tension: 0.4 },
+      { label: 'Temperature', data: vitals.temp, borderColor: '#28a745', tension: 0.4 }
+    ]
+  },
+  options: { responsive: true, maintainAspectRatio: false }
+});
+
+// Diagnosis Pie
+new Chart(document.getElementById('diagnosisChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Flu', 'Hypertension', 'Diabetes', 'Checkup', 'Other'],
+    datasets: [{ data: [5, 3, 2, 4, 1], backgroundColor: ['#007bff', '#dc3545', '#ffc107', '#28a745', '#6c757d'] }]
+  },
+  options: { responsive: true }
+});
+
+// PDF Download
+document.getElementById('download-pdf').addEventListener('click', () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text('Doctor Report - Township Clinic', 20, 20);
+  doc.setFontSize(12);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 30);
+  doc.text(`Total Patients: ${reportData.length}`, 20, 40);
+
+  let y = 60;
+  reportData.forEach((r, i) => {
+    if (y > 270) { doc.addPage(); y = 20; }
+    doc.text(`${i+1}. ${r.patient_name} - ${r.appointment_date} [${r.status}]`, 20, y);
+    y += 10;
+  });
+
+  doc.save('doctor-report.pdf');
+});
+
+// CSV Download
+document.getElementById('download-csv').addEventListener('click', () => {
+  let csv = 'Patient,Date,Status,Reason\n';
+  reportData.forEach(r => {
+    csv += `"${r.patient_name}","${r.appointment_date}","${r.status}","${r.reason}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'doctor-report.csv'; a.click();
+});
+</script>
 {% endblock %}

@@ -96,7 +96,7 @@
             `;
             showAlert('success', msg);
             closeCreateModal();
-            setTimeout(() => location.reload(), 1500);
+            setTimeout(() => location.reload(), 3000);
           } else {
             showAlert('error', resp.message || 'Failed to create user');
           }
