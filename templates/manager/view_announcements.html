@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Doctor – Announcements{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-bullhorn"></i> Announcements</h1>
+    <p class="subtitle">Admin notices</p>
+</div>
+
+<div class="card">
+    {% if announcements %}
+        <ul class="announcement-list">
+            {% for a in announcements %}
+            <li class="announcement-item {% if a.pinned %}pinned{% endif %}">
+                <div class="announcement-header">
+                    <h3>{{ a.title }}</h3>
+                    <div class="meta">
+                        <span class="author">{{ a.author }}</span>
+                        <span class="timestamp">
+                            {{ a.timestamp.strftime('%Y-%m-%d %H:%M') if a.timestamp else '' }}
+                        </span>
+
+                        {% if a.category %}
+                            <span class="category badge">{{ a.category | capitalize }}</span>
+                        {% endif %}
+
+                        <!-- Target Role Badge -->
+                        <span class="target badge">
+                            {% if a.target_role == 'all' %}
+                                All Staff
+                            {% else %}
+                                {{ a.target_role | capitalize }}
+                            {% endif %}
+                        </span>
+
+                        {% if a.pinned %}
+                            <i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="announcement-body">
+                    <p>{{ a.message | nl2br | safe }}</p>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-bell-slash fa-3x"></i>
+            <p>No announcements for doctors at this time.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

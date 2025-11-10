@@ -75,7 +75,9 @@ def admin_required(f):
     return decorated_function
 
 # Load environment variables from .env file
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
+app.secret_key = os.getenv('SECRET_KEY')
+if not app.secret_key:
+    raise ValueError("SECRET_KEY not set in .env file!")
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -1915,14 +1917,15 @@ def nurse_prescribe_medication(patient_id):
 @csrf.exempt
 @app.route('/manage_users', methods=['GET', 'POST'])
 def manage_users():
-    if 'username' not in session or session.get('role') != 'admin':
+    if 'user_id' not in session or session.get('role') != 'admin':
         flash('Please log in as an admin to manage users.', 'error')
         return redirect(url_for('login_page'))
+    
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
+        user_details = get_user_details(conn, session['user_id'])
         if not user_details:
             flash('User details not found. Please log in again.', 'error')
             return redirect(url_for('login_page'))
@@ -1931,48 +1934,38 @@ def manage_users():
             action = request.form.get('action')
             staff_number = request.form.get('staff_number')
             if not staff_number:
-                flash('Staff number is required.', 'error')
-                return redirect(url_for('manage_users'))
+                return jsonify({'success': False, 'message': 'Staff number required'}), 400
             
             if action == 'delete':
                 c.execute("DELETE FROM employees WHERE staff_number = ? AND role != 'admin'", (staff_number,))
                 if c.rowcount > 0:
                     conn.commit()
-                    flash('User deleted successfully!', 'success')
+                    return jsonify({'success': True, 'message': 'User deleted'})
                 else:
-                    flash('User not found or cannot delete admin.', 'error')
+                    return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'}), 400
             elif action == 'update':
                 role = request.form.get('role')
-                if role not in ['doctor', 'nurse', 'receptionist']:
-                    flash('Invalid role selected.', 'error')
-                    return redirect(url_for('manage_users'))
+                if role not in ['doctor', 'nurse', 'receptionist', 'manager']:
+                    return jsonify({'success': False, 'message': 'Invalid role'}), 400
                 c.execute("UPDATE employees SET role = ? WHERE staff_number = ?", (role, staff_number))
                 if c.rowcount > 0:
                     conn.commit()
-                    flash('User role updated successfully!', 'success')
+                    return jsonify({'success': True, 'message': 'Role updated'})
                 else:
-                    flash('User not found.', 'error')
-            return redirect(url_for('manage_users'))
+                    return jsonify({'success': False, 'message': 'User not found'}), 400
+
+        # GET: List users
+        c.execute("SELECT staff_number, first_name, last_name, email, role FROM employees ORDER BY role, id")
+        employees = [dict(row) for row in c.fetchall()]
         
-        # Fetch all employees
-        c.execute("SELECT staff_number, first_name, last_name, email, role FROM employees ORDER BY id")
-        employees = [
-            {
-                'staff_number': row['staff_number'],
-                'first_name': row['first_name'],
-                'last_name': row['last_name'],
-                'email': row['email'],
-                'role': row['role']
-            } for row in c.fetchall()
-        ]
         return render_template('admin/manageUsers.html',
                               employees=employees,
                               user_details=user_details,
-                              username=session['username'])
-    except sqlite3.Error as e:
-        logger.error(f"Database error in manage_users: {e}")
-        flash('An error occurred while managing users.', 'error')
-        return redirect(url_for('admin_dashboard'))
+                              username=session.get('username', 'Admin'))
+
+    except Exception as e:
+        logger.error(f"manage_users error: {e}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
     finally:
         if conn:
             conn.close()
