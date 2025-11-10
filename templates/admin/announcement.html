@@ -10,6 +10,8 @@
 <!-- Create Form -->
 <div class="announcement-form">
     <form method="POST" id="announcement-form">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+
         <div class="form-group">
             <label for="title">Title</label>
             <input type="text" name="title" id="title" placeholder="e.g., Staff Meeting Tomorrow" required>
@@ -35,6 +37,7 @@
                 <option value="doctor">Doctors Only</option>
                 <option value="nurse">Nurses Only</option>
                 <option value="receptionist">Receptionists Only</option>
+                <option value="manager">Managers Only</option>
             </select>
         </div>
         <div class="form-group checkbox">
@@ -49,7 +52,6 @@
         <div id="preview-content" style="padding: 0.5rem 0;"></div>
     </div>
 </div>
-<!-- ^^^ FIXED: Closing </div> for .announcement-form ^^^ -->
 
 <!-- List -->
 <div class="card">
@@ -65,7 +67,11 @@
                     <span class="timestamp">{{ a.timestamp }}</span>
                     <span class="badge">{{ a.category | capitalize }}</span>
                     <span class="target-role">
-                        {% if a.target_role == 'all' %}All{% else %}{{ a.target_role | capitalize }}{% endif %}
+                        {% if a.target_role == 'all' %}
+                            All Staff
+                        {% else %}
+                            {{ a.target_role | capitalize }}{% if a.target_role == 'manager' %}s{% endif %} Only
+                        {% endif %}
                     </span>
                     {% if a.pinned %}<i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>{% endif %}
                 </div>
@@ -83,12 +89,45 @@
     </div>
     {% endif %}
 </div>
-<!-- ^^^ FIXED: {% endif %} now correctly closes the {% if announcements %} block ^^^ -->
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  {% if request.path == '/announcements' %}
-    <script src="{{ url_for('static', filename='js/admin.js') }}?v=1"></script>
-  {% endif %}
+  <script>
+    // Live Preview
+    const form = document.getElementById('announcement-form');
+    const previewCard = document.getElementById('preview-card');
+    const previewContent = document.getElementById('preview-content');
+
+    form.addEventListener('input', () => {
+      const title = document.getElementById('title').value || 'Untitled';
+      const message = document.getElementById('message').value || 'No message.';
+      const category = document.getElementById('category').value || 'general';
+      const target = document.getElementById('target_role').value;
+      const pinned = document.getElementById('pinned').checked;
+
+      let targetText = 'All Staff';
+      if (target !== 'all') {
+        targetText = target.charAt(0).toUpperCase() + target.slice(1) + (target === 'manager' ? 's' : 's') + ' Only';
+      }
+
+      previewContent.innerHTML = `
+        <div class="announcement-header">
+          <h3>${title}</h3>
+          <div class="announcement-meta">
+            <span class="author">You</span>
+            <span class="timestamp">Just now</span>
+            <span class="badge">${category.charAt(0).toUpperCase() + category.slice(1)}</span>
+            <span class="target-role">${targetText}</span>
+            ${pinned ? '<i class="fas fa-thumbtack pinned-icon" title="Pinned"></i>' : ''}
+          </div>
+        </div>
+        <div class="announcement-body">
+          <p>${message.replace(/\n/g, '<br>')}</p>
+        </div>
+      `;
+
+      previewCard.style.display = 'block';
+    });
+  </script>
 {% endblock %}

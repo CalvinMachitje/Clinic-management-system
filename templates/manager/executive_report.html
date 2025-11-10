@@ -48,40 +48,10 @@
 </a>
 {% endblock %}
 
+
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1"></script>
-<script>
-const data = (( report_data | tojson ));
-
-new Chart(document.getElementById('financeChart'), {
-  type: 'bar',
-  data: {
-    labels: data.months,
-    datasets: [
-      { label: 'Revenue', data: data.revenue, backgroundColor: '#28a745' },
-      { label: 'Expenses', data: data.expenses, backgroundColor: '#dc3545' }
-    ]
-  }
-});
-
-new Chart(document.getElementById('patientChart'), {
-  type: 'line',
-  data: {
-    labels: data.months,
-    datasets: [{ label: 'Patients', data: data.patients, borderColor: '#007bff', tension: 0.4 }]
-  }
-});
-
-document.getElementById('download-pdf').onclick = () => {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(18);
-  doc.text('Township Clinic - Executive Report', 20, 20);
-  doc.setFontSize(12);
-  doc.text(`Period: ${data.months[0]} - ${data.months[data.months.length-1]}`, 20, 30);
-  doc.text(`Total Revenue: R${data.revenue.reduce((a,b)=>a+b,0).toFixed(2)}`, 20, 40);
-  doc.save('executive-report.pdf');
-};
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1"></script>
+  <script src="{{ url_for('static', filename='js/manager.js') }}?v=1"></script>
+{% endblock %}
 {% endblock %}

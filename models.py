@@ -4,6 +4,9 @@
 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, BooleanField, HiddenField, SubmitField
+from wtforms.validators import DataRequired
 
 db = SQLAlchemy()
 
@@ -26,7 +29,11 @@ class Employee(db.Model):
     profile_image = db.Column(db.String(255), default='default.jpg')
     staff_number = db.Column(db.String(50), unique=True, nullable=False, default='TEMPSTAFF')
     specialization = db.Column(db.String(100))
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # ADD THIS LINE
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    
     # Relationships
     patients = db.relationship('Patient', backref='employee', lazy=True)
     appointments = db.relationship('Appointment', foreign_keys='Appointment.helper_id',

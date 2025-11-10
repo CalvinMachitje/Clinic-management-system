@@ -59,15 +59,7 @@
   </form>
 </dialog>
 
-<script>
-function reorder(id, qty) {
-  if (confirm(`Reorder ${qty} units?`)) {
-    fetch('/reorder_item', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, quantity: qty })
-    }).then(() => location.reload());
-  }
-}
-</script>
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/manager.js') }}?v=1"></script>
+{% endblock %}
 {% endblock %}

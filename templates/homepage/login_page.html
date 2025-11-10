@@ -9,6 +9,7 @@
     <h1>Login</h1>
     <form method="POST" action="">
         {{ form.hidden_tag() }}
+        {{ form.next() }}
         <div class="form-group">
             {{ form.username(id=form.username.id, class="form-control", placeholder="Staff Number or Email") }}
             {% for error in form.username.errors %}

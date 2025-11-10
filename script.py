@@ -1,36 +1,27 @@
-from flask import Flask, g, json, request, current_app, redirect, url_for, render_template, session, flash, Response, jsonify, abort
+from flask import Flask, g, json, request, current_app, redirect, url_for, render_template, session, flash, Response, jsonify, abort, stream_with_context
 from markupsafe import Markup
-import sqlite3
-import os
 from datetime import datetime, date, timedelta
 from flask.logging import create_logger
-import logging
 from werkzeug.utils import secure_filename
-import secrets
-import random
+import secrets, string, jinja2, traceback, csv, time, json, re, random, logging, os, sqlite3
 from models import db, Announcement
-import re
 from sqlalchemy import or_
-from markupsafe import Markup
-import json
+from collections import deque
+import threading
 from queue import Queue
 from threading import Lock
-import time
 from flask_caching import Cache
 from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
-import traceback
-import jinja2
 from flask_wtf import FlaskForm
-from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField
+from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-import csv
 from io import StringIO
 from flask import send_file
+from functools import wraps
 
 
 load_dotenv()
@@ -65,10 +56,29 @@ login_manager.login_view = 'login_page'
 login_manager.login_message = "Please log in to access this page."
 login_manager.login_message_category = "info"
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login_page', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash("You do not have permission to access this page.", "error")
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Load environment variables from .env file
-secret_key = os.urandom(24)
-app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
-app.permanent_session_lifetime = timedelta(days=7)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 csrf = CSRFProtect(app)
 
 # --- DATABASE: Auto-detect .env (PostgreSQL) or clinicinfo.db (SQLite) ---
@@ -100,10 +110,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 bcrypt = Bcrypt(app)
 db.init_app(app)
 
-# Create tables once (replaces the removed @before_first_request)
-with app.app_context():
-    db.create_all()
-
 # In-memory queues for notifications
 announcement_queue = Queue()
 appointment_queue = Queue()
@@ -117,42 +123,46 @@ def allowed_file(filename):
 # --- FIXED: App-context safe DB connection ---
 def get_db_connection():
     """
-    Returns a SQLite connection that works:
-      • Inside normal requests (via g)
-      • Inside SSE / background threads (via current_app)
+    Returns a SQLite connection:
+      • From g.db during requests
+      • Creates a new one in background threads / startup
     """
     if 'db' in g:
         return g.db
+
+    # Fallback: create a new connection (e.g., SSE, background tasks)
     try:
-        return current_app.get_db_connection()
-    except RuntimeError:
-        conn = sqlite3.connect('clinicinfo.db')
+        conn = sqlite3.connect('clinicinfo.db', check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
+    except Exception as e:
+        logger.error(f"Failed to create fallback DB connection: {e}")
+        raise
+# Set up g.db on request start
+@app.before_request
+def before_request():
+    g.db = get_db_connection()
     
-def admin_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            flash("You do not have permission to access this page.", "error")
-            return redirect(url_for('login_page'))
-        return f(*args, **kwargs)
-    return decorated_function    
+@app.before_request
+def generate_csrf():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(16)
+
+# Teardown
+@app.teardown_appcontext
+def teardown_db(e=None):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+# Optional: expose via current_app for legacy
+with app.app_context():
+    current_app.config['DB_CONNECTION'] = get_db_connection()  
 
 def close_db(e=None):
     db = g.pop('db', None)
     if db is not None:
-        db.close()
-        
-# --- ADD THIS: Proxy for current_app.get_db_connection() ---
-def _proxy_get_db_connection():
-    return get_db_connection()
-app.get_db_connection = _proxy_get_db_connection
-
-@app.teardown_appcontext
-def teardown_db(e=None):
-    close_db(e)        
+        db.close()      
 
 def get_user_details(conn, user_id):
     try:
@@ -203,14 +213,18 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Rebuild user from session
-    if 'user_id' in session and str(session['user_id']) == user_id:
-        return User(
-            id=session['user_id'],
-            username=session.get('username'),
-            role=session.get('role')
-        )
-    return None    
+    conn = get_db_connection()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT staff_number, role FROM employees WHERE staff_number = ?", (user_id,))
+        user = c.fetchone()
+        if user and session.get('user_id') == user['staff_number']:
+            return User(id=user['staff_number'], username=user['staff_number'], role=user['role'])
+    except:
+        pass
+    finally:
+        conn.close()
+    return None  
 
 @app.route('/')
 def default_page():
@@ -249,9 +263,10 @@ def contact():
 
 # Form Classes
 class LoginForm(FlaskForm):
-    username = StringField('Username (Staff Number or Email)', validators=[DataRequired()])
+    username = StringField('Username/Email', validators=[DataRequired()])
     password = PasswordField('Password', validators=[DataRequired()])
     remember = BooleanField('Remember Me')
+    next = HiddenField()  # ← ADD THIS
     submit = SubmitField('Login')
 
 class RegisterForm(FlaskForm):
@@ -313,9 +328,10 @@ def nl2br_filter(value):
 def login_page():
     form = LoginForm()
     if form.validate_on_submit():
-        username_input = form.username.data.strip()  # Renamed to avoid conflict with 'user'
+        username_input = form.username.data.strip()
         password = form.password.data
         remember = form.remember.data
+
         if not all([username_input, password]):
             flash('Both username and password are required.', 'error')
             return render_template('homepage/login_page.html', form=form)
@@ -324,39 +340,62 @@ def login_page():
         try:
             conn = get_db_connection()
             c = conn.cursor()
-            c.execute("SELECT * FROM employees WHERE staff_number = ? OR email = ?", (username_input, username_input))
-            user = c.fetchone()  # 'user' is defined here from DB query
+            c.execute("""
+                SELECT staff_number, password, role, first_name, last_name, active 
+                FROM employees 
+                WHERE (staff_number = ? OR email = ?) AND active = 1
+            """, (username_input, username_input))
+            user = c.fetchone()
 
             if user and bcrypt.check_password_hash(user['password'], password):
+                session.clear()
+                session.permanent = True
+                session.modified = True
+
                 session['user_id'] = user['staff_number']
-                session['username'] = user['staff_number']  # Or f"{user['first_name']} {user['last_name']}" for full name
+                session['staff_number'] = user['staff_number']        # ← CRITICAL FIX
+                session['username'] = f"{user['first_name']} {user['last_name']}"  # ← display name
                 session['role'] = user['role']
                 session['login_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S SAST')
-                session.permanent = remember
-                print(f"Session after login: {session}")  # Debug print
-                flash('Login successful!', 'success')
-                
-                # FIXED: Redirect based on role (moved inside success block)
-                role = user['role']
-                if role == 'receptionist':
-                    return redirect(url_for('reception_dashboard'))
-                elif role == 'admin':
-                    return redirect(url_for('admin_dashboard'))
-                elif role == 'doctor':
-                    return redirect(url_for('doctor_dashboard'))
-                elif role == 'nurse':
-                    return redirect(url_for('nurse_dashboard'))
+
+                if remember:
+                    app.permanent_session_lifetime = timedelta(days=30)
                 else:
-                    flash('Unknown role. Please contact admin.', 'error')
+                    app.permanent_session_lifetime = timedelta(hours=8)
+
+                flash('Login successful!', 'success')
+                logger.info(f"User {user['staff_number']} ({user['role']}) logged in.")
+
+                role = user['role'].lower()
+                redirect_map = {
+                    'receptionist': 'reception_dashboard',
+                    'admin': 'admin_dashboard',
+                    'doctor': 'doctor_dashboard',
+                    'nurse': 'nurse_dashboard',
+                    'manager': 'manager_dashboard'
+                }
+                endpoint = redirect_map.get(role)
+                if endpoint:
+                    return redirect(url_for(endpoint))
+                else:
+                    flash('Unknown role. Contact admin.', 'error')
                     return redirect(url_for('default_page'))
+
             else:
-                flash('Invalid username or password.', 'error')
+                flash('Invalid username, password, or account inactive.', 'error')
+                logger.warning(f"Failed login: {username_input}")
+
         except Exception as e:
             logger.error(f"Login error: {e}")
-            flash(f'An error occurred: {str(e)}', 'error')
+            flash('Login failed. Try again.', 'error')
         finally:
             if conn:
                 conn.close()
+
+    next_page = request.args.get('next')
+    if next_page and next_page.startswith('/'):
+        form.next.data = next_page
+
     return render_template('homepage/login_page.html', form=form)
 
 # --------------------------------------------------------------
@@ -364,59 +403,83 @@ def login_page():
 # --------------------------------------------------------------
 @app.route('/create_user', methods=['POST'])
 def create_user():
+    # Only admin can create users
     if session.get('role') != 'admin':
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
-    # Flask-WTF automatically validates csrf_token if in form
+    # CSRF protection
     if not request.form.get('csrf_token'):
         return jsonify({'success': False, 'message': 'CSRF token missing'}), 403
 
     data = request.form
     first_name = data.get('first_name', '').strip()
     last_name = data.get('last_name', '').strip()
-    email = data.get('email', '').strip()
+    email = data.get('email', '').strip().lower()
     role = data.get('role')
 
+    # === VALIDATION ===
     if not all([first_name, last_name, email, role]):
-        return jsonify({'success': False, 'message': 'All fields required'}), 400
+        return jsonify({'success': False, 'message': 'All fields are required'}), 400
 
-    if role not in ['doctor', 'nurse', 'receptionist']:
+    # Allow 'manager' in valid roles
+    valid_roles = ['doctor', 'nurse', 'receptionist', 'manager']
+    if role not in valid_roles:
         return jsonify({'success': False, 'message': 'Invalid role'}), 400
 
     conn = get_db_connection()
+    c = conn.cursor()
+
     try:
-        c = conn.cursor()
+        # Check if email already exists
         c.execute("SELECT id FROM employees WHERE email = ?", (email,))
         if c.fetchone():
-            return jsonify({'success': False, 'message': 'Email already exists'}), 400
+            return jsonify({'success': False, 'message': 'Email already in use'}), 400
 
-        c.execute("SELECT MAX(id) AS max_id FROM employees")
-        max_id = c.fetchone()['max_id'] or 0
-        staff_number = f"STAFF{str(max_id + 1).zfill(3)}"
-        temp_password = "Temp123!"
-        hashed = bcrypt.generate_password_hash(temp_password).decode('utf-8')
+        # Generate staff number
+        c.execute("SELECT MAX(CAST(SUBSTR(staff_number, 6) AS INTEGER)) FROM employees WHERE staff_number GLOB 'STAFF[0-9][0-9][0-9]'")
+        max_num = c.fetchone()[0] or 0
+        staff_number = f"STAFF{str(max_num + 1).zfill(3)}"
 
+        # GENERATE RANDOM 10-CHAR PASSWORD
+        alphabet = string.ascii_letters + string.digits
+        temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
+        hashed_password = bcrypt.generate_password_hash(temp_password).decode('utf-8')
+
+        # Insert new user
         c.execute('''
             INSERT INTO employees 
-            (staff_number, first_name, last_name, email, password, role, availability, profile_image)
-            VALUES (?, ?, ?, ?, ?, ?, 'available', 'default.jpg')
-        ''', (staff_number, first_name, last_name, email, hashed, role))
+            (staff_number, first_name, last_name, email, password, role, 
+             availability, profile_image, active)
+            VALUES (?, ?, ?, ?, ?, ?, 'available', 'default.jpg', ?)
+        ''', (staff_number, first_name, last_name, email, hashed_password, role, 1))
+
         conn.commit()
 
+        # Audit log
         c.execute('''
             INSERT INTO audit_log (action, performed_by, target_user, details, timestamp)
             VALUES (?, ?, ?, ?, datetime('now'))
-        ''', ('create_user', session['username'], staff_number, f"Temp: {staff_number}/{temp_password}"))
+        ''', (
+            'create_user',
+            session['username'],
+            staff_number,
+            f"Created {role}: {staff_number} | Temp: {temp_password}"
+        ))
         conn.commit()
+
+        logger.info(f"Admin {session['username']} created {role}: {staff_number}")
 
         return jsonify({
             'success': True,
             'staff_number': staff_number,
-            'temp_password': temp_password
+            'temp_password': temp_password,
+            'message': f'{role.capitalize()} created successfully! Password: {temp_password}'
         })
+
     except Exception as e:
         logger.error(f"Create user error: {e}")
-        return jsonify({'success': False, 'message': 'Database error'}), 500
+        conn.rollback()
+        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
     finally:
         conn.close()
 
@@ -515,12 +578,16 @@ def cancel_appointment():
     conn.close()
     return redirect(url_for('reception_dashboard'))
 
-@csrf.exempt
 @app.route('/assign_staff', methods=['POST'])
 def assign_staff():
-    if 'user_id' not in session or session.get('role') != 'receptionist':
+    if session.get('role') != 'receptionist':
         return redirect(url_for('login_page'))
     
+    # CSRF check
+    if not request.form.get('csrf_token') or request.form.get('csrf_token') != session.get('csrf_token'):
+        flash('Invalid CSRF token.', 'error')
+        return redirect(url_for('reception_dashboard'))
+
     appointment_id = request.form.get('appointment_id')
     staff_id = request.form.get('staff_id')
     if not all([appointment_id, staff_id]):
@@ -918,72 +985,94 @@ def api_get_queue():
 # --------------------------------------------------------------
 @csrf.exempt
 @app.route('/check_in_desk', methods=['POST'])
-def add_walkin_smart():
+def check_in_desk():  # ← Rename from add_walkin_smart to match JS
     if session.get('role') != 'receptionist':
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
     data = request.form
     action = data.get('action')
 
-    # ────── ADD EXISTING PATIENT TO QUEUE ──────
-    if action == 'add_to_queue':
-        patient_id = data.get('patient_id')
-        priority = data.get('priority')
-        reason = data.get('reason', '')
+    conn = get_db_connection()
+    c = conn.cursor()
 
-        if not patient_id or not priority:
-            return jsonify({'success': False, 'message': 'Patient and priority required'}), 400
+    try:
+        # ────── ADD EXISTING PATIENT TO QUEUE ──────
+        if action == 'add_to_queue':
+            patient_id = data.get('patient_id')
+            priority = data.get('priority')
+            reason = data.get('reason', '')
 
-        conn = get_db_connection()
-        try:
-            c = conn.cursor()
-            c.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
-            if not c.fetchone():
+            if not patient_id or not priority:
+                return jsonify({'success': False, 'message': 'Patient and priority required'}), 400
+
+            c.execute("SELECT id, first_name, last_name FROM patients WHERE id = ?", (patient_id,))
+            patient = c.fetchone()
+            if not patient:
                 return jsonify({'success': False, 'message': 'Patient not found'}), 404
 
             c.execute('''
-                INSERT INTO walkin_queue (patient_id, patient_name, priority, reason)
-                VALUES (?, (SELECT first_name || ' ' || last_name FROM patients WHERE id = ?), ?, ?)
-            ''', (patient_id, patient_id, priority, reason))
+                INSERT INTO walkin_queue (patient_id, patient_name, priority, reason, arrived_at)
+                VALUES (?, ?, ?, ?, DATETIME('now'))
+            ''', (patient_id, f"{patient[1]} {patient[2]}", priority, reason))
+            queue_id = c.lastrowid
             conn.commit()
-            return jsonify({'success': True, 'message': 'Added to queue'})
-        finally:
-            conn.close()
 
-    # ────── REGISTER NEW PATIENT ──────
-    elif action == 'register_patient':
-        first_name = data.get('first_name')
-        last_name = data.get('last_name')
-        phone = data.get('phone')
-        email = data.get('email', '')
+            return jsonify({
+                'success': True,
+                'message': 'Added to queue',
+                'patient': {
+                    'id': queue_id,
+                    'name': f"{patient[1]} {patient[2]}",
+                    'priority': priority,
+                    'reason': reason,
+                    'arrivedAt': datetime.now().isoformat()
+                }
+            })
 
-        if not all([first_name, last_name, phone]):
-            return jsonify({'success': False, 'message': 'Name and phone required'}), 400
+        # ────── REGISTER NEW PATIENT + ADD TO QUEUE ──────
+        elif action == 'register_patient':
+            first_name = data.get('first_name')
+            last_name = data.get('last_name')
+            phone = data.get('phone')
+            email = data.get('email', '')
 
-        conn = get_db_connection()
-        try:
-            c = conn.cursor()
+            if not all([first_name, last_name, phone]):
+                return jsonify({'success': False, 'message': 'Name and phone required'}), 400
+
             c.execute('''
                 INSERT INTO patients (first_name, last_name, phone, email)
                 VALUES (?, ?, ?, ?)
             ''', (first_name, last_name, phone, email))
             patient_id = c.lastrowid
-            conn.commit()
 
-            # Auto-add to queue
             priority = data.get('priority', 'low')
             reason = data.get('reason', '')
             c.execute('''
-                INSERT INTO walkin_queue (patient_id, patient_name, priority, reason)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO walkin_queue (patient_id, patient_name, priority, reason, arrived_at)
+                VALUES (?, ?, ?, ?, DATETIME('now'))
             ''', (patient_id, f"{first_name} {last_name}", priority, reason))
+            queue_id = c.lastrowid
             conn.commit()
 
-            return jsonify({'success': True, 'message': 'Registered & added to queue'})
-        finally:
-            conn.close()
+            return jsonify({
+                'success': True,
+                'message': 'Registered & added to queue',
+                'patient': {
+                    'id': queue_id,
+                    'name': f"{first_name} {last_name}",
+                    'priority': priority,
+                    'reason': reason,
+                    'arrivedAt': datetime.now().isoformat()
+                }
+            })
 
-    return jsonify({'success': False, 'message': 'Invalid action'}), 400
+        return jsonify({'success': False, 'message': 'Invalid action'}), 400
+
+    except Exception as e:
+        app.logger.error(f"Error in check_in_desk: {e}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+    finally:
+        conn.close()
 
 # --------------------------------------------------------------
 # POST: Call Next Patient
@@ -1892,7 +1981,10 @@ def manage_users():
 @app.route('/manager_dashboard')
 @login_required
 def manager_dashboard():
-    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    if session.get('role') != 'manager':
+        flash("Access denied.", "error")
+        return redirect(url_for('login_page'))
+
     conn = get_db_connection()
     c = conn.cursor()
 
@@ -2051,8 +2143,6 @@ def get_schedule():
     conn.close()
     return jsonify(events)
 
-from datetime import datetime, timedelta
-
 @app.route('/save_shift', methods=['POST'])
 @login_required
 def save_shift():
@@ -2158,6 +2248,115 @@ def update_shift_date():
     conn.commit()
     conn.close()
     return '', 204
+
+# --- API: Staff List ---
+@app.route('/api/staff_list')
+def staff_list():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT staff_number, first_name, last_name, role FROM employees WHERE active = 1")
+    staff = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return jsonify(staff)
+
+# --- Manager: Send Message ---
+@app.route('/manager_send_message', methods=['POST'])
+@login_required
+def manager_send_message():
+    if session.get('role') != 'manager':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
+    if not request.form.get('csrf_token') or request.form.get('csrf_token') != session.get('csrf_token'):
+        return jsonify({'success': False, 'message': 'Invalid CSRF'}), 403
+
+    msg_type = request.form.get('msg_type', 'announcement')
+    title = request.form.get('title', '').strip()
+    message = request.form.get('message', '').strip()
+    pinned = 'pinned' in request.form
+
+    if not message:
+        return jsonify({'success': False, 'message': 'Message required'}), 400
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    try:
+        if msg_type == 'announcement':
+            target_role = request.form.get('target_role')
+            if target_role not in ['all', 'doctor', 'nurse', 'receptionist']:
+                return jsonify({'success': False, 'message': 'Invalid role'}), 400
+
+            c.execute('''
+                INSERT INTO announcements 
+                (title, message, author, target_role, pinned, category, timestamp)
+                VALUES (?, ?, ?, ?, ?, 'general', datetime('now'))
+            ''', (title or 'Announcement', message, session['username'], target_role, pinned))
+            
+            target_text = 'All Staff' if target_role == 'all' else f"{target_role.capitalize()}s"
+
+        else:  # direct message
+            target_user = request.form.get('target_user')
+            if not target_user:
+                return jsonify({'success': False, 'message': 'Select recipient'}), 400
+
+            c.execute('''
+                INSERT INTO direct_messages 
+                (sender_id, recipient_id, message, timestamp)
+                VALUES (?, ?, ?, datetime('now'))
+            ''', (session['user_id'], target_user, message))
+
+            c.execute("SELECT first_name, last_name FROM employees WHERE staff_number = ?", (target_user,))
+            user = c.fetchone()
+            target_text = f"{user['first_name']} {user['last_name']}" if user else "User"
+
+        conn.commit()
+
+        # Broadcast via SSE
+        msg_data = {
+            'title': title or 'Direct Message',
+            'message': message,
+            'author': session['username'],
+            'target_role': target_role if msg_type == 'announcement' else None,
+            'target_user': target_user if msg_type == 'direct' else None,
+            'target_text': target_text,
+            'pinned': pinned and msg_type == 'announcement',
+            'category': 'general'
+        }
+        broadcast_message(msg_data)
+
+        return jsonify({'success': True, 'message': 'Sent!'})
+
+    except Exception as e:
+        conn.rollback()
+        app.logger.error(f"Send message error: {e}")
+        return jsonify({'success': False, 'message': 'Failed'}), 500
+    finally:
+        conn.close()
+
+clients = set()
+message_queue = deque()
+lock = threading.Lock()
+
+@app.route('/stream_messages')
+def stream_messages():
+    def event_stream():
+        client_id = request.remote_addr
+        with lock:
+            clients.add(client_id)
+        try:
+            while True:
+                if message_queue:
+                    msg = message_queue.popleft()
+                    yield f"data: {json.dumps(msg)}\n\n"
+        except GeneratorExit:
+            with lock:
+                clients.discard(client_id)
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+
+def broadcast_message(msg):
+    with lock:
+        message_queue.append(msg)
+
 #--------------------------------------------------------------------------------------------------------
 
 @app.route('/change_theme', methods=['POST'])
@@ -2447,6 +2646,11 @@ def view_emergency_requests():
         if conn:
             conn.close()
             
+import os
+from werkzeug.utils import secure_filename
+
+# ... your other imports ...
+
 @app.route('/edit_profile', methods=['GET', 'POST'])
 def edit_profile():
     if 'user_id' not in session:
@@ -2456,46 +2660,95 @@ def edit_profile():
     cursor = conn.cursor()
 
     # Fetch current employee data
-    cursor.execute("SELECT id, staff_number, first_name, last_name, email, role, availability, specialization FROM employees WHERE id = ?", (session['user_id'],))
+    cursor.execute("""
+        SELECT id, staff_number, first_name, last_name, email, role, 
+               availability, specialization, phone, profile_image 
+        FROM employees 
+        WHERE id = ?
+    """, (session['user_id'],))
     employee = cursor.fetchone()
     if not employee:
         conn.close()
         return "Employee not found", 404
 
-    employee = {
-        'id': employee['id'], 'staff_number': employee['staff_number'],
-        'first_name': employee['first_name'], 'last_name': employee['last_name'],
-        'email': employee['email'], 'role': employee['role'],
-        'availability': employee['availability'], 'specialization': employee['specialization'] or ''
-    }
+    employee = dict(employee)
+    employee['specialization'] = employee['specialization'] or ''
 
     if request.method == 'POST':
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
         email = request.form.get('email')
+        phone = request.form.get('phone')  # ← NEW
         availability = request.form.get('availability')
         specialization = request.form.get('specialization') if employee['role'] == 'doctor' else None
-        profile_picture = request.files.get('profile_picture')
+        new_password = request.form.get('new_password')  # ← NEW
+        confirm_password = request.form.get('confirm_password')  # ← NEW
+        profile_picture = request.files.get('profile_picture')  # ← NEW
+
+        # === VALIDATION ===
+        if not all([first_name, last_name, email]):
+            return jsonify({'success': False, 'message': 'Name and email are required'}), 400
+
+        if new_password:
+            if new_password != confirm_password:
+                return jsonify({'success': False, 'message': 'Passwords do not match'}), 400
+            if len(new_password) < 6:
+                return jsonify({'success': False, 'message': 'Password must be at least 6 characters'}), 400
 
         try:
-            # Update employee details
-            update_query = """
-                UPDATE employees SET first_name = ?, last_name = ?, email = ?, availability = ?, specialization = ?
-                WHERE id = ?
-            """
-            cursor.execute(update_query, (first_name, last_name, email, availability, specialization, session['user_id']))
-            
-            # Handle profile picture upload
+            # Build dynamic update fields
+            update_fields = []
+            update_values = []
+
+            update_fields.append("first_name = ?")
+            update_values.append(first_name)
+
+            update_fields.append("last_name = ?")
+            update_values.append(last_name)
+
+            update_fields.append("email = ?")
+            update_values.append(email)
+
+            update_fields.append("phone = ?")
+            update_values.append(phone or None)
+
+            update_fields.append("availability = ?")
+            update_values.append(availability)
+
+            if employee['role'] == 'doctor':
+                update_fields.append("specialization = ?")
+                update_values.append(specialization)
+
+            # Handle password update
+            if new_password:
+                hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                update_fields.append("password = ?")
+                update_values.append(hashed)
+
+            # Handle profile picture
+            profile_image_path = employee['profile_image']
             if profile_picture and profile_picture.filename:
-                filename = f"profile_{session['user_id']}{os.path.splitext(profile_picture.filename)[1]}"
-                profile_picture.save(os.path.join(app.static_folder, 'uploads', filename))
-                # Optionally update a profile_picture field if added to the schema
+                filename = secure_filename(f"profile_{session['user_id']}_{profile_picture.filename}")
+                upload_path = os.path.join(app.static_folder, 'uploads', filename)
+                os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+                profile_picture.save(upload_path)
+                profile_image_path = f"uploads/{filename}"
+                update_fields.append("profile_image = ?")
+                update_values.append(profile_image_path)
+
+            # Final query
+            update_query = f"UPDATE employees SET {', '.join(update_fields)} WHERE id = ?"
+            update_values.append(session['user_id'])
+
+            cursor.execute(update_query, update_values)
 
             conn.commit()
             return jsonify({'success': True, 'message': 'Profile updated successfully!'})
+
         except Exception as e:
             conn.rollback()
-            return jsonify({'success': False, 'message': f'Error updating profile: {str(e)}'})
+            app.logger.error(f"Profile update error: {e}")
+            return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
         finally:
             conn.close()
 
@@ -2551,19 +2804,46 @@ def logout():
         flash('You have been logged out.', 'success')
     return redirect(url_for('login_page'))
 
-# Run the Flask app
-if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    if init_db():
-        print("Starting Flask application")
-        app.run(debug=True)
-    else:
-        print("Failed to initialize database. Application not started.")
-        
-# At the bottom of script.py
+def upgrade_database():
+    """
+    Safely adds missing columns (like 'active') without dropping data.
+    Only runs if column doesn't exist.
+    """
+    import sqlite3
+    conn = sqlite3.connect('clinicinfo.db')
+    c = conn.cursor()
+
+    # Check for 'active' column
+    c.execute("PRAGMA table_info(employees)")
+    columns = [row[1] for row in c.fetchall()]
+
+    if 'active' not in columns:
+        print("Adding missing 'active' column to employees table...")
+        c.execute("""
+            ALTER TABLE employees 
+            ADD COLUMN active BOOLEAN NOT NULL DEFAULT 1
+        """)
+        print("'active' column added. All existing users set to active.")
+    
+    conn.commit()
+    conn.close()
+
+# Call it on startup
+with app.app_context():
+    upgrade_database()
+    print("Database ready.")
+    
 with app.app_context():
     try:
         db.create_all()  # Only creates missing tables
         print("Tables checked/created.")
     except Exception as e:
-        print(f"DB Error: {e}")        
+        print(f"DB Error: {e}")     
+
+# Run the Flask app
+if __name__ == '__main__':
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    with app.app_context():
+        db.create_all()
+        print("Database tables ready.")
+    app.run(debug=True, threaded=True)
