@@ -3,64 +3,69 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>Manage Staff</h1>
-  <button class="btn btn-primary" onclick="openModal('addStaffModal')">Add New Staff</button>
+    <h1>Manage Staff</h1>
+    <p class="subtitle">View and edit non-administrative staff</p>
 </div>
 
 <div class="card">
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Role</th>
-        <th>Email</th>
-        <th>Status</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in staff %}
-      <tr>
-        <td>{{ s.first_name }} {{ s.last_name }}</td>
-        <td><span class="badge">{{ s.role | capitalize }}</span></td>
-        <td>{{ s.email }}</td>
-        <td><span class="badge badge-{{ 'success' if s.active else 'danger' }}">{{ 'Active' if s.active else 'Inactive' }}</span></td>
-        <td>
-          <button class="btn btn-sm btn-secondary">Edit</button>
-          <button class="btn btn-sm btn-danger">Deactivate</button>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <div class="table-container">
+        <table class="table table-striped" id="staff-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in staff %}
+                <tr data-id="{{ emp.id }}">
+                    <td>{{ emp.first_name }} {{ emp.last_name }}</td>
+                    <td>
+                        <span class="badge badge-{{ 'primary' if emp.role == 'doctor' else 'info' if emp.role == 'nurse' else 'secondary' }}">
+                            {{ emp.role | capitalize }}
+                        </span>
+                    </td>
+                    <td>{{ emp.email or '—' }}</td>
+                    <td>{{ emp.phone or '—' }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editStaff((( emp.id )))">
+                            Edit
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<!-- Add Staff Modal -->
-<dialog id="addStaffModal">
-  <form method="dialog">
-    <h3>Add Staff Member</h3>
-    <div class="form-group">
-      <label>First Name</label>
-      <input type="text" name="first_name" required>
-    </div>
-    <div class="form-group">
-      <label>Last Name</label>
-      <input type="text" name="last_name" required>
-    </div>
-    <div class="form-group">
-      <label>Email</label>
-      <input type="email" name="email" required>
-    </div>
-    <div class="form-group">
-      <label>Role</label>
-      <select name="role">
-        <option value="doctor">Doctor</option>
-        <option value="nurse">Nurse</option>
-        <option value="receptionist">Receptionist</option>
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">Add</button>
-    <button type="button" onclick="closeModal('addStaffModal')" class="btn btn-secondary">Cancel</button>
-  </form>
+<dialog id="editStaffModal" class="modal-dialog">
+    <form id="editStaffForm">
+        <h3>Edit Staff Member</h3>
+        <input type="hidden" id="edit_staff_id">
+        <div class="form-group">
+            <label>First Name</label>
+            <input type="text" id="edit_first_name" required>
+        </div>
+        <div class="form-group">
+            <label>Last Name</label>
+            <input type="text" id="edit_last_name" required>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="edit_email">
+        </div>
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="text" id="edit_phone">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" onclick="closeModal('editStaffModal')" class="btn btn-secondary">Cancel</button>
+        </div>
+    </form>
 </dialog>
 {% endblock %}

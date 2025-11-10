@@ -334,3 +334,102 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   };
 });
+
+// manager.js - All Manager Module Scripts
+document.addEventListener('DOMContentLoaded', function () {
+    initCalendar();
+    initStaffEdit();
+});
+
+// FullCalendar
+function initCalendar() {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) return;
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        events: '/api/schedule',
+        eventClick: function(info) {
+            openShiftModal(info.event);
+        },
+        selectable: true,
+        select: function(info) {
+            document.getElementById('shift_date').value = info.startStr;
+            openModal('shiftModal');
+        }
+    });
+    calendar.render();
+
+    // Export Buttons
+    document.getElementById('export-pdf')?.addEventListener('click', () => exportCalendar('pdf'));
+    document.getElementById('export-csv')?.addEventListener('click', () => exportCalendar('csv'));
+}
+
+function openShiftModal(event) {
+    document.getElementById('eventId').value = event.id || '';
+    document.getElementById('shift_date').value = event.startStr;
+    document.getElementById('shift_type').value = event.extendedProps.shift || 'morning';
+    document.getElementById('notes').value = event.extendedProps.notes || '';
+    openModal('shiftModal');
+}
+
+function exportCalendar(format) {
+    if (format === 'pdf') {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text('Staff Schedule', 14, 15);
+        doc.save('schedule.pdf');
+    }
+}
+
+// Staff Edit
+function initStaffEdit() {
+    const form = document.getElementById('editStaffForm');
+    if (!form) return;
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit_staff_id').value;
+        const data = {
+            first_name: document.getElementById('edit_first_name').value,
+            last_name: document.getElementById('edit_last_name').value,
+            email: document.getElementById('edit_email').value,
+            phone: document.getElementById('edit_phone').value
+        };
+
+        await fetch(`/api/staff/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        closeModal('editStaffModal');
+        location.reload();
+    };
+}
+
+function editStaff(id) {
+    fetch(`/api/staff/${id}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('edit_staff_id').value = data.id;
+            document.getElementById('edit_first_name').value = data.first_name;
+            document.getElementById('edit_last_name').value = data.last_name;
+            document.getElementById('edit_email').value = data.email || '';
+            document.getElementById('edit_phone').value = data.phone || '';
+            openModal('editStaffModal');
+        });
+}
+
+// Modal Helpers
+function openModal(id) {
+    document.getElementById(id).showModal();
+}
+
+function closeModal(id) {
+    document.getElementById(id).close();
+}

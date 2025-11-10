@@ -343,7 +343,7 @@ def login_page():
             conn = get_db_connection()
             c = conn.cursor()
             c.execute("""
-                SELECT staff_number, password, role, first_name, last_name, active 
+                SELECT staff_number, password, role, first_name, last_name, active, profile_image 
                 FROM employees 
                 WHERE (staff_number = ? OR email = ?) AND active = 1
             """, (username_input, username_input))
@@ -355,10 +355,11 @@ def login_page():
                 session.modified = True
 
                 session['user_id'] = user['staff_number']
-                session['staff_number'] = user['staff_number']        # ← CRITICAL FIX
-                session['username'] = f"{user['first_name']} {user['last_name']}"  # ← display name
+                session['staff_number'] = user['staff_number']
+                session['username'] = f"{user['first_name']} {user['last_name']}"
                 session['role'] = user['role']
                 session['login_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S SAST')
+                session['profile_image'] = user['profile_image'] or 'profile_images/user.png'  # ADD THIS LINE
 
                 if remember:
                     app.permanent_session_lifetime = timedelta(days=30)
@@ -393,6 +394,8 @@ def login_page():
         finally:
             if conn:
                 conn.close()
+
+    return render_template('homepage/login_page.html', form=form)
 
     next_page = request.args.get('next')
     if next_page and next_page.startswith('/'):
@@ -1981,24 +1984,34 @@ def manager_dashboard():
     conn = get_db_connection()
     c = conn.cursor()
 
-    c.execute("SELECT COUNT(*) FROM employees WHERE active = 1")
-    total_staff = c.fetchone()[0]
+    try:
+        c.execute("SELECT COUNT(*) FROM employees WHERE active = 1")
+        total_staff = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM appointments WHERE DATE(appointment_date) = DATE('now')")
-    patients_today = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM appointments WHERE DATE(appointment_date) = DATE('now')")
+        patients_today = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock")
-    low_stock = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock")
+        low_stock = c.fetchone()[0]
 
-    c.execute("SELECT COALESCE(SUM(cost), 0) FROM billing WHERE strftime('%Y-%m', billing_date) = strftime('%Y-%m', 'now')")
-    revenue_mtd = c.fetchone()[0] or 0.0
+        # SAFE: Use 0 if billing table empty or missing
+        c.execute("SELECT COALESCE(SUM(cost), 0) FROM billing WHERE strftime('%Y-%m', billing_date) = strftime('%Y-%m', 'now')")
+        revenue_mtd = c.fetchone()[0] or 0.0
 
-    c.execute("""
-        SELECT t.*, e.first_name || ' ' || e.last_name as assigned_name
-        FROM tasks t LEFT JOIN employees e ON t.assigned_to = e.id
-        WHERE t.status = 'pending' ORDER BY t.priority DESC LIMIT 5
-    """)
-    tasks = [dict(row) for row in c.fetchall()]
+        c.execute("""
+            SELECT t.*, e.first_name || ' ' || e.last_name as assigned_name
+            FROM tasks t LEFT JOIN employees e ON t.assigned_to = e.id
+            WHERE t.status = 'pending' ORDER BY t.priority DESC LIMIT 5
+        """)
+        tasks = [dict(row) for row in c.fetchall()]
+
+    except sqlite3.OperationalError as e:
+        if 'no such table' in str(e):
+            total_staff = patients_today = low_stock = 0
+            revenue_mtd = 0.0
+            tasks = []
+        else:
+            raise
 
     conn.close()
     return render_template('manager/dashboard.html',
@@ -2073,10 +2086,18 @@ def executive_report():
 @app.route('/manage_staff')
 @login_required
 def manage_staff():
-    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    if session.get('role') != 'manager':
+        flash("Access denied.", "error. error")
+        return redirect(url_for('login_page'))
+
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT id, first_name, last_name, email, role, active FROM employees ORDER BY role")
+    c.execute("""
+        SELECT id, first_name, last_name, role, email, phone
+        FROM employees 
+        WHERE role NOT IN ('admin', 'manager') AND active = 1
+        ORDER BY first_name
+    """)
     staff = [dict(row) for row in c.fetchall()]
     conn.close()
     return render_template('manager/manage_staff.html', staff=staff)
@@ -2085,19 +2106,22 @@ def manage_staff():
 @login_required
 def manager_announcements():
     if session.get('role') != 'manager': return redirect(url_for('login_page'))
-    return render_template('manager/announcements.html')
-
-@app.route('/download_guide')
-def download_guide():
-    return send_file('static/guide/conversation_guide.pdf', as_attachment=True)
+    return render_template('manager/view_announcements.html')
 
 @app.route('/staff_schedule')
 @login_required
 def staff_schedule():
-    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    if session.get('role') != 'manager':
+        flash("Access denied.", "error")
+        return redirect(url_for('login_page'))
+
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT id, first_name, last_name, role FROM employees WHERE active = 1 ORDER BY role, first_name")
+    c.execute("""
+        SELECT id, first_name, last_name, role 
+        FROM employees 
+        WHERE role NOT IN ('admin', 'manager') AND active = 1
+    """)
     staff = [dict(row) for row in c.fetchall()]
     conn.close()
     return render_template('manager/staff_schedule.html', staff=staff)
@@ -2349,6 +2373,19 @@ def stream_messages():
 def broadcast_message(msg):
     with lock:
         message_queue.append(msg)
+
+@app.route('/download_guide')
+@login_required
+def download_guide():
+    try:
+        return send_file(
+            'static/guide/conversation_guide.pdf',
+            as_attachment=True,
+            download_name='ClinicCare_Guide_2025.pdf'
+        )
+    except FileNotFoundError:
+        flash("Guide not found. Please contact admin.", "error")
+        return redirect(url_for('manager_dashboard'))
 
 #--------------------------------------------------------------------------------------------------------
 
@@ -2639,89 +2676,68 @@ def view_emergency_requests():
         if conn:
             conn.close()
             
-import os
 from werkzeug.utils import secure_filename
 
-# ... your other imports ...
-
 @app.route('/edit_profile', methods=['GET', 'POST'])
+@login_required
 def edit_profile():
-    if 'user_id' not in session:
+    if 'staff_number' not in session:
+        flash("Please log in to continue.", "error")
         return redirect(url_for('login_page'))
-    
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Fetch current employee data
     cursor.execute("""
         SELECT id, staff_number, first_name, last_name, email, role, 
                availability, specialization, phone, profile_image 
-        FROM employees 
-        WHERE id = ?
-    """, (session['user_id'],))
+        FROM employees WHERE staff_number = ?
+    """, (session['staff_number'],))
     employee = cursor.fetchone()
     if not employee:
         conn.close()
-        return "Employee not found", 404
+        flash("Employee not found.", "error")
+        return redirect(url_for('login_page'))
 
-    employee = dict(employee)
-    employee['specialization'] = employee['specialization'] or ''
+    employee_dict = dict(employee)
+    employee_dict['specialization'] = employee_dict['specialization'] or ''
 
     if request.method == 'POST':
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
         email = request.form.get('email')
-        phone = request.form.get('phone')  # ← NEW
+        phone = request.form.get('phone')
         availability = request.form.get('availability')
-        specialization = request.form.get('specialization') if employee['role'] == 'doctor' else None
-        new_password = request.form.get('new_password')  # ← NEW
-        confirm_password = request.form.get('confirm_password')  # ← NEW
-        profile_picture = request.files.get('profile_picture')  # ← NEW
+        specialization = request.form.get('specialization') if employee_dict['role'] == 'doctor' else None
+        profile_picture = request.files.get('profile_picture')
 
-        # === VALIDATION ===
         if not all([first_name, last_name, email]):
-            return jsonify({'success': False, 'message': 'Name and email are required'}), 400
-
-        if new_password:
-            if new_password != confirm_password:
-                return jsonify({'success': False, 'message': 'Passwords do not match'}), 400
-            if len(new_password) < 6:
-                return jsonify({'success': False, 'message': 'Password must be at least 6 characters'}), 400
+            flash("Name and email are required.", "error")
+            conn.close()
+            return redirect(url_for('edit_profile'))
 
         try:
-            # Build dynamic update fields
             update_fields = []
             update_values = []
 
             update_fields.append("first_name = ?")
             update_values.append(first_name)
-
             update_fields.append("last_name = ?")
             update_values.append(last_name)
-
             update_fields.append("email = ?")
             update_values.append(email)
-
             update_fields.append("phone = ?")
             update_values.append(phone or None)
-
             update_fields.append("availability = ?")
             update_values.append(availability)
 
-            if employee['role'] == 'doctor':
+            if employee_dict['role'] == 'doctor':
                 update_fields.append("specialization = ?")
                 update_values.append(specialization)
 
-            # Handle password update
-            if new_password:
-                hashed = bcrypt.generate_password_hash(new_password).decode('utf-8')
-                update_fields.append("password = ?")
-                update_values.append(hashed)
-
-            # Handle profile picture
-            profile_image_path = employee['profile_image']
+            profile_image_path = employee_dict['profile_image']
             if profile_picture and profile_picture.filename:
-                filename = secure_filename(f"profile_{session['user_id']}_{profile_picture.filename}")
+                filename = secure_filename(f"profile_{employee_dict['id']}_{profile_picture.filename}")
                 upload_path = os.path.join(app.static_folder, 'uploads', filename)
                 os.makedirs(os.path.dirname(upload_path), exist_ok=True)
                 profile_picture.save(upload_path)
@@ -2729,24 +2745,28 @@ def edit_profile():
                 update_fields.append("profile_image = ?")
                 update_values.append(profile_image_path)
 
-            # Final query
             update_query = f"UPDATE employees SET {', '.join(update_fields)} WHERE id = ?"
-            update_values.append(session['user_id'])
-
+            update_values.append(employee_dict['id'])
             cursor.execute(update_query, update_values)
-
             conn.commit()
-            return jsonify({'success': True, 'message': 'Profile updated successfully!'})
+
+            # UPDATE SESSION
+            session['name'] = f"{first_name} {last_name}"
+            session['profile_image'] = profile_image_path  # NEW
+
+            flash("Profile updated successfully!", "success")
+            return redirect(url_for('edit_profile'))
 
         except Exception as e:
             conn.rollback()
             app.logger.error(f"Profile update error: {e}")
-            return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+            flash("Update failed. Try again.", "error")
+            return redirect(url_for('edit_profile'))
         finally:
             conn.close()
 
     conn.close()
-    return render_template('edit_profile.html', employee=employee)            
+    return render_template('edit_profile.html', employee=employee_dict)         
 
 @app.route('/update_emergency_request/<int:request_id>', methods=['POST'])
 def update_emergency_request(request_id):

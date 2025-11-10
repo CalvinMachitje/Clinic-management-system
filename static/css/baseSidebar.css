@@ -470,3 +470,91 @@ summary:hover {
 #menu-toggle-btn:hover {
   color: var(--link-color);
 }
+
+/* MODAL STYLES - UNIVERSAL FOR ALL USERS */
+.modal-dialog {
+    max-width: 420px;
+    margin: 2rem auto;
+    background: var(--card-bg);
+    border-radius: 16px;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+    padding: 0;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    animation: modalFadeIn 0.3s ease-out;
+    font-family: inherit;
+}
+
+.modal-content {
+    padding: 1.8rem;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #28a745;
+    font-size: 1.6rem;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-color);
+}
+
+.modal-body p {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-color);
+    line-height: 1.5;
+}
+
+.modal-footer {
+    margin-top: 1.5rem;
+    text-align: right;
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark mode support for modal */
+[data-theme="dark"] .modal-dialog {
+    background: var(--sidebar-bg);
+    border-color: #444;
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-body p,
+[data-theme="dark"] .modal-header h3 {
+    color: #e0e0e0;
+}
+
+[data-theme="dark"] .close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}

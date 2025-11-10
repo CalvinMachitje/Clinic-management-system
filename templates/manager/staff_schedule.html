@@ -2,70 +2,60 @@
 {% block title %}Staff Scheduling{% endblock %}
 
 {% block styles %}
-{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}?v=2">
 <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-<style>
-  #calendar { max-width: 1100px; margin: 40px auto; }
-  .fc-event { cursor: move; }
-  .shift-morning { background-color: #28a745; border-color: #218838; }
-  .shift-afternoon { background-color: #ffc107; border-color: #e0a800; color: #212529; }
-  .shift-night { background-color: #007bff; border-color: #0069d9; }
-  .btn-group { margin: 1rem 0; }
-</style>
 {% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>Staff Scheduling</h1>
-  <div class="btn-group">
-    <button id="export-pdf" class="btn btn-primary">Export PDF</button>
-    <button id="export-csv" class="btn btn-secondary">Export CSV</button>
-  </div>
+    <h1>Staff Scheduling</h1>
+    <div class="btn-group">
+        <button id="export-pdf" class="btn btn-primary">Export PDF</button>
+        <button id="export-csv" class="btn btn-secondary">Export CSV</button>
+    </div>
 </div>
 
 <div id="calendar"></div>
 
-<!-- Shift Assignment Modal -->
-<dialog id="shiftModal">
-  <form method="dialog" id="shiftForm">
-    <h3>Assign Shift</h3>
-    <input type="hidden" id="eventId">
-    <div class="form-group">
-      <label>Staff Member</label>
-      <select id="employee_id" required>
-        {% for emp in staff %}
-        <option value="{{ emp.id }}">{{ emp.first_name }} {{ emp.last_name }} ({{ emp.role | capitalize }})</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Date</label>
-      <input type="date" id="shift_date" required>
-    </div>
-    <div class="form-group">
-      <label>Shift</label>
-      <select id="shift_type" required>
-        <option value="morning">Morning (08:00 - 16:00)</option>
-        <option value="afternoon">Afternoon (13:00 - 21:00)</option>
-        <option value="night">Night (20:00 - 08:00)</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Notes</label>
-      <textarea id="notes"></textarea>
-    </div>
-    <button type="submit" class="btn btn-primary">Save</button>
-    <button type="button" onclick="closeModal('shiftModal')" class="btn btn-secondary">Cancel</button>
-  </form>
+<!-- Shift Modal -->
+<dialog id="shiftModal" class="modal-dialog">
+    <form id="shiftForm">
+        <h3>Assign Shift</h3>
+        <input type="hidden" id="eventId">
+        <div class="form-group">
+            <label>Staff Member</label>
+            <select id="employee_id" required>
+                {% for emp in staff %}
+                <option value="{{ emp.id }}">{{ emp.first_name }} {{ emp.last_name }} ({{ emp.role | capitalize }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="shift_date" required>
+        </div>
+        <div class="form-group">
+            <label>Shift</label>
+            <select id="shift_type" required>
+                <option value="morning">Morning (08:00 - 16:00)</option>
+                <option value="afternoon">Afternoon (13:00 - 21:00)</option>
+                <option value="night">Night (20:00 - 08:00)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Notes</label>
+            <textarea id="notes"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" onclick="closeModal('shiftModal')" class="btn btn-secondary">Cancel</button>
+        </div>
+    </form>
 </dialog>
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-
-{% block scripts %}
-  <script src="{{ url_for('static', filename='js/manager.js') }}?v=1"></script>
-{% endblock %}
+<script src="{{ url_for('static', filename='js/manager.js') }}?v=2"></script>
 {% endblock %}
