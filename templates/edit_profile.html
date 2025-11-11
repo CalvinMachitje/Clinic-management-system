@@ -32,6 +32,7 @@
         <form method="POST" action="{{ url_for('edit_profile') }}" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
+            <!-- Personal Info -->
             <div class="form-group">
                 <label for="staff_number">Staff Number</label>
                 <input type="text" id="staff_number" name="staff_number" value="{{ employee['staff_number'] }}" class="form-control" readonly>
@@ -82,10 +83,54 @@
                 {% endif %}
             </div>
 
+            <!-- PASSWORD CHANGE SECTION -->
+            <div class="password-section">
+                <h3>Change Password</h3>
+
+                <div class="form-group">
+                    <label for="current_password">Current Password <span class="text-red-500">*</span></label>
+                    <input type="password" id="current_password" name="current_password" class="form-control" placeholder="Enter current password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="new_password">New Password <span class="text-red-500">*</span></label>
+                    <input type="password" id="new_password" name="new_password" class="form-control" placeholder="Min 6 characters" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirm New Password <span class="text-red-500">*</span></label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Re-enter new password" required>
+                </div>
+            </div>
+
             <button type="submit" class="btn btn-primary">Save Changes</button>
         </form>
     </div>
 </div>
+
+<!-- SUCCESS POPUP -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, msg in messages %}
+            {% if category == 'success' %}
+                <dialog id="successModal" class="modal-dialog" open>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Success!</h3>
+                            <button type="button" onclick="closeModal('successModal')" class="close-btn">×</button>
+                        </div>
+                        <div class="modal-body">
+                            <p>{{ msg }}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button onclick="closeModal('successModal'); updateSidebarImage();" class="btn btn-primary">OK</button>
+                        </div>
+                    </div>
+                </dialog>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+{% endwith %}
 {% endblock %}
 
 {% block scripts %}
@@ -103,7 +148,6 @@
         setTimeout(() => location.reload(), 300);
     }
 
-    // Auto-update image on page load if session has new image
     document.addEventListener('DOMContentLoaded', () => {
         const avatar = document.getElementById('sidebarAvatar');
         if (avatar && '{{ session.profile_image }}') {

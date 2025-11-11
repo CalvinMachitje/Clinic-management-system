@@ -1,8 +1,17 @@
 {% extends "homepage/base2.html" %}
 
 {% block title %}Township Clinic - Login{% endblock %}
+{% block body_class %}login-page{% endblock %}
 
-{% block body_class %}login-page{% endblock %} <!-- ADD THIS LINE -->
+{% block head %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const saved = localStorage.getItem('theme') || 'light';
+      document.documentElement.dataset.theme = saved;
+    });
+  </script>
+{% endblock %}
 
 {% block content %}
 <div class="card">

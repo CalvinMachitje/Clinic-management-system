@@ -74,6 +74,17 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def role_required(required_role):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'role' not in session or session['role'] != required_role:
+                flash("Access denied. You do not have permission.", "error")
+                return redirect(url_for('login_page'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 # Load environment variables from .env file
 app.secret_key = os.getenv('SECRET_KEY')
 if not app.secret_key:
@@ -1984,6 +1995,7 @@ def manager_dashboard():
     conn = get_db_connection()
     c = conn.cursor()
 
+    # === EXISTING CODE (UNCHANGED) ===
     try:
         c.execute("SELECT COUNT(*) FROM employees WHERE active = 1")
         total_staff = c.fetchone()[0]
@@ -1994,7 +2006,6 @@ def manager_dashboard():
         c.execute("SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock")
         low_stock = c.fetchone()[0]
 
-        # SAFE: Use 0 if billing table empty or missing
         c.execute("SELECT COALESCE(SUM(cost), 0) FROM billing WHERE strftime('%Y-%m', billing_date) = strftime('%Y-%m', 'now')")
         revenue_mtd = c.fetchone()[0] or 0.0
 
@@ -2013,11 +2024,121 @@ def manager_dashboard():
         else:
             raise
 
+    # === NEW MANAGER FUNCTIONALITY ===
+    try:
+        from datetime import date
+        today = date.today().isoformat()
+
+        # On Duty Today
+        c.execute("SELECT COUNT(*) FROM attendance WHERE date = ?", (today,))
+        on_duty_today = c.fetchone()[0]
+
+        # Pending Leave
+        c.execute("SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'")
+        pending_leave = c.fetchone()[0]
+
+        # Training Due
+        c.execute("SELECT COUNT(*) FROM certifications WHERE expiry < DATE('now', '+30 days')")
+        training_due = c.fetchone()[0]
+
+        # Roster by Role
+        c.execute("""
+            SELECT e.role, COALESCE(COUNT(a.id), 0) as on_duty,
+                   CASE e.role 
+                     WHEN 'doctor' THEN 3 
+                     WHEN 'nurse' THEN 5 
+                     ELSE 2 
+                   END as required
+            FROM employees e 
+            LEFT JOIN attendance a ON e.id = a.staff_id AND a.date = ?
+            WHERE e.active = 1
+            GROUP BY e.role
+        """, (today,))
+        roster = [dict(row) for row in c.fetchall()]
+
+        # Leave Requests
+        c.execute("""
+            SELECT lr.*, e.first_name || ' ' || e.last_name as name, e.role
+            FROM leave_requests lr
+            JOIN employees e ON lr.staff_id = e.id
+            WHERE lr.status = 'pending'
+        """)
+        leave_requests = [dict(row) for row in c.fetchall()]
+
+        # Performance Reviews
+        c.execute("""
+            SELECT pr.*, e.first_name || ' ' || e.last_name as name, e.role,
+                   CAST(COALESCE(pr.score, 0) AS INTEGER) as score
+            FROM performance_reviews pr
+            JOIN employees e ON pr.staff_id = e.id
+            ORDER BY pr.last_review DESC
+        """)
+        performance = [dict(row) for row in c.fetchall()]
+
+        # Training Sessions
+        c.execute("SELECT * FROM training_sessions WHERE date >= DATE('now') ORDER BY date")
+        training = [dict(row) for row in c.fetchall()]
+
+        # Certifications Due
+        c.execute("""
+            SELECT c.*, e.first_name || ' ' || e.last_name as staff,
+                   CAST((julianday(c.expiry) - julianday('now')) AS INTEGER) as days_left
+            FROM certifications c
+            JOIN employees e ON c.staff_id = e.id
+            WHERE c.expiry < DATE('now', '+90 days')
+            ORDER BY days_left ASC
+        """)
+        certifications = [dict(row) for row in c.fetchall()]
+
+        # Compliance (static data for demo)
+        compliance = {
+            'popia': 98,
+            'infection': 100,
+            'ppe': 92
+        }
+
+    except sqlite3.OperationalError as e:
+        if 'no such table' in str(e):
+            on_duty_today = pending_leave = training_due = 0
+            roster = leave_requests = performance = training = certifications = []
+            compliance = {'popia': 0, 'infection': 0, 'ppe': 0}
+        else:
+            raise
+
     conn.close()
+
     return render_template('manager/dashboard.html',
-                         stats={'total_staff': total_staff, 'patients_today': patients_today,
-                                'low_stock': low_stock, 'revenue_mtd': revenue_mtd},
-                         tasks=tasks)
+                         stats={
+                             'total_staff': total_staff,
+                             'patients_today': patients_today,
+                             'low_stock': low_stock,
+                             'revenue_mtd': revenue_mtd,
+                             'on_duty_today': on_duty_today,
+                             'pending_leave': pending_leave,
+                             'training_due': training_due
+                         },
+                         tasks=tasks,
+                         roster=roster,
+                         leave_requests=leave_requests,
+                         performance=performance,
+                         training=training,
+                         certifications=certifications,
+                         compliance=compliance)
+
+@app.route('/manager/leave_action', methods=['POST'])
+@login_required
+@role_required('manager')
+def manager_leave_action():
+    req_id = request.form.get('id')
+    action = request.form.get('action')  # 'approve' or 'reject'
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE leave_requests SET status = ? WHERE id = ?", (action, req_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': f'Leave request {action}d'})
 
 @app.route('/inventory')
 @login_required
@@ -2390,23 +2511,17 @@ def download_guide():
 #--------------------------------------------------------------------------------------------------------
 
 @app.route('/change_theme', methods=['POST'])
+@login_required
 def change_theme():
-    if 'user_id' not in session:
-        flash('Please log in to change the theme.', 'error')
-        return redirect(url_for('login_page'))
-    if 'theme' in request.form:
-        session['theme'] = request.form['theme']  # Store theme in session
-        flash('Theme changed successfully!', 'success')
-    role = session.get('role')
-    if role == 'receptionist':
-        return redirect(url_for('reception_dashboard'))
-    elif role == 'admin':
-        return redirect(url_for('admin_dashboard'))
-    elif role == 'doctor':
-        return redirect(url_for('doctor_dashboard'))
-    elif role == 'nurse':
-        return redirect(url_for('nurse_dashboard'))
-    return redirect(url_for('default_page'))      
+    theme = request.form.get('theme')
+    if theme in ['light', 'dark']:
+        session['theme'] = theme
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE employees SET theme = ? WHERE staff_number = ?", (theme, session['staff_number']))
+        conn.commit()
+        conn.close()
+    return '', 204    
 
 @app.route('/doctor_report')
 def doctor_report():
@@ -2688,9 +2803,10 @@ def edit_profile():
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # === ADDED: password to SELECT ===
     cursor.execute("""
         SELECT id, staff_number, first_name, last_name, email, role, 
-               availability, specialization, phone, profile_image 
+               availability, specialization, phone, profile_image, password 
         FROM employees WHERE staff_number = ?
     """, (session['staff_number'],))
     employee = cursor.fetchone()
@@ -2745,6 +2861,36 @@ def edit_profile():
                 update_fields.append("profile_image = ?")
                 update_values.append(profile_image_path)
 
+            # === PASSWORD CHANGE LOGIC ===
+            current_password = request.form.get('current_password')
+            new_password = request.form.get('new_password')
+            confirm_password = request.form.get('confirm_password')
+
+            if current_password or new_password or confirm_password:
+                if not all([current_password, new_password, confirm_password]):
+                    flash("All password fields are required.", "error")
+                    conn.close()
+                    return redirect(url_for('edit_profile'))
+
+                if not bcrypt.check_password_hash(employee_dict['password'], current_password):
+                    flash("Current password is incorrect.", "error")
+                    conn.close()
+                    return redirect(url_for('edit_profile'))
+
+                if new_password != confirm_password:
+                    flash("New passwords do not match.", "error")
+                    conn.close()
+                    return redirect(url_for('edit_profile'))
+
+                if len(new_password) < 6:
+                    flash("New password must be at least 6 characters.", "error")
+                    conn.close()
+                    return redirect(url_for('edit_profile'))
+
+                hashed_new = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                update_fields.append("password = ?")
+                update_values.append(hashed_new)
+
             update_query = f"UPDATE employees SET {', '.join(update_fields)} WHERE id = ?"
             update_values.append(employee_dict['id'])
             cursor.execute(update_query, update_values)
@@ -2752,7 +2898,7 @@ def edit_profile():
 
             # UPDATE SESSION
             session['name'] = f"{first_name} {last_name}"
-            session['profile_image'] = profile_image_path  # NEW
+            session['profile_image'] = profile_image_path
 
             flash("Profile updated successfully!", "success")
             return redirect(url_for('edit_profile'))

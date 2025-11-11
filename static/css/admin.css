@@ -1165,41 +1165,6 @@ summary:focus-visible {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* Dark Mode Base */
-html[data-theme="dark"] {
-  --bg: #1a1a1a;
-  --bg-alt: #2d2d2d;
-  --text: #e0e0e0;
-  --text-muted: #aaaaaa;
-  --border: #444;
-  --primary: #4a90e2;
-  --success: #50c878;
-  --danger: #e74c3c;
-  --card-bg: #252525;
-  --sidebar-bg: #222;
-  --table-hover: #333;
-  --input-bg: #333;
-  --input-border: #555;
-  --shadow: 0 4px 12px rgba(0,0,0,0.4);
-}
-
-html[data-theme="light"] {
-  --bg: #f8f9fa;
-  --bg-alt: #ffffff;
-  --text: #333333;
-  --text-muted: #6c757d;
-  --border: #dee2e6;
-  --primary: #007bff;
-  --success: #28a745;
-  --danger: #dc3545;
-  --card-bg: #ffffff;
-  --sidebar-bg: #f8f9fa;
-  --table-hover: #f1f3f5;
-  --input-bg: #ffffff;
-  --input-border: #ced4da;
-  --shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
 /* Apply variables */
 body, .container, .card, .modal-content, .table, input, select, textarea {
   background-color: var(--bg) !important;

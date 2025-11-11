@@ -433,3 +433,78 @@ function openModal(id) {
 function closeModal(id) {
     document.getElementById(id).close();
 }
+
+document.querySelectorAll('.progress[data-score]').forEach(bar => {
+    const score = bar.dataset.score || 0;
+    bar.style.setProperty('--score', `${score}%`);
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.progress[data-score]').forEach(bar => {
+      const score = bar.dataset.score || '0';
+      bar.style.setProperty('--score', `${score}%`);
+    });
+  });
+
+  // Leave Actions
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.approve-leave, .reject-leave').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const action = btn.classList.contains('approve-leave') ? 'approve' : 'reject';
+      
+      try {
+        const res = await fetch('/manager/leave_action', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: `id=${id}&action=${action}`
+        });
+        
+        if (res.ok) {
+          btn.closest('.flex').remove();
+        }
+      } catch (err) {
+        console.error('Leave action failed:', err);
+      }
+    });
+  });
+
+  // Schedule Review
+  document.querySelectorAll('.schedule-review').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      // Open modal or redirect to review form
+      alert(`Scheduling review for staff ID: ${id}`);
+    });
+  });
+
+  // View Training Details
+  document.querySelectorAll('.view-training').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      // Open modal or redirect
+      alert(`Training details for ID: ${id}`);
+    });
+  });
+
+  // View Compliance
+  window.viewCompliance = (type) => {
+    // Open modal or redirect
+    alert(`Compliance details for ${type}`);
+  };
+
+  // Launch Survey
+  window.launchSurvey = () => {
+    // Open survey form
+    alert('Launching staff survey...');
+  };
+
+  // View Burnout Reports
+  window.viewBurnoutReports = () => {
+    // Open reports
+    alert('Viewing burnout reports...');
+  };
+});
