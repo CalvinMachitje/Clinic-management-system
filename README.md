@@ -41,7 +41,7 @@ Install dependencies:
 pip install -r requirements.txt
 
 Initialize database: python init_db.py.
-Run: python app.py (access at http://localhost:5000).
+Run: python script.py (access at http://localhost:5000).
 
 Usage
 
