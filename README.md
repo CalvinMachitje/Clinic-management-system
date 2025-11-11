@@ -1,74 +1,158 @@
-Overview
+# MediAssist — Clinic Management System  
+**AI-Powered. Open-Source. For Every Clinic.**
 
-The Clinic Management System (CMS) is a web-based healthtech solution designed to modernize clinic operations in underserved areas, such as South African townships and broader African healthcare systems. Built with Flask (Python web framework) and SQLite as the database, it replaces outdated paper-based filing systems with a secure, scalable digital platform. The system features role-based dashboards for efficient patient management, appointment scheduling, and AI-driven triage to reduce wait times and administrative burdens.
+---
 
-Problem
-Clinics in underserviced areas often rely on manual paper-based systems, leading to inefficiencies such as long wait times, data loss risks, delayed care, and staff overload. This results in reduced healthcare access, errors in record-keeping, and overall operational bottlenecks.
+## Transforming Healthcare Delivery
 
-Solution
-CMS provides a digital alternative that streamlines clinic operations through:
+**MediAssist** , AI-enhanced clinic management platform** designed to **replace paper-based systems** with a **secure, real-time, role-based digital solution**.
 
-Digitized patient records and appointment management.
-Role-based dashboards tailored for nurses, receptionists, doctors, and admins.
-AI integration for patient self-triage, prioritizing urgent cases and reducing nurse workload by up to 20%.
-Real-time updates and secure data handling to improve efficiency and patient outcomes.
+Built for **all healthcare providers** — from **Government clinics** to **Private hospitals and specialist practices** — MediAssist streamlines operations, reduces wait times, and improves patient outcomes.
 
-The system supports small-to-medium clinics, handling 10-50 patients and 5-10 staff, with scalability for larger networks.
-Features
-Core Functionality
+---
 
-Patient Management: Store and retrieve patient data (name, contact, medical history, triage results, status).
-Appointment Scheduling: Online booking with real-time status updates (pending/helped/cancelled) and SMS reminders.
-AI Integration: Patient self-triage using health/medical APIs to recommend actions (e.g., "Consult Nurse" or "See Doctor").
-Security: Role-based access control, password hashing, and secure API key storage via environment variables.
-Performance Tracking: Logs staff actions, with metrics like database size and system uptime.
+## The Problem We Solve
 
-Role-Based Dashboards
-Dashboards use a modern, user-friendly design with calming colors and real-time updates via Server-Sent Events (SSE).
+Clinics today face:
 
-Nurse Dashboard: Manage waiting lists and triage; table with patient details and actions (e.g., Mark Helped).
-Receptionist Dashboard: Track appointments; table with filters for daily views and triage submissions.
-Doctor Dashboard: Access patient data; table for records, history, and updates.
-Admin Dashboard: Oversee performance; summaries, staff tables, and filters.
+- Long patient queues due to manual triage  
+- Lost or incomplete medical records  
+- Staff burnout from repetitive admin tasks  
+- Poor coordination between reception, nurses, and doctors  
+- No real-time visibility into staffing or inventory  
 
-Installation
-Prerequisites
+---
 
-Python 3.8+
-Flask, requests, python-dotenv.
+## The MediAssist Solution  
 
-Install dependencies:
-pip install -r requirements.txt
+### **How It Works**
 
-Initialize database: python init_db.py.
-Run: python script.py (access at http://localhost:5000).
+1. **Patient Arrives**  
+   → Checks in via receptionist or self-service kiosk  
+   → Completes **AI-powered symptom triage** (web form)
 
-Usage
+2. **AI Analyzes**  
+   → Infermedica API assesses urgency  
+   → Patient is auto-prioritized: **Emergency → High → Medium → Low**
 
-Login with role-based credentials.
-Patients submit symptoms via portal for AI triage.
-Navigate dashboards post-login.
+3. **Live Queue Updates**  
+   → **Real-time dashboards** (SSE) show current patients  
+   → Nurse sees next patient instantly
 
-Risk Mitigations
+4. **Consultation Flow**  
+   → Doctor views full digital history  
+   → Adds notes, prescriptions, follow-ups  
+   → Case closed → record saved securely
 
-Data Security: Implements role-based access, password hashing, and encrypted API storage to prevent unauthorized access and data breaches.
-Scalability Issues: Designed with SQLite for small setups but compatible with PostgreSQL for growth; cloud infrastructure support for handling increased loads.
-AI Reliability: Uses established APIs like Infermedica; includes manual overrides for triage results to ensure clinical accuracy.
-Downtime: Real-time updates via SSE and performance logs for monitoring; recommends backups and cloud hosting for high availability.
-User Adoption: Intuitive dashboards with training resources; open-source nature allows customization.
-Compliance: Aligns with healthcare data standards (e.g., secure handling for privacy); regular updates for vulnerability patches.
+5. **Manager Oversight**  
+   → Staffing, inventory, compliance, performance — all in one place
 
-Why Choose This System Compared to Existing Similar Systems
-CMS stands out for its affordability, AI focus, and township-specific tailoring, while being open-source and lightweight.
+---
 
-Compared to OpenMRS: Lighter footprint with built-in AI triage and real-time updates; easier for small clinics without complex setups.
-Compared to BandaGo: Open-source vs. proprietary, reducing costs; emphasizes scalability for underserviced areas.
-Compared to PappyJoe: Township/rural focus over urban; no subscription lock-in, with AI enhancements for triage.
-Compared to LeHealth: AI-driven features for personalized care; better integration for real-time operations.
+## Role-Based Dashboards  
 
-Overall, CMS offers cost savings, enhanced efficiency, and better patient outcomes through automation, making it ideal for resource-constrained environments.
-Team
+| Role          | Key Functions |
+|---------------|---------------|
+| **Receptionist** | Check-in, search patients, book appointments |
+| **Nurse**        | Triage queue, record vitals, mark helped |
+| **Doctor**       | Full patient history, prescriptions, notes |
+| **Manager**      | 7 modules: Staffing, Performance, Training, Compliance, Welfare, Inventory, Admin |
+| **Admin**        | User management, audit logs, system settings |
 
-Calvin Machitje: System Developer (smachitje36@gmail.com)
-Musa: System Researcher (cindimosa19@gmail.com)
-Nkosi: Project Manager (ndawosen@gmail.com)
+---
+
+## Core Features  
+
+### **AI Triage Engine**
+- Symptom-based self-assessment  
+- Risk scoring & priority assignment  
+- Reduces nurse workload by **20%**
+
+### **Real-Time Updates**
+- Server-Sent Events (SSE)  
+- Live queue, roster, and alerts  
+- No page refresh needed
+
+### **Staff Scheduling**
+- FullCalendar integration  
+- Create/edit shifts via modal  
+- Today’s roster: **Required vs. On-Duty**  
+- Export PDF/CSV
+
+### **Manager Tools (7 Modules)**
+1. **Staffing** – Leave requests, shift planning  
+2. **Performance** – KPI tracking, reviews  
+3. **Training** – Sessions, certification alerts  
+4. **Compliance** – POPIA, infection control  
+5. **Welfare** – Wellness surveys, burnout reports  
+6. **Inventory** – Low stock alerts  
+7. **Admin** – Quick links to all tools
+
+---
+
+## Technical Architecture  
+
+| Component      | Technology |
+|----------------|------------|
+| **Backend**    | Flask (Python) |
+| **Database**   | SQLite (PostgreSQL-ready) |
+| **Frontend**   | HTML5, Tailwind CSS, Jinja2 |
+| **Real-Time**  | Server-Sent Events (SSE) |
+| **AI**         | Infermedica API |
+| **Scheduling** | FullCalendar |
+| **Security**   | Flask-Login, Bcrypt, CSRF, Role Decorators |
+
+---
+
+## Our Goal  
+
+> **To make high-quality clinic management accessible to every healthcare provider in South Africa — regardless of location, budget, or infrastructure.**
+
+MediAssist is:  
+
+- **Lightweight & Fast**  
+- **Scalable** (SQLite → PostgreSQL)  
+- **Customizable** for any clinic  
+
+---
+
+## Future Vision & Partnerships  
+
+We are actively building **strategic partnerships** with:
+
+| Partner Type               | Goal |
+|----------------------------|------|
+| **Government Health Departments** | National rollout in public clinics |
+| **Private Hospital Groups** | Enterprise deployment |
+| **NGOs & Donors**          | Township & rural outreach |
+| **Telcos**                 | SMS integration for reminders |
+| **Universities**           | Research & AI improvement |
+
+**Coming Soon:**  
+
+- Mobile App (Android/iOS)  
+- Telemedicine Module  
+- Multi-Clinic Dashboard  
+- Voice-Enabled Triage  
+
+---
+
+## Get Involved  
+
+- **Contact:** smachitje36@gmail.com and info@jnttechnology.co.za  
+
+---
+
+## Ownership & Partnership  
+
+**MediAssist** is a **50/50 joint venture** between:  
+
+- **J&T Technology PTY Ltd** – Business, marketing, operations, partnerships  
+- **M&T Tech Solutions** (Sello Calvin Machitje) – Full system development, AI, architecture, maintenance  
+
+All code, IP, and assets are **equally owned** under South African law.
+
+
+> **"From paper to progress — one patient at a time."**  
+
+**Built with purpose. Powered by partnership.**
