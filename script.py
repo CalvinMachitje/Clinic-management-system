@@ -2952,6 +2952,14 @@ def update_emergency_request(request_id):
         if conn:
             conn.close()
 
+@app.route('/health')
+def health():
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return {"status": "healthy", "db": "ok"}, 200
+    except:
+        return {"status": "unhealthy", "db": "down"}, 500
+
 @app.route('/logout')
 def logout():
     if 'username' in session:
@@ -3027,3 +3035,13 @@ if __name__ != '__main__':
 else:
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+    
+# At the bottom of script.py
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    
+    from scheduler import start_scheduler
+    start_scheduler()
+    
+    app.run(debug=False, host='0.0.0.0', port=5000)
