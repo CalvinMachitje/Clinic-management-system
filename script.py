@@ -50,14 +50,6 @@ app = Flask(__name__, static_folder='static')
 app.config['CACHE_TYPE'] = 'simple'
 cache = Cache(app)
 
-if __name__ != '__main__':
-    # Azure uses gunicorn → no need to run app
-    pass
-else:
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
@@ -3014,3 +3006,10 @@ if __name__ == '__main__':
         db.create_all()
         print("Database tables ready.")
     app.run(debug=True, threaded=True)
+    
+if __name__ != '__main__':
+    # Azure uses gunicorn → no need to run app
+    pass
+else:
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
