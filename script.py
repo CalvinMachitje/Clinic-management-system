@@ -198,6 +198,20 @@ def jinja_strftime(value, format='%H:%M'):
 
 app.jinja_env.filters['strftime'] = jinja_strftime
 
+# In script.py (top, after imports)
+def get_setting(key, default=''):
+    setting = SystemSetting.query.filter_by(key=key).first()
+    return setting.value if setting else default
+
+def set_setting(key, value):
+    setting = SystemSetting.query.filter_by(key=key).first()
+    if setting:
+        setting.value = value
+    else:
+        setting = SystemSetting(key=key, value=value)
+        db.session.add(setting)
+    db.session.commit()
+
 # Custom error handler for template not found
 @app.errorhandler(jinja2.exceptions.TemplateNotFound)
 def template_not_found(e):

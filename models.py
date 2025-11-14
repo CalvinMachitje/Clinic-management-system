@@ -6,7 +6,8 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, HiddenField, SubmitField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
+from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField, HiddenField
 
 db = SQLAlchemy()
 
@@ -173,15 +174,15 @@ class Message(db.Model):
 # ========================================
 # 8. System Settings
 # ========================================
+# models.py
 class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
-    
     id = db.Column(db.Integer, primary_key=True)
-    backup_frequency = db.Column(db.String(50))
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
 
     def __repr__(self):
-        return f"<Setting {self.backup_frequency}>"
-
+        return f"<SystemSetting {self.key}={self.value}>"
 
 # ========================================
 # 9. Preferences
