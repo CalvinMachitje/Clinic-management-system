@@ -120,6 +120,14 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'data', 'clinicinfo.db')}"
+
+# Static folders
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
 bcrypt = Bcrypt(app)
 db.init_app(app)
 
@@ -3035,13 +3043,28 @@ if __name__ != '__main__':
 else:
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-    
-# At the bottom of script.py
+
+ #Add Scheduler + Auto-Admin   
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    
+        
+        # AUTO-CREATE FIRST ADMIN
+        if not Employee.query.filter_by(role='admin').first():
+            admin = Employee(
+                staff_number="STAFF001",
+                first_name="Admin",
+                last_name="User",
+                email="admin@clinic.local",
+                password=bcrypt.generate_password_hash("admin123").decode('utf-8'),
+                role="admin",
+                active=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("First admin created: STAFF001 / admin123")
+
     from scheduler import start_scheduler
     start_scheduler()
-    
-    app.run(debug=False, host='0.0.0.0', port=5000)
+
+    app.run(host='0.0.0.0', port=5000, debug=False)

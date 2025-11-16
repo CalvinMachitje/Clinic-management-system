@@ -24,8 +24,18 @@ dist-ssr
 *.sw?
 /dist
 
-.env
 __pycache__/
 *.pyc
 clinicinfo.db
 dump.sql
+# .gitignore
+.env
+.venv/
+__pycache__/
+*.log
+backups/
+reports/
+static/uploads/*
+!static/uploads/.gitkeep
+Dockerfile*
+docker-compose.yml
