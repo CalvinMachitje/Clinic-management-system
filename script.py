@@ -86,12 +86,15 @@ def role_required(required_role):
     return decorator
 
 # Load environment variables from .env file
-app.secret_key = os.getenv('SECRET_KEY')
-if not app.secret_key:
-    raise ValueError("SECRET_KEY not set in .env file!")
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Validate
+if not app.config['SECRET_KEY']:
+    raise ValueError("SECRET_KEY not set!")
+if not app.config['SQLALCHEMY_DATABASE_URI']:
+    raise ValueError("DATABASE_URL not set!")
 csrf = CSRFProtect(app)
 
 # --- DATABASE: Auto-detect .env (PostgreSQL) or clinicinfo.db (SQLite) ---
