@@ -45,238 +45,161 @@ from models import (
     AuditLog
 )
 
-# Initialize Flask app
-app = Flask(__name__, static_folder='static')
-app.config['CACHE_TYPE'] = 'simple'
-cache = Cache(app)
+# ===========================
+# LOAD ENV + APP SETUP
+# ===========================
+load_dotenv()
 
-login_manager = LoginManager()
-login_manager.init_app(app)
+app = Flask(__name__, static_folder='static')
+
+# Critical config
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///clinicinfo.db').replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# ===========================
+# EXTENSIONS
+# ===========================
+bcrypt = Bcrypt(app)
+csrf = CSRFProtect(app)
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+login_manager = LoginManager(app)
 login_manager.login_view = 'login_page'
 login_manager.login_message = "Please log in to access this page."
 login_manager.login_message_category = "info"
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login_page', next=request.url))
-        return f(*args, **kwargs)
-    return decorated_function
+db.init_app(app)
+with app.app_context():
+    db.create_all()
+    
+# ===========================
+# MODELS (must be after db = SQLAlchemy(app))
+# ===========================
+from models import (
+    Employee, Patient, Appointment, Prescription, Visit, EmergencyRequest,
+    Message, SystemSetting, Preference, Announcement, Payment, Notification,
+    HelpedPatient, SelfBookedAppointment, WalkinQueue, AuditLog
+)
 
-def admin_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            flash("You do not have permission to access this page.", "error")
-            return redirect(url_for('login_page'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-def role_required(required_role):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'role' not in session or session['role'] != required_role:
-                flash("Access denied. You do not have permission.", "error")
-                return redirect(url_for('login_page'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-# Load environment variables from .env file
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Validate
-if not app.config['SECRET_KEY']:
-    raise ValueError("SECRET_KEY not set!")
-if not app.config['SQLALCHEMY_DATABASE_URI']:
-    raise ValueError("DATABASE_URL not set!")
-csrf = CSRFProtect(app)
-
-# --- DATABASE: Auto-detect .env (PostgreSQL) or clinicinfo.db (SQLite) ---
-db_url = os.getenv('DATABASE_URL')
-if db_url:
-    # Force TCP/IP: add host=127.0.0.1 port=5433 if not present
-    if 'host=' not in db_url:
-        db_url += '?host=127.0.0.1&port=5433'
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-elif os.path.exists('clinicinfo.db'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinicinfo.db'
-else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///clinicinfo.db'
-
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-app.jinja_env.filters['datetime'] = lambda d, f: datetime.strptime(d, '%Y-%m-%d %H:%M:%S').strftime(f) if d else 'N/A'
-
-# Static file configuration
-UPLOAD_FOLDER = 'static/uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
+# ===========================
+# FOLDERS & SETTINGS
+# ===========================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'data', 'clinicinfo.db')}"
-
-# Static folders
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-bcrypt = Bcrypt(app)
-db.init_app(app)
-
-# In-memory queues for notifications
-announcement_queue = Queue()
-appointment_queue = Queue()
-queue_lock = Lock()
-waiting_patients_queue = Queue()
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 def allowed_file(filename):
-    
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# --- FIXED: App-context safe DB connection ---
-def get_db_connection():
-    """
-    Returns a SQLite connection:
-      • From g.db during requests
-      • Creates a new one in background threads / startup
-    """
-    if 'db' in g:
-        return g.db
+# ===========================
+# LOGGING & FILTERS
+# ===========================
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    # Fallback: create a new connection (e.g., SSE, background tasks)
-    try:
-        conn = sqlite3.connect('clinicinfo.db', check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as e:
-        logger.error(f"Failed to create fallback DB connection: {e}")
-        raise
-# Set up g.db on request start
-@app.before_request
-def before_request():
-    g.db = get_db_connection()
-    
-@app.before_request
-def generate_csrf():
-    if 'csrf_token' not in session:
-        session['csrf_token'] = secrets.token_hex(16)
-
-# Teardown
-@app.teardown_appcontext
-def teardown_db(e=None):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
-# Optional: expose via current_app for legacy
-with app.app_context():
-    current_app.config['DB_CONNECTION'] = get_db_connection()  
-
-def close_db(e=None):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()      
-
-def get_user_details(conn, user_id):
-    try:
-        c = conn.cursor()
-        c.execute("SELECT * FROM employees WHERE staff_number = ?", (user_id,))
-        user = c.fetchone()
-        return dict(user) if user else {}
-    except sqlite3.Error as e:
-        logger.error(f"Error fetching user details: {e}")
-        return {}
-    
 def jinja_strftime(value, format='%H:%M'):
-    if not value:
-        return ''
+    if not value: return ''
     try:
         dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
         return dt.strftime(format)
     except:
-        return value[:5]  # fallback
-
+        return value[:5]
 app.jinja_env.filters['strftime'] = jinja_strftime
+app.jinja_env.filters['nl2br'] = lambda v: Markup(v.replace('\n', '<br>\n')) if v else ''
 
-# In script.py (top, after imports)
-def get_setting(key, default=''):
-    setting = SystemSetting.query.filter_by(key=key).first()
-    return setting.value if setting else default
-
-def set_setting(key, value):
-    setting = SystemSetting.query.filter_by(key=key).first()
-    if setting:
-        setting.value = value
-    else:
-        setting = SystemSetting(key=key, value=value)
-        db.session.add(setting)
-    db.session.commit()
-
-# Custom error handler for template not found
-@app.errorhandler(jinja2.exceptions.TemplateNotFound)
-def template_not_found(e):
-    logger.error(f"Template not found: {e.name}")
-    flash(f"Template {e.name} is missing. Please contact the administrator.", 'error')
-    return render_template('homepage/error.html'), 404
-
-# --- REPLACED: Use SQLAlchemy for both SQLite & PostgreSQL ---
-def init_db():
-    """
-    Initialize database using SQLAlchemy.
-    Works with:
-      • SQLite (clinicinfo.db)
-      • PostgreSQL (via DATABASE_URL in .env)
-    """
-    with app.app_context():
-        db.create_all()
-        logger.info("Database tables created via SQLAlchemy (SQLite or PostgreSQL)")
-        return True
-
+# ===========================
+# USER LOADER (Flask-Login + SQLAlchemy)
+# ===========================
 class User(UserMixin):
-    def __init__(self, id, username, role):
+    def __init__(self, id, role):
         self.id = str(id)
-        self.username = username
         self.role = role
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    try:
-        c = conn.cursor()
-        c.execute("SELECT staff_number, role FROM employees WHERE staff_number = ?", (user_id,))
-        user = c.fetchone()
-        if user and session.get('user_id') == user['staff_number']:
-            return User(id=user['staff_number'], username=user['staff_number'], role=user['role'])
-    except:
-        pass
-    finally:
-        conn.close()
-    return None  
+    emp = Employee.query.filter_by(staff_number=user_id).first()
+    if emp:
+        return User(id=emp.staff_number, role=emp.role)
+    return None
+
+# ===========================
+# DECORATORS
+# ===========================
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != 'admin':
+            flash("Admin access required.", "error")
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated
+
+def role_required(required_role):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated or current_user.role != required_role:
+                flash("Access denied.", "error")
+                return redirect(url_for('login_page'))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+# ===========================
+# DATABASE INITIALIZATION
+# ===========================
+def init_db():
+    with app.app_context():
+        db.create_all()
+        logger.info("Database tables ready (SQLite or PostgreSQL)")
+
+        # Auto-create first admin
+        if not Employee.query.filter_by(role='admin').first():
+            admin = Employee(
+                staff_number="MED001",
+                first_name="Medi",
+                last_name="Admin",
+                email="admin@mediassist.co.za",
+                password=bcrypt.generate_password_hash("Medi2025!").decode('utf-8'),
+                role="admin",
+                active=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("FIRST ADMIN → MED001 / Medi2025!") 
+            
+def get_db_connection():
+    """
+    Legacy function – only used when running on SQLite (local dev)
+    In production (PostgreSQL), this will never be called because we use SQLAlchemy
+    """
+    if not hasattr(g, 'sqlite_db'):
+        # Only used in local SQLite mode
+        db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'clinicinfo.db')
+        g.sqlite_db = sqlite3.connect(db_path, check_same_thread=False)
+        g.sqlite_db.row_factory = sqlite3.Row
+    return g.sqlite_db
+
+@app.teardown_appcontext
+def close_connection(exception):
+    db = getattr(g, 'sqlite_db', None)
+    if db is not None:
+        db.close()
 
 @app.route('/')
 def default_page():
     if 'user_id' in session:
         role = session.get('role', 'user')
-        if role == 'admin':
-            return redirect(url_for('admin_dashboard'))
-        elif role == 'doctor':
-            return redirect(url_for('doctor_dashboard'))
-        elif role == 'nurse':
-            return redirect(url_for('nurse_dashboard'))
-        elif role == 'receptionist':
-            return redirect(url_for('reception_dashboard'))
-    
+        redirect_map = {
+            'admin': 'admin_dashboard',
+            'doctor': 'doctor_dashboard',
+            'nurse': 'nurse_dashboard',
+            'receptionist': 'reception_dashboard',
+            'manager': 'manager_dashboard'
+        }
+        return redirect(url_for(redirect_map.get(role, 'login_page')))
     return render_template('homepage/defaultPage.html')
 
 @app.route('/vaccinations')
@@ -430,12 +353,6 @@ def login_page():
         finally:
             if conn:
                 conn.close()
-
-    return render_template('homepage/login_page.html', form=form)
-
-    next_page = request.args.get('next')
-    if next_page and next_page.startswith('/'):
-        form.next.data = next_page
 
     return render_template('homepage/login_page.html', form=form)
 
@@ -3032,42 +2949,11 @@ with app.app_context():
     except Exception as e:
         print(f"DB Error: {e}")     
 
-# Run the Flask app
-if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    with app.app_context():
-        db.create_all()
-        print("Database tables ready.")
-    app.run(debug=True, threaded=True)
-    
-if __name__ != '__main__':
-    # Azure uses gunicorn → no need to run app
-    pass
-else:
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
- #Add Scheduler + Auto-Admin   
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        
-        # AUTO-CREATE FIRST ADMIN
-        if not Employee.query.filter_by(role='admin').first():
-            admin = Employee(
-                staff_number="STAFF001",
-                first_name="Admin",
-                last_name="User",
-                email="admin@clinic.local",
-                password=bcrypt.generate_password_hash("admin123").decode('utf-8'),
-                role="admin",
-                active=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("First admin created: STAFF001 / admin123")
-
-    from scheduler import start_scheduler
-    start_scheduler()
+        init_db()
 
     app.run(host='0.0.0.0', port=5000, debug=False)
+else:
+    # When run via Gunicorn (Azure/Docker production)
+    init_db()
