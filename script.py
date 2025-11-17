@@ -8,6 +8,7 @@ from models import db, Announcement
 from sqlalchemy import or_
 from collections import deque
 import threading
+queue_lock = threading.Lock()
 from queue import Queue
 from threading import Lock
 from flask_caching import Cache
@@ -2948,6 +2949,17 @@ with app.app_context():
         print("Tables checked/created.")
     except Exception as e:
         print(f"DB Error: {e}")     
+
+def get_user_details(staff_number):
+    """Fallback for old templates"""
+    user = Employee.query.filter_by(staff_number=staff_number).first()
+    if user:
+        return {
+            'name': f"{user.first_name} {user.last_name}",
+            'role': user.role,
+            'profile_pic': user.profile_pic or '/static/default.jpg'
+        }
+    return {'name': 'User', 'role': 'unknown', 'profile_pic': '/static/default.jpg'}
 
 if __name__ == '__main__':
     with app.app_context():
