@@ -166,13 +166,14 @@ def init_db():
                 first_name="Medi",
                 last_name="Admin",
                 email="admin@mediassist.co.za",
-                password=bcrypt.generate_password_hash("Medi2025!").decode('utf-8'),
+                # FIXED: Werkzeug instead of bcrypt
+                password=generate_password_hash("Medi2025!"),
                 role="admin",
                 active=True
             )
             db.session.add(admin)
             db.session.commit()
-            print("FIRST ADMIN → MED001 / Medi2025!") 
+            print("FIRST ADMIN → MED001 / Medi2025!")
             
 def get_db_connection():
     """
