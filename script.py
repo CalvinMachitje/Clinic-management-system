@@ -14,7 +14,6 @@ from threading import Lock
 from flask_caching import Cache
 appointment_queue = Queue()
 waiting_patients_queue = Queue()
-from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
@@ -64,7 +63,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # ===========================
 # EXTENSIONS
 # ===========================
-bcrypt = Bcrypt(app)
 csrf = CSRFProtect(app)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 login_manager = LoginManager(app)
@@ -2811,17 +2809,18 @@ def edit_profile():
                 update_values.append(profile_image_path)
 
             # === PASSWORD CHANGE LOGIC ===
+                        # === PASSWORD CHANGE LOGIC (Werkzeug – Azure safe) ===
             current_password = request.form.get('current_password')
             new_password = request.form.get('new_password')
             confirm_password = request.form.get('confirm_password')
 
-            if current_password or new_password or confirm_password:
+            if any([current_password, new_password, confirm_password]):
                 if not all([current_password, new_password, confirm_password]):
-                    flash("All password fields are required.", "error")
+                    flash("All password fields are required to change password.", "error")
                     conn.close()
                     return redirect(url_for('edit_profile'))
 
-                if not bcrypt.check_password_hash(employee_dict['password'], current_password):
+                if not check_password_hash(employee_dict['password'], current_password):
                     flash("Current password is incorrect.", "error")
                     conn.close()
                     return redirect(url_for('edit_profile'))
@@ -2831,12 +2830,12 @@ def edit_profile():
                     conn.close()
                     return redirect(url_for('edit_profile'))
 
-                if len(new_password) < 6:
-                    flash("New password must be at least 6 characters.", "error")
+                if len(new_password) < 8:
+                    flash("New password must be at least 8 characters.", "error")
                     conn.close()
                     return redirect(url_for('edit_profile'))
 
-                hashed_new = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                hashed_new = generate_password_hash(new_password)
                 update_fields.append("password = ?")
                 update_values.append(hashed_new)
 
