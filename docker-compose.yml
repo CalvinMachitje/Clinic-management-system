@@ -1,0 +1,33 @@
+# docker-compose.yml
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15
+    container_name: clinic-management-system-db-1
+    restart: always
+    environment:
+      POSTGRES_USER: mediuser
+      POSTGRES_PASSWORD: Medi2025!
+      POSTGRES_DB: mediassist
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  mediassist:
+    build: .
+    container_name: clinic-management-system-mediassist-1
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    # THIS LINE WAS MISSING — THIS FIXES SECRET_KEY ERROR
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://mediuser:Medi2025!@db:5432/mediassist
+
+volumes:
+  postgres_data:
