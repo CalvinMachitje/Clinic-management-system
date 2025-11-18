@@ -12,6 +12,8 @@ queue_lock = threading.Lock()
 from queue import Queue
 from threading import Lock
 from flask_caching import Cache
+appointment_queue = Queue()
+waiting_patients_queue = Queue()
 from flask_bcrypt import Bcrypt
 from flask_wtf.csrf import CSRFProtect
 from flask_sqlalchemy import SQLAlchemy
@@ -23,6 +25,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from io import StringIO
 from flask import send_file
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 load_dotenv()
@@ -309,7 +312,8 @@ def login_page():
             """, (username_input, username_input))
             user = c.fetchone()
 
-            if user and bcrypt.check_password_hash(user['password'], password):
+            # CHANGED: bcrypt → check_password_hash (Werkzeug)
+            if user and check_password_hash(user['password'], password):
                 session.clear()
                 session.permanent = True
                 session.modified = True
@@ -319,7 +323,7 @@ def login_page():
                 session['username'] = f"{user['first_name']} {user['last_name']}"
                 session['role'] = user['role']
                 session['login_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S SAST')
-                session['profile_image'] = user['profile_image'] or 'profile_images/user.png'  # ADD THIS LINE
+                session['profile_image'] = user['profile_image'] or 'profile_images/user.png'
 
                 if remember:
                     app.permanent_session_lifetime = timedelta(days=30)
@@ -357,8 +361,9 @@ def login_page():
 
     return render_template('homepage/login_page.html', form=form)
 
+
 # --------------------------------------------------------------
-# POST: Create New User (Admin Only) – FIXED CSRF
+# POST: Create New User (Admin Only) – FIXED CSRF + Werkzeug
 # --------------------------------------------------------------
 @app.route('/create_user', methods=['POST'])
 def create_user():
@@ -380,7 +385,6 @@ def create_user():
     if not all([first_name, last_name, email, role]):
         return jsonify({'success': False, 'message': 'All fields are required'}), 400
 
-    # Allow 'manager' in valid roles
     valid_roles = ['doctor', 'nurse', 'receptionist', 'manager']
     if role not in valid_roles:
         return jsonify({'success': False, 'message': 'Invalid role'}), 400
@@ -402,7 +406,9 @@ def create_user():
         # GENERATE RANDOM 10-CHAR PASSWORD
         alphabet = string.ascii_letters + string.digits
         temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
-        hashed_password = bcrypt.generate_password_hash(temp_password).decode('utf-8')
+        
+        # CHANGED: bcrypt → generate_password_hash (Werkzeug)
+        hashed_password = generate_password_hash(temp_password)
 
         # Insert new user
         c.execute('''
@@ -441,7 +447,6 @@ def create_user():
         return jsonify({'success': False, 'message': 'Failed to create user'}), 500
     finally:
         conn.close()
-
 
 # --------------------------------------------------------------
 # POST: Delete User – FIXED CSRF
