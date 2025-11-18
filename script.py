@@ -65,10 +65,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # ===========================
 csrf = CSRFProtect(app)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
-login_manager = LoginManager(app)
+login_manager = LoginManager()
 login_manager.login_view = 'login_page'
-login_manager.login_message = "Please log in to access this page."
-login_manager.login_message_category = "info"
+login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
 db.init_app(app)
 with app.app_context():
@@ -121,10 +121,24 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    emp = Employee.query.filter_by(staff_number=user_id).first()
-    if emp:
-        return User(id=emp.staff_number, role=emp.role)
-    return None
+    return Employee.query.get(int(user_id))
+
+# Proper context processor – fixes the "takes 1 positional argument but 2 were given" error
+@app.context_processor
+def inject_user():
+    if current_user.is_authenticated:
+        return dict(
+            current_user=current_user,
+            user_fullname=f"{current_user.first_name} {current_user.last_name}".strip(),
+            user_role=current_user.role,
+            user_staff_number=current_user.staff_number
+        )
+    return dict(
+        current_user=None,
+        user_fullname='Guest',
+        user_role='guest',
+        user_staff_number=None
+    )
 
 # ===========================
 # DECORATORS

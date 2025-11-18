@@ -35,6 +35,21 @@ class Employee(db.Model):
     # ADD THIS LINE
     active = db.Column(db.Boolean, default=True, nullable=False)
     
+    def get_id(self):
+        return str(self.id)
+
+    @property
+    def is_active(self):
+        return self.active  # we added active = True column earlier
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+    
     # Relationships
     patients = db.relationship('Patient', backref='employee', lazy=True)
     appointments = db.relationship('Appointment', foreign_keys='Appointment.helper_id',
