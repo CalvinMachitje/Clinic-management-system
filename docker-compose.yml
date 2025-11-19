@@ -1,33 +1,40 @@
-# docker-compose.yml
-version: '3.9'
+version: "3.9"
 
 services:
-  db:
-    image: postgres:15
-    container_name: clinic-management-system-db-1
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clinic-management-system-app
     restart: always
-    environment:
-      POSTGRES_USER: mediuser
-      POSTGRES_PASSWORD: Medi2025!
-      POSTGRES_DB: mediassist
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-  mediassist:
-    build: .
-    container_name: clinic-management-system-mediassist-1
-    restart: always
-    ports:
-      - "5000:5000"
-    depends_on:
-      - db
-    # THIS LINE WAS MISSING — THIS FIXES SECRET_KEY ERROR
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=postgresql://mediuser:Medi2025!@db:5432/mediassist
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    command: >
+      sh -c "python script.py migrate &&
+             python script.py runserver 0.0.0.0:8000"
+
+  db:
+    image: postgres:15
+    container_name: clinic-management-system-db
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./dump_pg.sql:/docker-entrypoint-initdb.d/dump_pg.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  postgres_data:
+  pgdata:

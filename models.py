@@ -1,13 +1,7 @@
 # models.py
-# ClinicCare Pro™ – Full SQLAlchemy Models
-# PostgreSQL: postclinic | Port: 5433 | User: clinicuser
-
+# Medi-Assist™ 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, HiddenField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
-from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField, HiddenField
 
 db = SQLAlchemy()
 
@@ -33,16 +27,15 @@ class Employee(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     active = db.Column(db.Boolean, default=True, nullable=False)
 
-    # Relationships – CLEAN & NO WARNINGS
+    # Relationships
     patients = db.relationship('Patient', backref='doctor', lazy=True)
 
-    # Fixed: One clean relationship using staff_number → helper_id
     assigned_appointments = db.relationship(
         'Appointment',
         back_populates='helper',
         foreign_keys='Appointment.helper_id',
         primaryjoin='Employee.staff_number == Appointment.helper_id',
-        overlaps="helper",  # ← This kills the SAWarning forever
+        overlaps="helper",
         lazy='dynamic'
     )
 
@@ -88,7 +81,7 @@ class Patient(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='active')
 
-    # Relationships
+    # THIS LINE AUTOMATICALLY CREATES appointment.patient
     appointments = db.relationship('Appointment', backref='patient', lazy=True)
     prescriptions = db.relationship('Prescription', backref='patient', lazy=True)
     visits = db.relationship('Visit', backref='patient', lazy=True)
@@ -112,17 +105,14 @@ class Appointment(db.Model):
     status = db.Column(db.String(20), default='scheduled')
     reason = db.Column(db.Text)
     created_by_role = db.Column(db.String(20), default='receptionist')
-    helper_id = db.Column(db.String(50))  # stores staff_number (e.g. MED002)
-
-    # Fixed: One clean back-populates relationship
-    patient = db.relationship('Patient', backref='appointments', lazy=True)
-
+    helper_id = db.Column(db.String(50)) 
+    
     helper = db.relationship(
         'Employee',
         back_populates='assigned_appointments',
         foreign_keys=[helper_id],
         primaryjoin='Appointment.helper_id == Employee.staff_number',
-        overlaps="assigned_appointments",  # ← This kills the warning
+        overlaps="assigned_appointments",
         lazy='joined'
     )
 
@@ -151,85 +141,50 @@ class Prescription(db.Model):
 
 
 # ========================================
-# 5. Visit
+# 5–16. All other models — PERFECT AS-IS
 # ========================================
 class Visit(db.Model):
     __tablename__ = 'visits'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     visit_time = db.Column(db.String(50), nullable=False)
     notes = db.Column(db.Text)
+    def __repr__(self): return f"<Visit {self.id}>"
 
-    def __repr__(self):
-        return f"<Visit {self.id}>"
-
-
-# ========================================
-# 6. Emergency Request
-# ========================================
 class EmergencyRequest(db.Model):
     __tablename__ = 'emergency_requests'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     reason = db.Column(db.Text, nullable=False)
     request_time = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='pending')
+    def __repr__(self): return f"<Emergency {self.id} - {self.status}>"
 
-    def __repr__(self):
-        return f"<Emergency {self.id} - {self.status}>"
-
-
-# ========================================
-# 7. Message (System Notifications)
-# ========================================
 class Message(db.Model):
     __tablename__ = 'messages'
-    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text, nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
     sender = db.Column(db.String(50), nullable=False)
+    def __repr__(self): return f"<Message {self.title}>"
 
-    def __repr__(self):
-        return f"<Message {self.title}>"
-
-
-# ========================================
-# 8. System Settings
-# ========================================
-# models.py
 class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
     value = db.Column(db.Text, nullable=True)
+    def __repr__(self): return f"<SystemSetting {self.key}={self.value}>"
 
-    def __repr__(self):
-        return f"<SystemSetting {self.key}={self.value}>"
-
-# ========================================
-# 9. Preferences
-# ========================================
 class Preference(db.Model):
     __tablename__ = 'preferences'
-    
     id = db.Column(db.Integer, primary_key=True)
     staff_number = db.Column(db.String(50), unique=True)
     theme = db.Column(db.String(20), default='dark')
+    def __repr__(self): return f"<Pref {self.staff_number}>"
 
-    def __repr__(self):
-        return f"<Pref {self.staff_number}>"
-
-
-# ========================================
-# 10. Announcement
-# ========================================
 class Announcement(db.Model):
     __tablename__ = 'announcements'
-    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text, nullable=False)
@@ -238,48 +193,27 @@ class Announcement(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     pinned = db.Column(db.Boolean, default=False)
     target_role = db.Column(db.String(20), default='all')
+    def __repr__(self): return f"<Announcement {self.title}>"
 
-    def __repr__(self):
-        return f"<Announcement {self.title}>"
-
-
-# ========================================
-# 11. Payment
-# ========================================
 class Payment(db.Model):
     __tablename__ = 'payments'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     payment_date = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='pending')
+    def __repr__(self): return f"<Payment R{self.amount}>"
 
-    def __repr__(self):
-        return f"<Payment R{self.amount}>"
-
-
-# ========================================
-# 12. Notification
-# ========================================
 class Notification(db.Model):
     __tablename__ = 'notifications'
-    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     message = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    def __repr__(self): return f"<Notif {self.title}>"
 
-    def __repr__(self):
-        return f"<Notif {self.title}>"
-
-
-# ========================================
-# 13. Helped Patient
-# ========================================
 class HelpedPatient(db.Model):
     __tablename__ = 'helped_patients'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     nurse_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
@@ -287,19 +221,11 @@ class HelpedPatient(db.Model):
     helped_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     reason = db.Column(db.Text)
     notes = db.Column(db.Text)
-
     nurse = db.relationship('Employee', backref='helped_patients', lazy=True)
+    def __repr__(self): return f"<Helped {self.id}>"
 
-    def __repr__(self):
-        return f"<Helped {self.id}>"
-
-
-# ========================================
-# 14. Self-Booked Appointment
-# ========================================
 class SelfBookedAppointment(db.Model):
     __tablename__ = 'self_booked_appointments'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_name = db.Column(db.String(200), nullable=False)
     patient_phone = db.Column(db.String(20))
@@ -309,40 +235,24 @@ class SelfBookedAppointment(db.Model):
     doctor_staff_number = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    def __repr__(self): return f"<SelfBook {self.patient_name}>"
 
-    def __repr__(self):
-        return f"<SelfBook {self.patient_name}>"
-
-
-# ========================================
-# 15. Walk-in Queue
-# ========================================
 class WalkinQueue(db.Model):
     __tablename__ = 'walkin_queue'
-    
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.String(50), nullable=False)
     patient_name = db.Column(db.String(200), nullable=False)
     priority = db.Column(db.String(20), nullable=False)
     reason = db.Column(db.Text)
     arrived_at = db.Column(db.String(50), nullable=False)
+    def __repr__(self): return f"<Walkin {self.patient_name}>"
 
-    def __repr__(self):
-        return f"<Walkin {self.patient_name}>"
-
-
-# ========================================
-# 16. Audit Log
-# ========================================
 class AuditLog(db.Model):
     __tablename__ = 'audit_log'
-    
     id = db.Column(db.Integer, primary_key=True)
     action = db.Column(db.Text, nullable=False)
     performed_by = db.Column(db.String(50), nullable=False)
     target_user = db.Column(db.String(50))
     details = db.Column(db.Text)
     timestamp = db.Column(db.String(50), nullable=False)
-
-    def __repr__(self):
-        return f"<Audit {self.action}>"
+    def __repr__(self): return f"<Audit {self.action}>"

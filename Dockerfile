@@ -1,28 +1,18 @@
-# Dockerfile
-FROM python:3.11-slim
+# Use official Python image
+FROM python:3.12-slim
 
-# Set work directory
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies (only what's needed)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first (best caching)
+# Install dependencies
 COPY requirements.txt .
-
-# Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy entire app
+# Copy project files
 COPY . .
 
-# Create uploads folder
-RUN mkdir -p static/uploads
+# Expose the app port
+EXPOSE 8000
 
-# Expose port
-EXPOSE 5000
-
-# Run the app
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "--timeout", "300", "--workers", "2", "script:app"]
+# Default command
+CMD ["python", "script.py", "runserver", "0.0.0.0:8000"]

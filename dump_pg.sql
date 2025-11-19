@@ -5,7 +5,7 @@
 -- Port: 5433
 -- ========================================
 
-BEGIN TRANSACTION;
+BEGIN;
 
 -- Drop tables if they exist (clean start)
 DROP TABLE IF EXISTS appointments_new, appointments, patients, employees, prescriptions, visits, emergency_requests, messages, system_settings, preferences, announcements, payments, notifications, helped_patients, self_booked_appointments, walkin_queue, audit_log CASCADE;
@@ -252,5 +252,118 @@ INSERT INTO audit_log VALUES(1,'create_user','STAFF097','STAFF142','Temp: STAFF1
 
 -- Index
 CREATE INDEX idx_appointments_date_status ON appointments(appointment_date, status);
+
+-- 1. attendance
+CREATE TABLE IF NOT EXISTS attendance (
+    id SERIAL PRIMARY KEY,
+    staff_id INTEGER,
+    date TEXT,
+    status TEXT
+);
+
+-- 2. billing
+CREATE TABLE IF NOT EXISTS billing (
+    id SERIAL PRIMARY KEY,
+    patient_id INTEGER,
+    appointment_id INTEGER,
+    cost REAL DEFAULT 0,
+    billing_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'pending',
+    FOREIGN KEY(patient_id) REFERENCES patients(id),
+    FOREIGN KEY(appointment_id) REFERENCES appointments(id)
+);
+
+-- 3. certifications
+CREATE TABLE IF NOT EXISTS certifications (
+    id SERIAL PRIMARY KEY,
+    staff_id INTEGER,
+    name TEXT,
+    staff TEXT,
+    expiry TEXT,
+    days_left INTEGER
+);
+
+-- 4. clinic_reports
+CREATE TABLE IF NOT EXISTS clinic_reports (
+    id SERIAL PRIMARY KEY,
+    report_date DATE DEFAULT CURRENT_DATE,
+    patients_seen INTEGER,
+    revenue REAL,
+    expenses REAL,
+    staff_on_duty INTEGER,
+    low_stock_items INTEGER,
+    notes TEXT
+);
+
+-- 5. inventory
+CREATE TABLE IF NOT EXISTS inventory (
+    id SERIAL PRIMARY KEY,
+    item_name TEXT NOT NULL,
+    category TEXT,
+    quantity INTEGER DEFAULT 0,
+    unit TEXT,
+    min_stock INTEGER DEFAULT 10,
+    avg_daily_use REAL DEFAULT 0.0,
+    supplier TEXT,
+    cost_per_unit REAL DEFAULT 0.0,
+    last_restocked DATE,
+    expiry_date DATE,
+    reorder_qty INTEGER DEFAULT 50
+);
+
+-- 6. leave_requests
+CREATE TABLE IF NOT EXISTS leave_requests (
+    id SERIAL PRIMARY KEY,
+    staff_id INTEGER,
+    name TEXT,
+    role TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    status TEXT DEFAULT 'pending'
+);
+
+-- 7. performance_reviews
+CREATE TABLE IF NOT EXISTS performance_reviews (
+    id SERIAL PRIMARY KEY,
+    staff_id INTEGER,
+    name TEXT,
+    role TEXT,
+    score INTEGER,
+    last_review TEXT
+);
+
+-- 8. staff_schedule
+CREATE TABLE IF NOT EXISTS staff_schedule (
+    id SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL,
+    shift_date DATE NOT NULL,
+    shift_type TEXT NOT NULL,
+    status TEXT DEFAULT 'scheduled',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id),
+    UNIQUE(employee_id, shift_date, shift_type)
+);
+
+-- 9. tasks
+CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    assigned_to INTEGER,
+    status TEXT DEFAULT 'pending',
+    priority TEXT DEFAULT 'medium',
+    due_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assigned_to) REFERENCES employees(id)
+);
+
+-- 10. training_sessions
+CREATE TABLE IF NOT EXISTS training_sessions (
+    id SERIAL PRIMARY KEY,
+    title TEXT,
+    date TEXT,
+    enrolled INTEGER
+);
 
 COMMIT;
