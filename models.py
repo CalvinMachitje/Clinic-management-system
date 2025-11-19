@@ -31,16 +31,27 @@ class Employee(db.Model):
     staff_number = db.Column(db.String(50), unique=True, nullable=False, default='TEMPSTAFF')
     specialization = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # ADD THIS LINE
     active = db.Column(db.Boolean, default=True, nullable=False)
-    
+
+    # Relationships – CLEAN & NO WARNINGS
+    patients = db.relationship('Patient', backref='doctor', lazy=True)
+
+    # Fixed: One clean relationship using staff_number → helper_id
+    assigned_appointments = db.relationship(
+        'Appointment',
+        back_populates='helper',
+        foreign_keys='Appointment.helper_id',
+        primaryjoin='Employee.staff_number == Appointment.helper_id',
+        overlaps="helper",  # ← This kills the SAWarning forever
+        lazy='dynamic'
+    )
+
     def get_id(self):
         return str(self.id)
 
     @property
     def is_active(self):
-        return self.active  # we added active = True column earlier
+        return self.active
 
     @property
     def is_authenticated(self):
@@ -49,16 +60,9 @@ class Employee(db.Model):
     @property
     def is_anonymous(self):
         return False
-    
-    # Relationships
-    patients = db.relationship('Patient', backref='employee', lazy=True)
-    appointments = db.relationship('Appointment', foreign_keys='Appointment.helper_id',
-                                   primaryjoin="Employee.staff_number == Appointment.helper_id",
-                                   backref='assigned_helper', lazy=True)  # ← FIXED: unique backref
 
     def __repr__(self):
         return f"<Employee {self.staff_number} - {self.role}>"
-
 
 # ========================================
 # 2. Patient
@@ -108,12 +112,19 @@ class Appointment(db.Model):
     status = db.Column(db.String(20), default='scheduled')
     reason = db.Column(db.Text)
     created_by_role = db.Column(db.String(20), default='receptionist')
-    helper_id = db.Column(db.String(50))  # TEXT → references staff_number
+    helper_id = db.Column(db.String(50))  # stores staff_number (e.g. MED002)
 
-    # Relationship via staff_number
-    helper = db.relationship('Employee', foreign_keys=[helper_id],
-                             primaryjoin="Appointment.helper_id == Employee.staff_number",
-                             backref='assigned_appointments', lazy=True)  # ← OK
+    # Fixed: One clean back-populates relationship
+    patient = db.relationship('Patient', backref='appointments', lazy=True)
+
+    helper = db.relationship(
+        'Employee',
+        back_populates='assigned_appointments',
+        foreign_keys=[helper_id],
+        primaryjoin='Appointment.helper_id == Employee.staff_number',
+        overlaps="assigned_appointments",  # ← This kills the warning
+        lazy='joined'
+    )
 
     def __repr__(self):
         return f"<Appointment {self.id} - {self.status}>"

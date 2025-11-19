@@ -25,4 +25,4 @@ RUN mkdir -p static/uploads
 EXPOSE 5000
 
 # Run the app
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "script:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "--timeout", "300", "--workers", "2", "script:app"]

@@ -25,7 +25,7 @@ from io import StringIO
 from flask import send_file
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from pathlib import Path
 
 load_dotenv()
 from models import (
@@ -56,8 +56,15 @@ load_dotenv()
 app = Flask(__name__, static_folder='static')
 
 # Critical config
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///clinicinfo.db').replace('postgres://', 'postgresql://', 1)
+instance_path = Path("instance")
+instance_path.mkdir(exist_ok=True)
+
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL',
+    f"sqlite:///{instance_path / 'clinicinfo.db'}"
+).replace('postgres://', 'postgresql://', 1)
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # ===========================
@@ -119,11 +126,17 @@ class User(UserMixin):
         self.id = str(id)
         self.role = role
 
+# ===========================
+# USER LOADER (Flask-Login)
+# ===========================
 @login_manager.user_loader
 def load_user(user_id):
+    """user_id is the PRIMARY KEY (int) from employees table"""
     return Employee.query.get(int(user_id))
 
-# Proper context processor – fixes the "takes 1 positional argument but 2 were given" error
+# ===========================
+# CONTEXT PROCESSOR – INJECT CURRENT USER
+# ===========================
 @app.context_processor
 def inject_user():
     if current_user.is_authenticated:
@@ -131,13 +144,15 @@ def inject_user():
             current_user=current_user,
             user_fullname=f"{current_user.first_name} {current_user.last_name}".strip(),
             user_role=current_user.role,
-            user_staff_number=current_user.staff_number
+            user_staff_number=current_user.staff_number,
+            user_id=current_user.id  # ← important for JS
         )
     return dict(
         current_user=None,
         user_fullname='Guest',
         user_role='guest',
-        user_staff_number=None
+        user_staff_number=None,
+        user_id=None
     )
 
 # ===========================
@@ -152,15 +167,16 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-def role_required(required_role):
+def role_required(*required_roles):
     def decorator(f):
         @wraps(f)
-        def decorated(*args, **kwargs):
-            if not current_user.is_authenticated or current_user.role != required_role:
-                flash("Access denied.", "error")
+        @login_required
+        def decorated_function(*args, **kwargs):
+            if current_user.role not in required_roles:
+                flash("Access denied. Insufficient permissions.", "error")
                 return redirect(url_for('login_page'))
             return f(*args, **kwargs)
-        return decorated
+        return decorated_function
     return decorator
 
 # ===========================
@@ -207,8 +223,7 @@ def close_connection(exception):
 
 @app.route('/')
 def default_page():
-    if 'user_id' in session:
-        role = session.get('role', 'user')
+    if current_user.is_authenticated:
         redirect_map = {
             'admin': 'admin_dashboard',
             'doctor': 'doctor_dashboard',
@@ -216,7 +231,7 @@ def default_page():
             'receptionist': 'reception_dashboard',
             'manager': 'manager_dashboard'
         }
-        return redirect(url_for(redirect_map.get(role, 'login_page')))
+        return redirect(url_for(redirect_map.get(current_user.role, 'login_page')))
     return render_template('homepage/defaultPage.html')
 
 @app.route('/vaccinations')
@@ -304,76 +319,38 @@ def nl2br_filter(value):
 
 @app.route('/login_page', methods=['GET', 'POST'])
 def login_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('default_page'))
+        
     form = LoginForm()
     if form.validate_on_submit():
         username_input = form.username.data.strip()
         password = form.password.data
-        remember = form.remember.data
 
-        if not all([username_input, password]):
-            flash('Both username and password are required.', 'error')
-            return render_template('homepage/login_page.html', form=form)
+        # Search by staff_number OR email
+        user = Employee.query.filter(
+            (Employee.staff_number == username_input) | 
+            (Employee.email == username_input)
+        ).first()
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            c = conn.cursor()
-            c.execute("""
-                SELECT staff_number, password, role, first_name, last_name, active, profile_image 
-                FROM employees 
-                WHERE (staff_number = ? OR email = ?) AND active = 1
-            """, (username_input, username_input))
-            user = c.fetchone()
-
-            # CHANGED: bcrypt → check_password_hash (Werkzeug)
-            if user and check_password_hash(user['password'], password):
-                session.clear()
-                session.permanent = True
-                session.modified = True
-
-                session['user_id'] = user['staff_number']
-                session['staff_number'] = user['staff_number']
-                session['username'] = f"{user['first_name']} {user['last_name']}"
-                session['role'] = user['role']
-                session['login_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S SAST')
-                session['profile_image'] = user['profile_image'] or 'profile_images/user.png'
-
-                if remember:
-                    app.permanent_session_lifetime = timedelta(days=30)
-                else:
-                    app.permanent_session_lifetime = timedelta(hours=8)
-
-                flash('Login successful!', 'success')
-                logger.info(f"User {user['staff_number']} ({user['role']}) logged in.")
-
-                role = user['role'].lower()
-                redirect_map = {
-                    'receptionist': 'reception_dashboard',
-                    'admin': 'admin_dashboard',
-                    'doctor': 'doctor_dashboard',
-                    'nurse': 'nurse_dashboard',
-                    'manager': 'manager_dashboard'
-                }
-                endpoint = redirect_map.get(role)
-                if endpoint:
-                    return redirect(url_for(endpoint))
-                else:
-                    flash('Unknown role. Contact admin.', 'error')
-                    return redirect(url_for('default_page'))
-
-            else:
-                flash('Invalid username, password, or account inactive.', 'error')
-                logger.warning(f"Failed login: {username_input}")
-
-        except Exception as e:
-            logger.error(f"Login error: {e}")
-            flash('Login failed. Try again.', 'error')
-        finally:
-            if conn:
-                conn.close()
-
+        if user and user.active and check_password_hash(user.password, password):
+            login_user(user, remember=form.remember.data)
+            
+            flash('Login successful!', 'success')
+            
+            # Redirect based on role
+            redirect_map = {
+                'admin': 'admin_dashboard',
+                'doctor': 'doctor_dashboard',
+                'nurse': 'nurse_dashboard',
+                'receptionist': 'reception_dashboard',
+                'manager': 'manager_dashboard'
+            }
+            return redirect(url_for(redirect_map.get(user.role, 'default_page')))
+        else:
+            flash('Invalid credentials or account inactive.', 'error')
+    
     return render_template('homepage/login_page.html', form=form)
-
 
 # --------------------------------------------------------------
 # POST: Create New User (Admin Only) – FIXED CSRF + Werkzeug
@@ -1259,286 +1236,234 @@ def patient_profile(patient_id):
         if conn:
             conn.close()
 
+# ==================
+# 1.ADMIN DASHBOARD
+# ==================
 @app.route('/admin_dashboard')
+@role_required('admin')
 def admin_dashboard():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        return redirect(url_for('login_page'))
-    conn = None
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM employees")
-        total_users = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM employees WHERE role IN ('doctor', 'nurse', 'receptionist')")
-        active_staff = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM appointments WHERE status = 'pending'")
-        system_alerts = c.fetchone()[0]
-        c.execute("SELECT staff_number, email, role FROM employees ORDER BY id DESC LIMIT 5")
-        recent_users = [{'staff_number': row['staff_number'], 'email': row['email'], 'role': row['role']} for row in c.fetchall()]
-        user_details = get_user_details(conn, session['user_id'])
-        return render_template('admin/adminDashboard.html',
-                              username=session['user_id'],
-                              total_users=total_users,
-                              active_staff=active_staff,
-                              system_alerts=system_alerts,
-                              recent_users=recent_users,
-                              user_details=user_details)
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('login_page'))
-    finally:
-        if conn:
-            conn.close()
+        total_users = Employee.query.count()
+        active_staff = Employee.query.filter(Employee.role.in_(['doctor', 'nurse', 'receptionist'])).count()
+        system_alerts = Appointment.query.filter_by(status='pending').count()
+        
+        recent_users = Employee.query.order_by(Employee.id.desc()).limit(5).all()
+        recent_users_list = [{
+            'staff_number': u.staff_number,
+            'email': u.email,
+            'role': u.role.capitalize()
+        } for u in recent_users]
 
-@app.route('/doctorDashboard.html')
-def doctor_dashboard():
-    if 'user_id' not in session or session.get('role') not in ['doctor', 'nurse']:
-        logger.error(f"Unauthorized access: user_id={session.get('user_id')}, role={session.get('role')}")
+        return render_template('admin/adminDashboard.html',
+                               total_users=total_users,
+                               active_staff=active_staff,
+                               system_alerts=system_alerts,
+                               recent_users=recent_users_list,
+                               user_details=current_user)
+    except Exception as e:
+        logger.error(f"Admin dashboard error: {e}")
+        flash('An error occurred while loading the dashboard.', 'error')
         return redirect(url_for('login_page'))
-    conn = None
+
+@app.route('/doctor_dashboard')
+@app.route('/doctorDashboard.html')
+@role_required('doctor', 'nurse')
+def doctor_dashboard():
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        employee_id = c.execute("SELECT id FROM employees WHERE staff_number = ?", (session['user_id'],)).fetchone()[0]
-        c.execute("SELECT p.id, p.first_name, p.last_name, p.date_of_birth, p.gender FROM patients p WHERE p.employee_id = ?", (employee_id,))
-        patients = [{'id': row['id'], 'first_name': row['first_name'], 'last_name': row['last_name'], 'date_of_birth': row['date_of_birth'], 'gender': row['gender'], 'last_visit_date': 'N/A'} for row in c.fetchall()]
-        today = datetime.now().strftime('%Y-%m-%d')
-        c.execute("""
-            SELECT p.id, p.first_name, p.last_name, a.appointment_date
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ? AND p.employee_id = ?
-        """, (f'{today}%', employee_id))
-        patients_today = [{'id': row['id'], 'first_name': row['first_name'], 'last_name': row['last_name'], 'appointment_time': row['appointment_date']} for row in c.fetchall()]
-        c.execute("SELECT COUNT(*) FROM patients WHERE employee_id = ?", (employee_id,))
-        total_patients = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM patients WHERE medical_history LIKE '%chronic%' AND employee_id = ?", (employee_id,))
-        chronic_patients = c.fetchone()[0]
-        c.execute("SELECT AVG(length(current_medications) - length(replace(current_medications, ',', '')) + 1) FROM patients WHERE current_medications IS NOT NULL AND employee_id = ?", (employee_id,))
-        avg_medications = c.fetchone()[0] or 0
-        c.execute("SELECT COUNT(*) FROM messages WHERE title LIKE '%Doctor%'")
-        unread_messages = c.fetchone()[0] or 0
-        pending_lab_results = 0
+        today_str = date.today().strftime('%Y-%m-%d')
+        
+        # Get doctor's patients
+        patients = Patient.query.filter_by(doctor_id=current_user.id).all()
+        patients_list = [{
+            'id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'date_of_birth': p.date_of_birth,
+            'gender': p.gender,
+            'last_visit_date': 'N/A'
+        } for p in patients]
+
+        # Today's appointments
+        appointments_today = db.session.query(Patient, Appointment)\
+            .join(Appointment, Patient.id == Appointment.patient_id)\
+            .filter(Appointment.doctor_id == current_user.id,
+                    db.func.date(Appointment.date) == today_str).all()
+
+        patients_today = [{
+            'id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'appointment_time': a.time.strftime('%H:%M') if a.time else 'N/A'
+        } for p, a in appointments_today]
+
+        total_patients = len(patients)
+        chronic_patients = Patient.query.filter(
+            Patient.doctor_id == current_user.id,
+            Patient.medical_history.ilike('%chronic%')
+        ).count()
+
+        # Average medications (approximate)
+        avg_medications = db.session.query(db.func.avg(
+            db.func.length(Patient.current_medications) - db.func.length(db.func.replace(Patient.current_medications, ',', '')) + 1
+        )).filter(Patient.doctor_id == current_user.id, Patient.current_medications.isnot(None)).scalar() or 0
+
+        unread_messages = Message.query.filter(Message.title.ilike('%Doctor%')).count()
+        pending_lab_results = 0  # Add LabResult model later if needed
+
         reminders = [
-            {'title': 'Staff Meeting', 'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Team meeting at 2 PM'},
-            {'title': 'Review Lab Results', 'date': datetime.now().strftime('%Y-%m-%d'), 'description': 'Check pending lab results'}
+            {'title': 'Staff Meeting', 'date': today_str, 'description': 'Team meeting at 2 PM'},
+            {'title': 'Review Lab Results', 'date': today_str, 'description': 'Check pending lab results'}
         ]
         health_trends = "Stable, with a slight increase in chronic condition cases this month."
-        user_details = get_user_details(conn, session['user_id'])
-        logger.debug(f"Rendering dashboard for username={session['user_id']}, role={session['role']}")
+
         return render_template('doctor/doctorDashboard.html',
-                              now=datetime.now(),
-                              username=session['user_id'],
-                              patients=patients,
-                              patients_today=patients_today,
-                              total_patients=total_patients,
-                              chronic_patients=chronic_patients,
-                              avg_medications=avg_medications,
-                              health_trends=health_trends,
-                              user_details=user_details,
-                              pending_lab_results=pending_lab_results,
-                              unread_messages=unread_messages,
-                              reminders=reminders)
+                               now=datetime.now(),
+                               patients=patients_list,
+                               patients_today=patients_today,
+                               total_patients=total_patients,
+                               chronic_patients=chronic_patients,
+                               avg_medications=round(avg_medications, 1),
+                               health_trends=health_trends,
+                               pending_lab_results=pending_lab_results,
+                               unread_messages=unread_messages,
+                               reminders=reminders,
+                               user_details=current_user)
     except Exception as e:
-        logger.error(f"Doctor dashboard error: {str(e)}")
-        flash(f'An error occurred: {str(e)}', 'error')
+        logger.error(f"Doctor dashboard error: {e}")
+        flash('An error occurred.', 'error')
         return redirect(url_for('login_page'))
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/nurse_dashboard')
+@role_required('nurse')
 def nurse_dashboard():
-    if 'user_id' not in session or session.get('role') != 'nurse':
-        flash('Please log in as a nurse to access the dashboard.', 'error')
-        return redirect(url_for('login_page'))
-    conn = get_db_connection()
     try:
-        user_details = get_user_details(conn, session['user_id'])
-        if not user_details:
-            flash('User not found.', 'error')
-            return redirect(url_for('login_page'))
-        today = date.today().strftime('%Y-%m-%d')
-        c = conn.cursor()
-        c.execute("""
-            SELECT a.id, a.patient_id, p.first_name || ' ' || p.last_name AS patient_name,
-                   a.appointment_date, a.reason
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.appointment_date LIKE ?
-            AND a.status = 'scheduled'
-        """, (f'{today}%',))
-        appointments = [
-            {
-                'id': row['id'],
-                'patient_id': row['patient_id'],
-                'patient_name': row['patient_name'],
-                'appointment_date': row['appointment_date'],
-                'reason': row['reason']
-            } for row in c.fetchall()
-        ]
+        today_str = date.today().strftime('%Y-%m-%d')
+
+        appointments = db.session.query(Appointment, Patient)\
+            .join(Patient).filter(
+                db.func.date(Appointment.date) == today_str,
+                Appointment.status == 'scheduled'
+            ).all()
+
+        appointments_list = [{
+            'id': a.id,
+            'patient_id': p.id,
+            'patient_name': f"{p.first_name} {p.last_name}",
+            'appointment_date': a.date,
+            'reason': a.reason or 'Checkup'
+        } for a, p in appointments]
+
         pending_vitals = 5
-        todays_patients = len(appointments)
+        todays_patients = len(appointments_list)
         emergency_requests = 2
         new_messages = 3
         shift_start = "08:00 AM"
         shift_end = "04:00 PM"
         shift_hours_left = "5 hours"
+
         return render_template('nurse/nurseDashboard.html',
-                              appointments=appointments,
-                              pending_vitals=pending_vitals,
-                              todays_patients=todays_patients,
-                              patients=appointments,
-                              emergency_requests=emergency_requests,
-                              new_messages=new_messages,
-                              shift_start=shift_start,
-                              shift_end=shift_end,
-                              shift_hours_left=shift_hours_left,
-                              user_details=user_details)
+                               appointments=appointments_list,
+                               pending_vitals=pending_vitals,
+                               todays_patients=todays_patients,
+                               patients=appointments_list,
+                               emergency_requests=emergency_requests,
+                               new_messages=new_messages,
+                               shift_start=shift_start,
+                               shift_end=shift_end,
+                               shift_hours_left=shift_hours_left,
+                               user_details=current_user)
     except Exception as e:
-        logger.error(f"Database error in nurse_dashboard: {e}")
-        flash('An error occurred while fetching data.', 'error')
+        logger.error(f"Nurse dashboard error: {e}")
+        flash('An error occurred.', 'error')
         return render_template('nurse/nurseDashboard.html',
-                              appointments=[],
-                              pending_vitals=0,
-                              todays_patients=0,
-                              patients=[],
-                              emergency_requests=0,
-                              new_messages=0,
-                              shift_start="N/A",
-                              shift_end="N/A",
-                              shift_hours_left="N/A",
-                              user_details={})
-    except sqlite3.Error as e:
-        logger.error(f"Database error in nurse_dashboard: {e}")
-        flash('An error occurred while fetching data.', 'error')
-        return render_template('nurse/nurseDashboard.html',
-                              appointments=[],
-                              pending_vitals=0,
-                              todays_patients=0,
-                              patients=[],
-                              emergency_requests=0,
-                              new_messages=0,
-                              shift_start="N/A",
-                              shift_end="N/A",
-                              shift_hours_left="N/A",
-                              user_details={})
-    finally:
-        conn.close()
+                               appointments=[], pending_vitals=0, todays_patients=0,
+                               patients=[], emergency_requests=0, new_messages=0,
+                               shift_start="N/A", shift_end="N/A", shift_hours_left="N/A",
+                               user_details=current_user)
 
+
+# ==========================
+# 4. RECEPTIONIST DASHBOARD 
+# ==========================
 @app.route('/reception_dashboard')
+@role_required('receptionist')
 def reception_dashboard():
-    if 'user_id' not in session or session.get('role') != 'receptionist':
-        flash('Please log in as a receptionist.', 'error')
-        return redirect(url_for('login_page'))
-
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        
-        # User details - FIXED: Use 'staff_number' instead of 'employee_id'
-        c.execute('SELECT * FROM employees WHERE staff_number = ?', (session['user_id'],))
-        user_details = c.fetchone()
+        today_str = date.today().strftime('%Y-%m-%d')
 
-        # Today's Appointments - FIXED: Use appointment_date instead of non-existent appointment_time
-        # Extract time using strftime for display if needed
-        c.execute('''
-            SELECT p.id as patient_id, p.first_name, p.last_name, a.appointment_date, 
-                   strftime('%H:%M', a.appointment_date) as appointment_time, a.reason, a.status, 
-                   CASE WHEN a.reason LIKE '%urgent%' THEN 1 ELSE 0 END AS urgent
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE DATE(a.appointment_date) = DATE('now')
-            ORDER BY a.appointment_date
-        ''')
-        patients_today = c.fetchall()
-        logger.debug(f"patients_today sample: {patients_today[:1] if patients_today else 'Empty'}")
+        # Today's appointments
+        patients_today = db.session.query(Patient, Appointment)\
+            .join(Appointment).filter(db.func.date(Appointment.date) == today_str)\
+            .order_by(Appointment.time).all()
 
-        # Waiting Patients - FIXED: Similar change for appointment_time
-        c.execute('''
-            SELECT p.id as patient_id, p.first_name, p.last_name, a.appointment_date, 
-                   strftime('%H:%M', a.appointment_date) as appointment_time, a.reason, a.status,
-                   e.first_name || ' ' || e.last_name AS helper_name, e.role AS helper_role
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            LEFT JOIN employees e ON a.helper_id = e.id
-            WHERE a.status IN ('scheduled', 'waiting', 'helped')
-            AND DATE(a.appointment_date) = DATE('now')
-            ORDER BY a.appointment_date
-        ''')
-        waiting_patients = c.fetchall()
-        logger.debug(f"waiting_patients sample: {waiting_patients[:1] if waiting_patients else 'Empty'}")
+        patients_today_list = [{
+            'patient_id': p.id,
+            'first_name': p.first_name,
+            'last_name': p.last_name,
+            'appointment_date': a.date,
+            'appointment_time': a.time.strftime('%H:%M') if a.time else 'N/A',
+            'reason': a.reason or 'General',
+            'status': a.status,
+            'urgent': 1 if 'urgent' in (a.reason or '').lower() else 0
+        } for p, a in patients_today]
 
-        # Available Staff - FIXED: availability is TEXT 'available', not INTEGER 1
-        c.execute('SELECT first_name, last_name FROM employees WHERE role != ? AND availability = ?', ('receptionist', 'available'))
-        available_staff = c.fetchall()
-        logger.debug(f"available_staff sample: {available_staff[:1] if available_staff else 'Empty'}")
+        # Waiting patients
+        waiting = Appointment.query.join(Patient).filter(
+            Appointment.status.in_(['scheduled', 'waiting', 'helped']),
+            db.func.date(Appointment.date) == today_str
+        ).all()
 
-        # Missed Appointments - FIXED: appointment_time
-        c.execute('''
-            SELECT p.first_name, p.last_name, a.appointment_date, 
-                   strftime('%H:%M', a.appointment_date) as appointment_time
-            FROM appointments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.status = 'missed' AND DATE(a.appointment_date) = DATE('now')
-        ''')
-        missed_appointments = c.fetchall()
-        logger.debug(f"missed_appointments sample: {missed_appointments[:1] if missed_appointments else 'Empty'}")
+        waiting_patients = []
+        for a in waiting:
+            helper = Employee.query.get(a.helper_id)
+            helper_name = f"{helper.first_name} {helper.last_name}" if helper else "None"
+            waiting_patients.append({
+                'patient_id': a.patient.id,
+                'first_name': a.patient.first_name,
+                'last_name': a.patient.last_name,
+                'appointment_time': a.time.strftime('%H:%M') if a.time else 'N/A',
+                'reason': a.reason,
+                'status': a.status,
+                'helper_name': helper_name,
+                'helper_role': helper.role.capitalize() if helper else ''
+            })
 
-        # Notifications - FIXED: notifications table has no 'status' column; remove WHERE clause or add if needed
-        # Assuming all are unread for now, or adjust schema. For fix, remove status filter
-        c.execute('''
-            SELECT title, message, datetime(timestamp, 'localtime') AS timestamp
-            FROM notifications
-            ORDER BY timestamp DESC
-            LIMIT 5
-        ''')
-        notifications = c.fetchall()
-        logger.debug(f"notifications sample: {notifications[:1] if notifications else 'Empty'}")
+        available_staff = Employee.query.filter(
+            Employee.role != 'receptionist',
+            Employee.availability == 'available'
+        ).all()
 
-        # FIXED: Compute walkins_waiting as list of waiting patients
+        missed_appointments = Appointment.query.join(Patient)\
+            .filter(Appointment.status == 'missed', db.func.date(Appointment.date) == today_str).all()
+
+        notifications = Message.query.order_by(Message.timestamp.desc()).limit(5).all()
+
         walkins_waiting = [p for p in waiting_patients if p['status'] == 'waiting']
-
-        # FIXED: Set pending_registrations as list (e.g., pending self-booked) to match |length in template
-        # For now, query pending self-booked appointments
-        c.execute("SELECT id FROM self_booked_appointments WHERE status = 'pending'")
-        pending_registrations = c.fetchall()  # list of rows
-
-        # Summary Data (placeholders, adjust queries as needed)
+        pending_registrations = []  # Add self-booked model later if exists
         checked_in_patients = len([p for p in waiting_patients if p['status'] == 'helped'])
-        walkins_processed = 0  # Requires specific query
-        appointments_rescheduled = len([p for p in waiting_patients if p['status'] == 'rescheduled'])
-        payments_processed = 0  # Requires specific query
-        # all_visits = 0  # Already int, but template uses |default(0), no |length
-        c.execute("SELECT COUNT(*) FROM appointments WHERE DATE(appointment_date) = DATE('now')")
-        all_visits = c.fetchone()[0]
+        appointments_rescheduled = len([a for a in waiting if a.status == 'rescheduled'])
+        all_visits = Appointment.query.filter(db.func.date(Appointment.date) == today_str).count()
 
-        conn.close()
-
-        current_time = datetime.now().strftime('%I:%M %p %Z, %B %d, %Y')
+        current_time = datetime.now().strftime('%I:%M %p, %B %d, %Y')
 
         return render_template('reception/reception.html',
-                             user_details=user_details,
-                             patients_today=patients_today,
-                             waiting_patients=waiting_patients,
-                             available_staff=available_staff,
-                             missed_appointments=missed_appointments,
-                             notifications=notifications,
-                             checked_in_patients=checked_in_patients,
-                             walkins_processed=walkins_processed,
-                             appointments_rescheduled=appointments_rescheduled,
-                             payments_processed=payments_processed,
-                             pending_registrations=pending_registrations,
-                             all_visits=all_visits,
-                             walkins_waiting=walkins_waiting,  # FIXED: Added missing variable
-                             current_time=current_time)
-    except sqlite3.Error as e:
-        logger.error(f"Database error in reception_dashboard: {e}")
-        flash('An error occurred while loading the dashboard.', 'error')
-        return redirect(url_for('login_page'))
+                               user_details=current_user,
+                               patients_today=patients_today_list,
+                               waiting_patients=waiting_patients,
+                               available_staff=available_staff,
+                               missed_appointments=missed_appointments,
+                               notifications=notifications,
+                               checked_in_patients=checked_in_patients,
+                               walkins_processed=0,
+                               appointments_rescheduled=appointments_rescheduled,
+                               payments_processed=0,
+                               pending_registrations=pending_registrations,
+                               all_visits=all_visits,
+                               walkins_waiting=walkins_waiting,
+                               current_time=current_time)
     except Exception as e:
-        logger.error(f"Unexpected error in reception_dashboard: {e}")
-        flash('An unexpected error occurred.', 'error')
+        logger.error(f"Reception dashboard error: {e}")
+        flash('An error occurred.', 'error')
         return redirect(url_for('login_page'))
 
 # --------------------------------------------------------------
@@ -2757,27 +2682,8 @@ from werkzeug.utils import secure_filename
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
-    if 'staff_number' not in session:
-        flash("Please log in to continue.", "error")
-        return redirect(url_for('login_page'))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # === ADDED: password to SELECT ===
-    cursor.execute("""
-        SELECT id, staff_number, first_name, last_name, email, role, 
-               availability, specialization, phone, profile_image, password 
-        FROM employees WHERE staff_number = ?
-    """, (session['staff_number'],))
-    employee = cursor.fetchone()
-    if not employee:
-        conn.close()
-        flash("Employee not found.", "error")
-        return redirect(url_for('login_page'))
-
-    employee_dict = dict(employee)
-    employee_dict['specialization'] = employee_dict['specialization'] or ''
+    # current_user is already loaded by Flask-Login → no session or raw DB needed
+    employee = current_user
 
     if request.method == 'POST':
         first_name = request.form.get('first_name')
@@ -2785,96 +2691,63 @@ def edit_profile():
         email = request.form.get('email')
         phone = request.form.get('phone')
         availability = request.form.get('availability')
-        specialization = request.form.get('specialization') if employee_dict['role'] == 'doctor' else None
-        profile_picture = request.files.get('profile_picture')
+        specialization = request.form.get('specialization') if employee.role == 'doctor' else employee.specialization
 
         if not all([first_name, last_name, email]):
-            flash("Name and email are required.", "error")
-            conn.close()
+            flash("First name, last name, and email are required.", "error")
             return redirect(url_for('edit_profile'))
+
+        # Update basic fields
+        employee.first_name = first_name.strip()
+        employee.last_name = last_name.strip()
+        employee.email = email.strip().lower()
+        employee.phone = phone.strip() or None
+        employee.availability = availability
+
+        if employee.role == 'doctor':
+            employee.specialization = specialization.strip() if specialization else None
+
+        # Handle profile picture upload
+        if 'profile_picture' in request.files:
+            file = request.files['profile_picture']
+            if file and file.filename and allowed_file(file.filename):
+                filename = secure_filename(f"profile_{employee.id}_{int(time.time())}_{file.filename}")
+                upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                os.makedirs(os.path.dirname(upload_path), exist_ok=True)
+                file.save(upload_path)
+                employee.profile_image = f"uploads/{filename}"
+                flash("Profile picture updated!", "success")
+
+        # Password change logic
+        current_password = request.form.get('current_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        if any([current_password, new_password, confirm_password]):
+            if not all([current_password, new_password, confirm_password]):
+                flash("All password fields are required to change password.", "error")
+            elif not check_password_hash(employee.password, current_password):
+                flash("Current password is incorrect.", "error")
+            elif new_password != confirm_password:
+                flash("New passwords do not match.", "error")
+            elif len(new_password) < 8:
+                flash("New password must be at least 8 characters.", "error")
+            else:
+                employee.password = generate_password_hash(new_password)
+                flash("Password changed successfully!", "success")
 
         try:
-            update_fields = []
-            update_values = []
-
-            update_fields.append("first_name = ?")
-            update_values.append(first_name)
-            update_fields.append("last_name = ?")
-            update_values.append(last_name)
-            update_fields.append("email = ?")
-            update_values.append(email)
-            update_fields.append("phone = ?")
-            update_values.append(phone or None)
-            update_fields.append("availability = ?")
-            update_values.append(availability)
-
-            if employee_dict['role'] == 'doctor':
-                update_fields.append("specialization = ?")
-                update_values.append(specialization)
-
-            profile_image_path = employee_dict['profile_image']
-            if profile_picture and profile_picture.filename:
-                filename = secure_filename(f"profile_{employee_dict['id']}_{profile_picture.filename}")
-                upload_path = os.path.join(app.static_folder, 'uploads', filename)
-                os.makedirs(os.path.dirname(upload_path), exist_ok=True)
-                profile_picture.save(upload_path)
-                profile_image_path = f"uploads/{filename}"
-                update_fields.append("profile_image = ?")
-                update_values.append(profile_image_path)
-
-            # === PASSWORD CHANGE LOGIC ===
-                        # === PASSWORD CHANGE LOGIC (Werkzeug – Azure safe) ===
-            current_password = request.form.get('current_password')
-            new_password = request.form.get('new_password')
-            confirm_password = request.form.get('confirm_password')
-
-            if any([current_password, new_password, confirm_password]):
-                if not all([current_password, new_password, confirm_password]):
-                    flash("All password fields are required to change password.", "error")
-                    conn.close()
-                    return redirect(url_for('edit_profile'))
-
-                if not check_password_hash(employee_dict['password'], current_password):
-                    flash("Current password is incorrect.", "error")
-                    conn.close()
-                    return redirect(url_for('edit_profile'))
-
-                if new_password != confirm_password:
-                    flash("New passwords do not match.", "error")
-                    conn.close()
-                    return redirect(url_for('edit_profile'))
-
-                if len(new_password) < 8:
-                    flash("New password must be at least 8 characters.", "error")
-                    conn.close()
-                    return redirect(url_for('edit_profile'))
-
-                hashed_new = generate_password_hash(new_password)
-                update_fields.append("password = ?")
-                update_values.append(hashed_new)
-
-            update_query = f"UPDATE employees SET {', '.join(update_fields)} WHERE id = ?"
-            update_values.append(employee_dict['id'])
-            cursor.execute(update_query, update_values)
-            conn.commit()
-
-            # UPDATE SESSION
-            session['name'] = f"{first_name} {last_name}"
-            session['profile_image'] = profile_image_path
-
+            db.session.commit()
             flash("Profile updated successfully!", "success")
-            return redirect(url_for('edit_profile'))
-
         except Exception as e:
-            conn.rollback()
-            app.logger.error(f"Profile update error: {e}")
-            flash("Update failed. Try again.", "error")
-            return redirect(url_for('edit_profile'))
-        finally:
-            conn.close()
+            db.session.rollback()
+            logger.error(f"Profile update failed: {e}")
+            flash("Failed to update profile. Please try again.", "error")
 
-    conn.close()
-    return render_template('edit_profile.html', employee=employee_dict)         
+        return redirect(url_for('edit_profile'))
+
+    # GET request → show form
+    return render_template('edit_profile.html', employee=employee)         
 
 @app.route('/update_emergency_request/<int:request_id>', methods=['POST'])
 def update_emergency_request(request_id):
@@ -2909,28 +2782,20 @@ def health():
         return {"status": "unhealthy", "db": "down"}, 500
 
 @app.route('/logout')
+@login_required
 def logout():
-    if 'username' in session:
-        conn = get_db_connection()
-        try:
-            c = conn.cursor()
-            c.execute("SELECT first_name, last_name, role FROM employees WHERE staff_number = ?", (session['username'],))
-            user = c.fetchone()
-            if user and user['role'] in ['doctor', 'nurse']:
-                c.execute("UPDATE employees SET availability = 'unavailable' WHERE staff_number = ?", (session['username'],))
-                notification = f"{user['first_name']} {user['last_name']} ({user['role']}) is now unavailable."
-                c.execute("INSERT INTO messages (title, content, sender) VALUES (?, ?, ?)",
-                         (f"{user['role'].capitalize()} Unavailable", notification, 'System'))
-                conn.commit()
-        except sqlite3.Error as e:
-            logger.error(f"Database error during logout: {e}")
-        finally:
-            conn.close()
-        session.pop('username', None)
-        session.pop('role', None)
-        session.pop('theme', None)
-        session.pop('login_time', None)
-        flash('You have been logged out.', 'success')
+    # Optional: Set doctor/nurse as unavailable on logout
+    if current_user.role in ['doctor', 'nurse']:
+        current_user.availability = 'unavailable'
+        db.session.commit()
+
+        notification = f"{current_user.first_name} {current_user.last_name} ({current_user.role}) is now unavailable."
+        msg = Message(title="Staff Status", content=notification, sender="System")
+        db.session.add(msg)
+        db.session.commit()
+
+    logout_user()
+    flash('You have been logged out successfully.', 'success')
     return redirect(url_for('login_page'))
 
 def upgrade_database():
