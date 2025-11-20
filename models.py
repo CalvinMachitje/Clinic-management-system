@@ -256,3 +256,118 @@ class AuditLog(db.Model):
     details = db.Column(db.Text)
     timestamp = db.Column(db.String(50), nullable=False)
     def __repr__(self): return f"<Audit {self.action}>"
+    
+# ========================================
+# Inventory
+# ========================================
+class Inventory(db.Model):
+    __tablename__ = 'inventory'
+    id = db.Column(db.Integer, primary_key=True)
+    item_name = db.Column(db.String(200), nullable=False)
+    quantity = db.Column(db.Integer, default=0)
+    min_stock = db.Column(db.Integer, default=0)
+    avg_daily_use = db.Column(db.Float, default=0.0)
+    last_restocked = db.Column(db.DateTime)
+    def __repr__(self):
+        return f"<Inventory {self.item_name} qty={self.quantity}>"
+
+# ========================================
+# Billing
+# ========================================
+class Billing(db.Model):
+    __tablename__ = 'billing'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    cost = db.Column(db.Float, nullable=False)
+    billing_date = db.Column(db.DateTime, default=datetime.utcnow)
+    description = db.Column(db.Text)
+    patient = db.relationship('Patient', backref='billings', lazy=True)
+    def __repr__(self):
+        return f"<Billing {self.id} - R{self.cost}>"
+
+# ========================================
+# Task
+# ========================================
+class Task(db.Model):
+    __tablename__ = 'tasks'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    assigned_to = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='pending')
+    due_date = db.Column(db.DateTime)
+    def __repr__(self):
+        return f"<Task {self.title} - {self.status}>"
+
+# ========================================
+# Attendance
+# ========================================
+class Attendance(db.Model):
+    __tablename__ = 'attendance'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    check_in = db.Column(db.String(20))
+    check_out = db.Column(db.String(20))
+    employee = db.relationship('Employee', backref='attendances', lazy=True)
+    def __repr__(self):
+        return f"<Attendance {self.employee_id} - {self.date}>"
+
+# ========================================
+# LeaveRequest
+# ========================================
+class LeaveRequest(db.Model):
+    __tablename__ = 'leave_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    reason = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')
+    employee = db.relationship('Employee', backref='leave_requests', lazy=True)
+    def __repr__(self):
+        return f"<LeaveRequest {self.employee_id} - {self.status}>"
+
+# ========================================
+# Certification
+# ========================================
+class Certification(db.Model):
+    __tablename__ = 'certifications'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    issue_date = db.Column(db.Date)
+    expiry_date = db.Column(db.Date)
+    employee = db.relationship('Employee', backref='certifications', lazy=True)
+    def __repr__(self):
+        return f"<Certification {self.name} - {self.employee_id}>"
+
+# ========================================
+# PerformanceReview
+# ========================================
+class PerformanceReview(db.Model):
+    __tablename__ = 'performance_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    reviewer = db.Column(db.String(100))
+    review_date = db.Column(db.Date)
+    score = db.Column(db.Float)
+    notes = db.Column(db.Text)
+    employee = db.relationship('Employee', backref='performance_reviews', lazy=True)
+    def __repr__(self):
+        return f"<PerformanceReview {self.employee_id} - {self.score}>"
+
+# ========================================
+# TrainingSession
+# ========================================
+class TrainingSession(db.Model):
+    __tablename__ = 'training_sessions'
+    id = db.Column(db.Integer, primary_key=True)
+    topic = db.Column(db.String(200), nullable=False)
+    trainer = db.Column(db.String(100))
+    date = db.Column(db.Date)
+    duration_hours = db.Column(db.Float)
+    attendees = db.Column(db.Text)  # Could be a comma-separated list of staff_numbers
+    def __repr__(self):
+        return f"<TrainingSession {self.topic} - {self.date}>"
+    

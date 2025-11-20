@@ -3,11 +3,10 @@ from markupsafe import Markup
 from datetime import datetime, date, timedelta
 from flask.logging import create_logger
 from werkzeug.utils import secure_filename
-import secrets, string, jinja2, traceback, csv, time, json, re, random, logging, os, sqlite3
+import secrets, string, jinja2, traceback, csv, threading, time, json, re, random, logging, os, sqlite3
 from models import db, Announcement
 from sqlalchemy import or_
 from collections import deque
-import threading
 queue_lock = threading.Lock()
 from queue import Queue
 from threading import Lock
@@ -25,27 +24,24 @@ from io import StringIO
 from flask import send_file
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
 load_dotenv()
 from models import (
     db,
-    Employee,
-    Patient,
-    Appointment,
-    Prescription,
-    Visit,
-    EmergencyRequest,
-    Message,
-    SystemSetting,
-    Preference,
-    Announcement,
-    Payment,
-    Notification,
-    HelpedPatient,
-    SelfBookedAppointment,
-    WalkinQueue,
-    AuditLog
+    Inventory,
+    Billing,
+    Task,
+    Attendance,
+    LeaveRequest,
+    Certification,
+    PerformanceReview,
+    TrainingSession,
+    StaffSchedule,
+    Employee, Patient, Appointment, Prescription, Visit, EmergencyRequest,
+    Message, SystemSetting, Preference, Announcement, Payment, Notification,
+    HelpedPatient, SelfBookedAppointment, WalkinQueue, AuditLog
 )
 
 # ===========================
@@ -77,15 +73,6 @@ login_manager.login_view = 'login_page'
 login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'info'
 login_manager.init_app(app)
-    
-# ===========================
-# MODELS (must be after db = SQLAlchemy(app))
-# ===========================
-from models import (
-    Employee, Patient, Appointment, Prescription, Visit, EmergencyRequest,
-    Message, SystemSetting, Preference, Announcement, Payment, Notification,
-    HelpedPatient, SelfBookedAppointment, WalkinQueue, AuditLog
-)
 
 # ===========================
 # FOLDERS & SETTINGS
@@ -114,6 +101,11 @@ def jinja_strftime(value, format='%H:%M'):
         return value[:5]
 app.jinja_env.filters['strftime'] = jinja_strftime
 app.jinja_env.filters['nl2br'] = lambda v: Markup(v.replace('\n', '<br>\n')) if v else ''
+
+# Globals
+clients = set()
+message_queue = deque()
+lock = threading.Lock()
 
 # ===========================
 # USER LOADER (Flask-Login + SQLAlchemy)
@@ -1459,69 +1451,68 @@ def reception_view_announcements():
 def mark_helped():
     if 'username' not in session or session.get('role') != 'nurse':
         return jsonify({'success': False, 'category': 'error', 'message': 'Unauthorized access.'}), 403
+
     appointment_id = request.form.get('appointment_id')
     if not appointment_id:
         return jsonify({'success': False, 'category': 'error', 'message': 'Appointment ID missing.'}), 400
-    conn = None
+
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute("SELECT patient_id FROM appointments WHERE id = ?", (appointment_id,))
-        appointment = c.fetchone()
+        appointment = Appointment.query.get(appointment_id)
         if not appointment:
             return jsonify({'success': False, 'category': 'error', 'message': 'Appointment not found.'}), 404
-        c.execute("SELECT id FROM employees WHERE staff_number = ?", (session['username'],))
-        nurse = c.fetchone()
+
+        nurse = Employee.query.filter_by(staff_number=session['username']).first()
         if not nurse:
             return jsonify({'success': False, 'category': 'error', 'message': 'Nurse not found.'}), 404
-        c.execute("""
-            INSERT INTO helped_patients (patient_id, appointment_id, nurse_id, helped_timestamp, notes)
-            VALUES (?, ?, ?, ?, ?)
-        """, (appointment['patient_id'], appointment_id, nurse['id'], datetime.now(), 'Patient helped by nurse'))
-        c.execute("UPDATE appointments SET status = 'helped' WHERE id = ?", (appointment_id,))
-        c.execute("SELECT first_name, last_name, role FROM employees WHERE id = ?", (nurse['id'],))
-        nurse_data = c.fetchone()
-        c.execute("SELECT first_name, last_name FROM patients WHERE id = ?", (appointment['patient_id'],))
-        patient = c.fetchone()
+
+        helped_entry = HelpedPatient(
+            patient_id=appointment.patient_id,
+            appointment_id=appointment.id,
+            nurse_id=nurse.id,
+            helped_timestamp=datetime.now(),
+            notes=request.form.get('notes', 'Patient helped by nurse').strip()
+        )
+        db.session.add(helped_entry)
+
+        appointment.status = "helped"
+        db.session.commit()
+
+        patient = Patient.query.get(appointment.patient_id)
+
         with queue_lock:
             waiting_patients_queue.put({
-                'id': appointment_id,
-                'patient_id': appointment['patient_id'],
-                'first_name': patient['first_name'],
-                'last_name': patient['last_name'],
+                'id': appointment.id,
+                'patient_id': patient.id,
+                'first_name': patient.first_name,
+                'last_name': patient.last_name,
                 'status': 'helped',
-                'helper_name': f"{nurse_data['first_name']} {nurse_data['last_name']}",
-                'helper_role': nurse_data['role'],
+                'helper_name': f"{nurse.first_name} {nurse.last_name}",
+                'helper_role': nurse.role,
                 'timestamp': datetime.now().isoformat()
             })
-        conn.commit()
+
         return jsonify({'success': True, 'category': 'success', 'message': 'Patient marked as helped.'})
-    except sqlite3.Error as e:
-        logger.error(f"Database error in mark_helped: {e}")
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'category': 'error', 'message': 'Database error occurred.'}), 500
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/stream_waiting_patients')
 def stream_waiting_patients():
     if 'username' not in session or session.get('role') not in ['nurse', 'receptionist']:
         return Response(status=403)
-    def generate():
+
+    def generate_stream():
         try:
             while True:
                 with queue_lock:
                     if not waiting_patients_queue.empty():
-                        update = waiting_patients_queue.get()
-                        yield f"data: {json.dumps(update)}\n\n"
+                        yield f"data: {json.dumps(waiting_patients_queue.get())}\n\n"
                 time.sleep(1)
         except GeneratorExit:
-            logger.debug("SSE connection closed by client")
             return
-        except Exception as e:
-            logger.error(f"Unexpected error in SSE stream: {e}")
-            return
-    return Response(generate(), mimetype='text/event-stream')
+
+    return Response(generate_stream(), mimetype='text/event-stream')
 
 @csrf.exempt
 @app.route('/nurse_assess_patient/<int:patient_id>', methods=['GET', 'POST'])
@@ -1529,41 +1520,43 @@ def nurse_assess_patient(patient_id):
     if 'username' not in session or session.get('role') != 'nurse':
         flash('Please log in as a nurse to assess patients.', 'error')
         return redirect(url_for('login_page'))
-    conn = get_db_connection()
-    user_details = get_user_details(conn, session['username'])
-    if not user_details:
+
+    nurse = Employee.query.filter_by(staff_number=session['username']).first()
+    if not nurse:
         flash('User not found.', 'error')
         return redirect(url_for('login_page'))
-    c = conn.cursor()
-    c.execute("""
-        SELECT id, first_name, last_name 
-        FROM patients 
-        WHERE id = ?
-    """, (patient_id,))
-    patient = c.fetchone()
+
+    patient = Patient.query.get(patient_id)
     if not patient:
         flash('Patient not found.', 'error')
         return redirect(url_for('nurse_dashboard'))
-    patient_data = {
-        'id': patient['id'],
-        'first_name': patient['first_name'],
-        'last_name': patient['last_name']
-    }
+
     if request.method == 'POST':
         vitals = request.form.get('vitals', '').strip()
         notes = request.form.get('notes', '').strip()
-        visit_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         if not vitals:
             flash('Vitals are required.', 'error')
-            return render_template('nurse/nurseAssessPatient.html', patient=patient_data, user_details=user_details)
-        c.execute("""
-            INSERT INTO visits (patient_id, visit_time, notes)
-            VALUES (?, ?, ?)
-        """, (patient_id, visit_time, f"Vitals: {vitals}\nNotes: {notes}"))
-        conn.commit()
-        flash('Patient assessment recorded successfully!', 'success')
-        return redirect(url_for('nurse_dashboard'))
-    return render_template('nurse/nurseAssessPatient.html', patient=patient_data, user_details=user_details)
+            return render_template('nurse/nurseAssessPatient.html', patient=patient, user_details=nurse)
+
+        try:
+            visit = Visit(
+                patient_id=patient.id,
+                visit_time=datetime.now(),
+                notes=f"Vitals: {vitals}\nNotes: {notes}" if notes else f"Vitals: {vitals}"
+            )
+            db.session.add(visit)
+            db.session.commit()
+
+            flash('Patient assessment recorded successfully!', 'success')
+            return redirect(url_for('nurse_dashboard'))
+
+        except Exception:
+            db.session.rollback()
+            flash('Database error occurred while saving assessment.', 'error')
+            return render_template('nurse/nurseAssessPatient.html', patient=patient, user_details=nurse)
+
+    return render_template('nurse/nurseAssessPatient.html', patient=patient, user_details=nurse)
 
 @csrf.exempt
 @app.route('/nurse_view_medical_history/<int:patient_id>')
@@ -1571,54 +1564,26 @@ def nurse_view_medical_history(patient_id):
     if 'username' not in session or session.get('role') != 'nurse':
         flash('Please log in as a nurse to view medical history.', 'error')
         return redirect(url_for('login_page'))
-    conn = get_db_connection()
-    try:
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User not found.', 'error')
-            return redirect(url_for('login_page'))
-        c = conn.cursor()
-        c.execute("""
-            SELECT id, first_name, last_name, medical_history, allergies, current_medications
-            FROM patients 
-            WHERE id = ?
-        """, (patient_id,))
-        patient = c.fetchone()
-        if not patient:
-            flash('Patient not found.', 'error')
-            return redirect(url_for('nurse_dashboard'))
-        patient_data = {
-            'id': patient['id'],
-            'first_name': patient['first_name'],
-            'last_name': patient['last_name'],
-            'medical_history': patient['medical_history'] or 'No medical history recorded.',
-            'allergies': patient['allergies'] or 'No allergies recorded.',
-            'current_medications': patient['current_medications'] or 'No medications recorded.'
-        }
-        c.execute("""
-            SELECT medication_name, dosage, instructions, prescribed_date
-            FROM prescriptions 
-            WHERE patient_id = ?
-            ORDER BY prescribed_date DESC
-        """, (patient_id,))
-        prescriptions = [
-            {
-                'medication_name': row['medication_name'],
-                'dosage': row['dosage'],
-                'instructions': row['instructions'] or 'No instructions provided.',
-                'prescribed_date': row['prescribed_date']
-            } for row in c.fetchall()
-        ]
-        return render_template('nurse/nurseViewMedicalHistory.html', 
-                              patient=patient_data, 
-                              prescriptions=prescriptions, 
-                              user_details=user_details)
-    except sqlite3.Error as e:
-        logger.error(f"Database error in nurse_view_medical_history: {e}")
-        flash('An error occurred while fetching medical history.', 'error')
+
+    nurse = Employee.query.filter_by(staff_number=session['username']).first()
+    if not nurse:
+        flash('User not found.', 'error')
+        return redirect(url_for('login_page'))
+
+    patient = Patient.query.get(patient_id)
+    if not patient:
+        flash('Patient not found.', 'error')
         return redirect(url_for('nurse_dashboard'))
-    finally:
-        conn.close()
+
+    prescriptions = Prescription.query.filter_by(patient_id=patient_id)\
+        .order_by(Prescription.prescribed_date.desc()).all()
+
+    return render_template(
+        'nurse/nurseViewMedicalHistory.html',
+        patient=patient,
+        prescriptions=prescriptions,
+        user_details=nurse
+    )
 
 @csrf.exempt
 @app.route('/nurse_prescribe_medication/<int:patient_id>', methods=['GET', 'POST'])
@@ -1626,57 +1591,52 @@ def nurse_prescribe_medication(patient_id):
     if 'username' not in session or session.get('role') != 'nurse':
         flash('Please log in as a nurse to prescribe medications.', 'error')
         return redirect(url_for('login_page'))
-    conn = get_db_connection()
-    try:
-        user_details = get_user_details(conn, session['username'])
-        if not user_details:
-            flash('User not found.', 'error')
-            return redirect(url_for('login_page'))
-        c = conn.cursor()
-        c.execute("""
-            SELECT id, first_name, last_name 
-            FROM patients 
-            WHERE id = ?
-        """, (patient_id,))
-        patient = c.fetchone()
-        if not patient:
-            flash('Patient not found.', 'error')
-            return redirect(url_for('nurse_dashboard'))
-        patient_data = {
-            'id': patient['id'],
-            'first_name': patient['first_name'],
-            'last_name': patient['last_name']
-        }
-        if request.method == 'POST':
-            medication_name = request.form.get('medication_name', '').strip()
-            dosage = request.form.get('dosage', '').strip()
-            instructions = request.form.get('instructions', '').strip()
-            if not medication_name or not dosage:
-                flash('Medication name and dosage are required.', 'error')
-                return render_template('nurse/nursePrescribeMedication.html', patient=patient_data, user_details=user_details)
-            c.execute("SELECT id FROM employees WHERE staff_number = ?", (session['username'],))
-            nurse = c.fetchone()
-            if not nurse:
-                flash('Nurse not found.', 'error')
-                return redirect(url_for('nurse_dashboard'))
-            c.execute("""
-                INSERT INTO prescriptions (patient_id, nurse_id, medication_name, dosage, instructions)
-                VALUES (?, ?, ?, ?, ?)
-            """, (patient_id, nurse['id'], medication_name, dosage, instructions))
-            c.execute("SELECT current_medications FROM patients WHERE id = ?", (patient_id,))
-            current_meds = c.fetchone()['current_medications'] or ''
+
+    nurse = Employee.query.filter_by(staff_number=session['username']).first()
+    if not nurse:
+        flash('User not found.', 'error')
+        return redirect(url_for('login_page'))
+
+    patient = Patient.query.get(patient_id)
+    if not patient:
+        flash('Patient not found.', 'error')
+        return redirect(url_for('nurse_dashboard'))
+
+    if request.method == 'POST':
+        medication_name = request.form.get('medication_name', '').strip()
+        dosage = request.form.get('dosage', '').strip()
+        instructions = request.form.get('instructions', '').strip()
+
+        if not medication_name or not dosage:
+            flash('Medication name and dosage are required.', 'error')
+            return render_template('nurse/nursePrescribeMedication.html', patient=patient, user_details=nurse)
+
+        try:
+            prescription = Prescription(
+                patient_id=patient.id,
+                nurse_id=nurse.id,
+                medication_name=medication_name,
+                dosage=dosage,
+                instructions=instructions
+            )
+            db.session.add(prescription)
+
+            # Append medication to patient's active medications
+            current_meds = patient.current_medications or ''
             updated_meds = f"{current_meds}, {medication_name} ({dosage})" if current_meds else f"{medication_name} ({dosage})"
-            c.execute("UPDATE patients SET current_medications = ? WHERE id = ?", (updated_meds, patient_id))
-            conn.commit()
+            patient.current_medications = updated_meds
+
+            db.session.commit()
+
             flash('Medication prescribed successfully!', 'success')
             return redirect(url_for('nurse_view_medical_history', patient_id=patient_id))
-        return render_template('nurse/nursePrescribeMedication.html', patient=patient_data, user_details=user_details)
-    except sqlite3.Error as e:
-        logger.error(f"Database error in nurse_prescribe_medication: {e}")
-        flash('An error occurred while prescribing medication.', 'error')
-        return redirect(url_for('nurse_dashboard'))
-    finally:
-        conn.close()
+
+        except Exception:
+            db.session.rollback()
+            flash('Database error occurred while prescribing medication.', 'error')
+            return render_template('nurse/nursePrescribeMedication.html', patient=patient, user_details=nurse)
+
+    return render_template('nurse/nursePrescribeMedication.html', patient=patient, user_details=nurse)
 
 @csrf.exempt
 @app.route('/manage_users', methods=['GET', 'POST'])
@@ -1684,55 +1644,52 @@ def manage_users():
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Please log in as an admin to manage users.', 'error')
         return redirect(url_for('login_page'))
-    
-    conn = None
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        user_details = get_user_details(conn, session['user_id'])
-        if not user_details:
-            flash('User details not found. Please log in again.', 'error')
-            return redirect(url_for('login_page'))
-        
-        if request.method == 'POST':
-            action = request.form.get('action')
-            staff_number = request.form.get('staff_number')
-            if not staff_number:
-                return jsonify({'success': False, 'message': 'Staff number required'}), 400
-            
-            if action == 'delete':
-                c.execute("DELETE FROM employees WHERE staff_number = ? AND role != 'admin'", (staff_number,))
-                if c.rowcount > 0:
-                    conn.commit()
-                    return jsonify({'success': True, 'message': 'User deleted'})
-                else:
-                    return jsonify({'success': False, 'message': 'Cannot delete admin or user not found'}), 400
-            elif action == 'update':
-                role = request.form.get('role')
-                if role not in ['doctor', 'nurse', 'receptionist', 'manager']:
-                    return jsonify({'success': False, 'message': 'Invalid role'}), 400
-                c.execute("UPDATE employees SET role = ? WHERE staff_number = ?", (role, staff_number))
-                if c.rowcount > 0:
-                    conn.commit()
-                    return jsonify({'success': True, 'message': 'Role updated'})
-                else:
-                    return jsonify({'success': False, 'message': 'User not found'}), 400
 
-        # GET: List users
-        c.execute("SELECT staff_number, first_name, last_name, email, role FROM employees ORDER BY role, id")
-        employees = [dict(row) for row in c.fetchall()]
-        
-        return render_template('admin/manageUsers.html',
-                              employees=employees,
-                              user_details=user_details,
-                              username=session.get('username', 'Admin'))
+    admin = Employee.query.filter_by(id=session.get('user_id')).first()
+    if not admin:
+        flash('User not found.', 'error')
+        return redirect(url_for('login_page'))
 
-    except Exception as e:
-        logger.error(f"manage_users error: {e}")
-        return jsonify({'success': False, 'message': 'Server error'}), 500
-    finally:
-        if conn:
-            conn.close()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        staff_number = request.form.get('staff_number')
+
+        if not staff_number:
+            return jsonify({'success': False, 'message': 'Staff number required'}), 400
+
+        user = Employee.query.filter_by(staff_number=staff_number).first()
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+
+        # Prevent deletion of admins
+        if action == 'delete':
+            if user.role == 'admin':
+                return jsonify({'success': False, 'message': 'Cannot delete an admin'}), 400
+
+            db.session.delete(user)
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'User deleted'})
+
+        elif action == 'update':
+            role = request.form.get('role')
+            allowed_roles = ['doctor', 'nurse', 'receptionist', 'manager', 'admin']
+
+            if role not in allowed_roles:
+                return jsonify({'success': False, 'message': 'Invalid role'}), 400
+
+            user.role = role
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Role updated'})
+
+    # GET request — Load users list
+    employees = Employee.query.order_by(Employee.role, Employee.id).all()
+
+    return render_template(
+        'admin/manageUsers.html',
+        employees=employees,
+        user_details=admin,
+        username=session.get('username', 'Admin')
+    )
 
 # === MANAGER ROUTES ===
 @app.route('/manager_dashboard')
@@ -1742,187 +1699,244 @@ def manager_dashboard():
         flash("Access denied.", "error")
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    c = conn.cursor()
-
-    # === EXISTING CODE (UNCHANGED) ===
     try:
-        c.execute("SELECT COUNT(*) FROM employees WHERE active = 1")
-        total_staff = c.fetchone()[0]
+        # --- HIGH-LEVEL BUSINESS METRICS ---
+        total_staff = Employee.query.filter_by(active=True).count()
+        patients_today = Appointment.query.filter(
+            db.func.date(Appointment.appointment_date) == db.func.current_date()
+        ).count()
 
-        c.execute("SELECT COUNT(*) FROM appointments WHERE DATE(appointment_date) = DATE('now')")
-        patients_today = c.fetchone()[0]
+        low_stock = Inventory.query.filter(Inventory.quantity <= Inventory.min_stock).count()
 
-        c.execute("SELECT COUNT(*) FROM inventory WHERE quantity <= min_stock")
-        low_stock = c.fetchone()[0]
+        revenue_mtd = (
+            db.session.query(db.func.coalesce(db.func.sum(Billing.cost), 0))
+            .filter(db.func.to_char(Billing.billing_date, "YYYY-MM") ==
+                    db.func.to_char(db.func.current_date(), "YYYY-MM"))
+            .scalar()
+        )
 
-        c.execute("SELECT COALESCE(SUM(cost), 0) FROM billing WHERE strftime('%Y-%m', billing_date) = strftime('%Y-%m', 'now')")
-        revenue_mtd = c.fetchone()[0] or 0.0
+        # Top pending tasks
+        tasks = (
+            db.session.query(Task, Employee.first_name, Employee.last_name)
+            .outerjoin(Employee, Task.assigned_to == Employee.id)
+            .filter(Task.status == "pending")
+            .order_by(Task.priority.desc())
+            .limit(5)
+            .all()
+        )
+        task_list = [
+            {
+                **t[0].to_dict(),
+                "assigned_name": f"{t[1]} {t[2]}" if t[1] else "Unassigned"
+            }
+            for t in tasks
+        ]
 
-        c.execute("""
-            SELECT t.*, e.first_name || ' ' || e.last_name as assigned_name
-            FROM tasks t LEFT JOIN employees e ON t.assigned_to = e.id
-            WHERE t.status = 'pending' ORDER BY t.priority DESC LIMIT 5
-        """)
-        tasks = [dict(row) for row in c.fetchall()]
+        # --- Daily HR & Operations ---
+        today = date.today()
 
-    except sqlite3.OperationalError as e:
-        if 'no such table' in str(e):
-            total_staff = patients_today = low_stock = 0
-            revenue_mtd = 0.0
-            tasks = []
-        else:
-            raise
+        on_duty_today = Attendance.query.filter_by(date=today).count()
+        pending_leave = LeaveRequest.query.filter_by(status="pending").count()
+        training_due = Certification.query.filter(Certification.expiry < today + timedelta(days=30)).count()
 
-    # === NEW MANAGER FUNCTIONALITY ===
-    try:
-        from datetime import date
-        today = date.today().isoformat()
+        # Roster by role
+        roster = []
+        for role, required in {"doctor": 3, "nurse": 5, "receptionist": 2, "manager": 1}.items():
+            on_duty = (
+                db.session.query(Attendance)
+                .join(Employee, Attendance.staff_id == Employee.id)
+                .filter(Employee.role == role, Attendance.date == today)
+                .count()
+            )
+            roster.append({
+                "role": role,
+                "on_duty": on_duty,
+                "required": required
+            })
 
-        # On Duty Today
-        c.execute("SELECT COUNT(*) FROM attendance WHERE date = ?", (today,))
-        on_duty_today = c.fetchone()[0]
+        # Pending leave requests list
+        leave_requests = db.session.query(
+            LeaveRequest,
+            Employee.first_name,
+            Employee.last_name,
+            Employee.role
+        ).join(Employee, LeaveRequest.staff_id == Employee.id).filter(
+            LeaveRequest.status == "pending"
+        ).all()
+        leave_list = [
+            {
+                **lr[0].to_dict(),
+                "name": f"{lr[1]} {lr[2]}",
+                "role": lr[3],
+            } for lr in leave_requests
+        ]
 
-        # Pending Leave
-        c.execute("SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'")
-        pending_leave = c.fetchone()[0]
+        # Performance reviews
+        performance = db.session.query(
+            PerformanceReview,
+            Employee.first_name,
+            Employee.last_name,
+            Employee.role,
+        ).join(Employee, PerformanceReview.staff_id == Employee.id).order_by(
+            PerformanceReview.last_review.desc()
+        ).all()
+        performance_list = [
+            {
+                **pr[0].to_dict(),
+                "name": f"{pr[1]} {pr[2]}",
+                "role": pr[3],
+                "score": int(pr[0].score or 0),
+            } for pr in performance
+        ]
 
-        # Training Due
-        c.execute("SELECT COUNT(*) FROM certifications WHERE expiry < DATE('now', '+30 days')")
-        training_due = c.fetchone()[0]
+        # Training sessions
+        training = TrainingSession.query.filter(
+            TrainingSession.date >= today
+        ).order_by(TrainingSession.date).all()
 
-        # Roster by Role
-        c.execute("""
-            SELECT e.role, COALESCE(COUNT(a.id), 0) as on_duty,
-                   CASE e.role 
-                     WHEN 'doctor' THEN 3 
-                     WHEN 'nurse' THEN 5 
-                     ELSE 2 
-                   END as required
-            FROM employees e 
-            LEFT JOIN attendance a ON e.id = a.staff_id AND a.date = ?
-            WHERE e.active = 1
-            GROUP BY e.role
-        """, (today,))
-        roster = [dict(row) for row in c.fetchall()]
+        # Certifications due
+        certifications = db.session.query(
+            Certification,
+            Employee.first_name,
+            Employee.last_name,
+            db.func.cast(db.func.julianday(Certification.expiry) - db.func.julianday(db.func.current_date()), db.Integer).label("days_left")
+        ).join(Employee, Certification.staff_id == Employee.id).filter(
+            Certification.expiry < today + timedelta(days=90)
+        ).order_by("days_left").all()
+        certification_list = [
+            {
+                **c[0].to_dict(),
+                "staff": f"{c[1]} {c[2]}",
+                "days_left": c[3]
+            } for c in certifications
+        ]
 
-        # Leave Requests
-        c.execute("""
-            SELECT lr.*, e.first_name || ' ' || e.last_name as name, e.role
-            FROM leave_requests lr
-            JOIN employees e ON lr.staff_id = e.id
-            WHERE lr.status = 'pending'
-        """)
-        leave_requests = [dict(row) for row in c.fetchall()]
+        # Compliance (placeholder)
+        compliance = {'popia': 98, 'infection': 100, 'ppe': 92}
 
-        # Performance Reviews
-        c.execute("""
-            SELECT pr.*, e.first_name || ' ' || e.last_name as name, e.role,
-                   CAST(COALESCE(pr.score, 0) AS INTEGER) as score
-            FROM performance_reviews pr
-            JOIN employees e ON pr.staff_id = e.id
-            ORDER BY pr.last_review DESC
-        """)
-        performance = [dict(row) for row in c.fetchall()]
+    except Exception as e:
+        logger.error(f"Manager dashboard error: {e}")
+        flash("Error loading dashboard information.", "error")
 
-        # Training Sessions
-        c.execute("SELECT * FROM training_sessions WHERE date >= DATE('now') ORDER BY date")
-        training = [dict(row) for row in c.fetchall()]
+        return render_template(
+            "manager/dashboard.html",
+            stats=dict.fromkeys([
+                'total_staff', 'patients_today', 'low_stock',
+                'revenue_mtd', 'on_duty_today', 'pending_leave', 'training_due'
+            ], 0),
+            tasks=[],
+            roster=[],
+            leave_requests=[],
+            performance=[],
+            training=[],
+            certifications=[],
+            compliance={'popia': 0, 'infection': 0, 'ppe': 0}
+        )
 
-        # Certifications Due
-        c.execute("""
-            SELECT c.*, e.first_name || ' ' || e.last_name as staff,
-                   CAST((julianday(c.expiry) - julianday('now')) AS INTEGER) as days_left
-            FROM certifications c
-            JOIN employees e ON c.staff_id = e.id
-            WHERE c.expiry < DATE('now', '+90 days')
-            ORDER BY days_left ASC
-        """)
-        certifications = [dict(row) for row in c.fetchall()]
-
-        # Compliance (static data for demo)
-        compliance = {
-            'popia': 98,
-            'infection': 100,
-            'ppe': 92
-        }
-
-    except sqlite3.OperationalError as e:
-        if 'no such table' in str(e):
-            on_duty_today = pending_leave = training_due = 0
-            roster = leave_requests = performance = training = certifications = []
-            compliance = {'popia': 0, 'infection': 0, 'ppe': 0}
-        else:
-            raise
-
-    conn.close()
-
-    return render_template('manager/dashboard.html',
-                         stats={
-                             'total_staff': total_staff,
-                             'patients_today': patients_today,
-                             'low_stock': low_stock,
-                             'revenue_mtd': revenue_mtd,
-                             'on_duty_today': on_duty_today,
-                             'pending_leave': pending_leave,
-                             'training_due': training_due
-                         },
-                         tasks=tasks,
-                         roster=roster,
-                         leave_requests=leave_requests,
-                         performance=performance,
-                         training=training,
-                         certifications=certifications,
-                         compliance=compliance)
+    return render_template(
+        "manager/dashboard.html",
+        stats={
+            'total_staff': total_staff,
+            'patients_today': patients_today,
+            'low_stock': low_stock,
+            'revenue_mtd': revenue_mtd,
+            'on_duty_today': on_duty_today,
+            'pending_leave': pending_leave,
+            'training_due': training_due
+        },
+        tasks=task_list,
+        roster=roster,
+        leave_requests=leave_list,
+        performance=performance_list,
+        training=training,
+        certifications=certification_list,
+        compliance=compliance
+    )
 
 @app.route('/manager/leave_action', methods=['POST'])
 @login_required
 @role_required('manager')
 def manager_leave_action():
     req_id = request.form.get('id')
-    action = request.form.get('action')  # 'approve' or 'reject'
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE leave_requests SET status = ? WHERE id = ?", (action, req_id))
-    conn.commit()
-    conn.close()
-    
+    action = request.form.get('action')  # approve / reject
+
+    if not req_id or action not in ['approve', 'reject']:
+        return jsonify({'success': False, 'message': 'Invalid request'}), 400
+
+    leave = LeaveRequest.query.get(req_id)
+    if not leave:
+        return jsonify({'success': False, 'message': 'Leave request not found'}), 404
+
+    leave.status = action
+    db.session.commit()
+
     return jsonify({'success': True, 'message': f'Leave request {action}d'})
+
 
 @app.route('/inventory')
 @login_required
 def inventory():
-    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    if session.get('role') != 'manager':
+        return redirect(url_for('login_page'))
+
     conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT *, 
-               CASE WHEN avg_daily_use > 0 THEN quantity / avg_daily_use ELSE 999 END as days_left
-        FROM inventory ORDER BY days_left
-    """)
-    inventory = [dict(row) for row in c.fetchall()]
-    low_stock_alerts = [i for i in inventory if i['quantity'] <= i['min_stock']]
-    conn.close()
-    return render_template('manager/inventory.html', inventory=inventory, low_stock_alerts=low_stock_alerts)
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT *,
+                CASE 
+                    WHEN avg_daily_use > 0 THEN ROUND(quantity * 1.0 / avg_daily_use, 1)
+                    ELSE NULL
+                END AS days_left
+            FROM inventory
+            ORDER BY COALESCE(days_left, 999)
+        """)
+        inventory = [dict(row) for row in c.fetchall()]
+        low_stock_alerts = [i for i in inventory if i['quantity'] <= i['min_stock']]
+    finally:
+        conn.close()
+
+    return render_template(
+        'manager/inventory.html',
+        inventory=inventory,
+        low_stock_alerts=low_stock_alerts
+    )
 
 @app.route('/reorder_item', methods=['POST'])
 @login_required
 def reorder_item():
-    if session.get('role') != 'manager': return '', 403
-    data = request.get_json()
+    if session.get('role') != 'manager':
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+    item_id = data.get("id")
+    qty = data.get("quantity")
+
+    if not item_id or not isinstance(qty, int) or qty <= 0:
+        return jsonify({"success": False, "message": "Invalid quantity"}), 400
+
     conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("UPDATE inventory SET quantity = quantity + ?, last_restocked = DATE('now') WHERE id = ?",
-              (data['quantity'], data['id']))
-    conn.commit()
-    conn.close()
-    return '', 204
+    try:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE inventory SET quantity = quantity + ?, last_restocked = DATE('now') WHERE id = ?",
+            (qty, item_id)
+        )
+        if c.rowcount == 0:
+            return jsonify({"success": False, "message": "Item not found"}), 404
+
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify({"success": True, "message": "Stock updated"}), 200
 
 @app.route('/executive_report')
 @login_required
 def executive_report():
-    if session.get('role') != 'manager': return redirect(url_for('login_page'))
+    if session.get('role') != 'manager':
+        return redirect(url_for('login_page'))
+
     conn = get_db_connection()
     c = conn.cursor()
 
@@ -1930,48 +1944,83 @@ def executive_report():
     revenue = []
     expenses = []
     patients = []
-    for i in range(5, -1, -1):
-        month = (datetime.now() - timedelta(days=30*i)).strftime('%b %Y')
-        months.append(month)
-        c.execute("SELECT COALESCE(SUM(cost),0) FROM billing WHERE strftime('%Y-%m', billing_date) = ?", 
-                  ((datetime.now() - timedelta(days=30*i)).strftime('%Y-%m'),))
-        revenue.append(c.fetchone()[0])
-        expenses.append(50000)  # mock
-        c.execute("SELECT COUNT(*) FROM appointments WHERE strftime('%Y-%m', appointment_date) = ?", 
-                  ((datetime.now() - timedelta(days=30*i)).strftime('%Y-%m'),))
-        patients.append(c.fetchone()[0])
 
-    total_rev = sum(revenue)
-    total_pat = sum(patients)
-    kpi = {
-        'revenue': total_rev,
-        'expenses': sum(expenses),
-        'patients': total_pat,
-        'avg_per_patient': total_rev / total_pat if total_pat else 0
-    }
+    try:
+        for i in range(5, -1, -1):  # Last 6 months
+            target_date = datetime.now().replace(day=1) - relativedelta(months=i)
+            month_label = target_date.strftime('%b %Y')
+            month_key = target_date.strftime('%Y-%m')
 
-    report_data = {'months': months, 'revenue': revenue, 'expenses': expenses, 'patients': patients}
+            months.append(month_label)
+
+            # Revenue
+            c.execute(
+                "SELECT COALESCE(SUM(cost),0) FROM billing WHERE strftime('%Y-%m', billing_date) = ?",
+                (month_key,)
+            )
+            revenue.append(float(c.fetchone()[0]))
+
+            # Placeholder until full accounting module is ready
+            expenses.append(50000)
+
+            # Patient load
+            c.execute(
+                "SELECT COUNT(*) FROM appointments WHERE strftime('%Y-%m', appointment_date) = ?",
+                (month_key,)
+            )
+            patients.append(int(c.fetchone()[0]))
+
+        total_rev = sum(revenue)
+        total_pat = sum(patients)
+
+        kpi = {
+            "revenue": total_rev,
+            "expenses": sum(expenses),
+            "patients": total_pat,
+            "avg_per_patient": round(total_rev / total_pat, 2) if total_pat else 0
+        }
+
+        report_data = {
+            "months": months,
+            "revenue": revenue,
+            "expenses": expenses,
+            "patients": patients
+        }
+
+    except Exception as e:
+        conn.close()
+        flash("Error generating executive report.", "error")
+        logger.error(f"Executive report error: {e}")
+        return redirect(url_for('manager_dashboard'))
+
     conn.close()
-    return render_template('manager/executive_report.html', report_data=report_data, kpi=kpi)
+    return render_template("manager/executive_report.html", report_data=report_data, kpi=kpi)
 
 @app.route('/manage_staff')
 @login_required
 def manage_staff():
     if session.get('role') != 'manager':
-        flash("Access denied.", "error. error")
+        flash("Access denied.", "error")
         return redirect(url_for('login_page'))
 
     conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT id, first_name, last_name, role, email, phone
-        FROM employees 
-        WHERE role NOT IN ('admin', 'manager') AND active = 1
-        ORDER BY first_name
-    """)
-    staff = [dict(row) for row in c.fetchall()]
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT id, first_name, last_name, role, email, phone
+            FROM employees
+            WHERE role NOT IN ('admin', 'manager') AND active = 1
+            ORDER BY first_name
+        """)
+        staff = [dict(row) for row in c.fetchall()]
+    except Exception as e:
+        conn.close()
+        flash("Error loading staff list.", "error")
+        logger.error(f"Manage staff error: {e}")
+        return redirect(url_for('manager_dashboard'))
+
     conn.close()
-    return render_template('manager/manage_staff.html', staff=staff)
+    return render_template("manager/manage_staff.html", staff=staff)
 
 @app.route('/manager_announcements')
 @login_required
@@ -1986,49 +2035,49 @@ def staff_schedule():
         flash("Access denied.", "error")
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT id, first_name, last_name, role 
-        FROM employees 
-        WHERE role NOT IN ('admin', 'manager') AND active = 1
-    """)
-    staff = [dict(row) for row in c.fetchall()]
-    conn.close()
-    return render_template('manager/staff_schedule.html', staff=staff)
+    staff = Employee.query.filter(
+        Employee.active == True,
+        Employee.role.notin_(["admin", "manager"])
+    ).order_by(Employee.first_name).all()
+
+    return render_template("manager/staff_schedule.html", staff=staff)
 
 @app.route('/get_schedule')
 @login_required
 def get_schedule():
-    if session.get('role') != 'manager': return jsonify([])
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT s.*, e.first_name || ' ' || e.last_name as staff_name
-        FROM staff_schedule s
-        JOIN employees e ON s.employee_id = e.id
-    """)
-    rows = c.fetchall()
+    if session.get('role') != 'manager':
+        return jsonify([])
+
+    schedules = (
+        db.session.query(StaffSchedule, Employee)
+        .join(Employee, StaffSchedule.employee_id == Employee.id)
+        .all()
+    )
+
+    color_map = {
+        "morning": "#28a745",
+        "afternoon": "#ffc107",
+        "night": "#007bff",
+    }
+
     events = []
-    for row in rows:
-        color_class = {
-            'morning': '#28a745',
-            'afternoon': '#ffc107',
-            'night': '#007bff'
-        }.get(row['shift_type'], '#6c757d')
+    for schedule, emp in schedules:
+        staff_name = f"{emp.first_name} {emp.last_name}"
+        color = color_map.get(schedule.shift_type, "#6c757d")
+
         events.append({
-            'id': row['id'],
-            'title': f"{row['staff_name']} ({row['shift_type'].capitalize()})",
-            'start': row['shift_date'],
-            'backgroundColor': color_class,
-            'borderColor': color_class,
-            'extendedProps': {
-                'employee_id': row['employee_id'],
-                'shift_type': row['shift_type'],
-                'notes': row['notes']
+            "id": schedule.id,
+            "title": f"{staff_name} ({schedule.shift_type.capitalize()})",
+            "start": schedule.shift_date.isoformat(),
+            "backgroundColor": color,
+            "borderColor": color,
+            "extendedProps": {
+                "employee_id": schedule.employee_id,
+                "shift_type": schedule.shift_type,
+                "notes": schedule.notes or ""
             }
         })
-    conn.close()
+
     return jsonify(events)
 
 @app.route('/save_shift', methods=['POST'])
@@ -2038,128 +2087,117 @@ def save_shift():
         return '', 403
 
     data = request.get_json()
-    employee_id = data['employee_id']
-    shift_date = data['shift_date']
-    shift_type = data['shift_type']
-    shift_id = data.get('id')  # None if new
+    emp_id = data["employee_id"]
+    shift_date = date.fromisoformat(data["shift_date"])
+    shift_type = data["shift_type"]
+    shift_id = data.get("id")
 
-    conn = get_db_connection()
-    c = conn.cursor()
-
-    # === CONFLICT CHECK ===
-    conflicts = []
-
-    # Define shift time ranges
+    # Shift time ranges
     shift_times = {
-        'morning': ('08:00', '16:00'),
-        'afternoon': ('13:00', '21:00'),
-        'night': ('20:00', '08:00')
+        "morning": ("08:00", "16:00"),
+        "afternoon": ("13:00", "21:00"),
+        "night": ("20:00", "08:00"),
     }
 
-    # Get existing shifts for this employee on this date
-    c.execute("""
-        SELECT shift_type, id FROM staff_schedule 
-        WHERE employee_id = ? AND shift_date = ? AND id != ?
-    """, (employee_id, shift_date, shift_id or 0))
-    existing = c.fetchall()
-
     new_start, new_end = shift_times[shift_type]
-    is_night_shift = shift_type == 'night'
 
-    for row in existing:
-        existing_type = row['shift_type']
-        existing_id = row['id']
-        start, end = shift_times[existing_type]
+    # Conflicts (excluding the current shift in edit mode)
+    existing = StaffSchedule.query.filter(
+        StaffSchedule.employee_id == emp_id,
+        StaffSchedule.shift_date == shift_date,
+        StaffSchedule.id != (shift_id or 0)
+    ).all()
 
-        # Handle night shift wrap-around
-        if is_night_shift or existing_type == 'night':
-            # Convert to minutes from midnight
-            def to_minutes(t): 
-                h, m = map(int, t.split(':'))
-                return h * 60 + m
+    # Time overlap logic
+    def to_minutes(t):
+        hr, mn = map(int, t.split(":"))
+        return hr * 60 + mn
 
-            new_start_min = to_minutes(new_start)
-            new_end_min = to_minutes(new_end) + (1440 if new_end < new_start else 0)
-            exist_start_min = to_minutes(start)
-            exist_end_min = to_minutes(end) + (1440 if end < start else 0)
+    is_night = shift_type == "night"
+    new_start_m = to_minutes(new_start)
+    new_end_m = to_minutes(new_end) + (1440 if new_end < new_start else 0)
 
-            # Check overlap
-            if max(new_start_min, exist_start_min) < min(new_end_min, exist_end_min):
-                conflicts.append({
-                    'type': existing_type,
-                    'id': existing_id
-                })
-        else:
-            if new_start < end and new_end > start:
-                conflicts.append({
-                    'type': existing_type,
-                    'id': existing_id
-                })
+    for e in existing:
+        e_start, e_end = shift_times[e.shift_type]
+        e_start_m = to_minutes(e_start)
+        e_end_m = to_minutes(e_end) + (1440 if e_end < e_start else 0)
 
-    if conflicts:
-        conn.close()
-        return jsonify({
-            'error': 'Shift conflict!',
-            'message': f"This staff member already has a {', '.join([c['type'].capitalize() for c in conflicts])} shift on {shift_date}.",
-            'conflicts': conflicts
-        }), 400
+        if max(new_start_m, e_start_m) < min(new_end_m, e_end_m):
+            return jsonify({
+                "error": "Shift conflict!",
+                "message": f"This staff member already has a {e.shift_type.capitalize()} shift on {shift_date}.",
+                "conflicts": [{"id": e.id, "type": e.shift_type}]
+            }), 400
 
-    # === SAVE SHIFT ===
+    # Save
     if shift_id:
-        c.execute("""
-            UPDATE staff_schedule 
-            SET employee_id=?, shift_date=?, shift_type=?, notes=?
-            WHERE id=?
-        """, (employee_id, shift_date, shift_type, data.get('notes', ''), shift_id))
+        schedule = StaffSchedule.query.get(shift_id)
+        schedule.employee_id = emp_id
+        schedule.shift_date = shift_date
+        schedule.shift_type = shift_type
+        schedule.notes = data.get("notes", "")
     else:
-        try:
-            c.execute("""
-                INSERT INTO staff_schedule (employee_id, shift_date, shift_type, notes)
-                VALUES (?, ?, ?, ?)
-            """, (employee_id, shift_date, shift_type, data.get('notes', '')))
-        except sqlite3.IntegrityError:
-            conn.close()
-            return jsonify({'error': 'Same shift already assigned!'}), 400
+        schedule = StaffSchedule(
+            employee_id=emp_id,
+            shift_date=shift_date,
+            shift_type=shift_type,
+            notes=data.get("notes", "")
+        )
+        db.session.add(schedule)
 
-    conn.commit()
-    conn.close()
+    db.session.commit()
     return '', 204
 
+
+# ---------------- SHIFT UPDATE ----------------
 @app.route('/update_shift_date', methods=['POST'])
 @login_required
 def update_shift_date():
-    if session.get('role') != 'manager': return '', 403
+    if session.get('role') != 'manager':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+
     data = request.get_json()
+    if not data or not data.get('shift_date') or not data.get('id'):
+        return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("UPDATE staff_schedule SET shift_date=? WHERE id=?", (data['shift_date'], data['id']))
     conn.commit()
     conn.close()
-    return '', 204
+    return jsonify({'success': True}), 200
 
-# --- API: Staff List ---
+
+# ---------------- API: STAFF LIST ----------------
 @app.route('/api/staff_list')
+@login_required
 def staff_list():
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT staff_number, first_name, last_name, role FROM employees WHERE active = 1")
+    c.execute("""
+        SELECT staff_number, first_name, last_name, role 
+        FROM employees 
+        WHERE active = 1
+    """)
     staff = [dict(row) for row in c.fetchall()]
     conn.close()
-    return jsonify(staff)
+    return jsonify(staff), 200
 
-# --- Manager: Send Message ---
+
+# ---------------- MANAGER: SEND MESSAGE ----------------
 @app.route('/manager_send_message', methods=['POST'])
 @login_required
 def manager_send_message():
     if session.get('role') != 'manager':
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
-    if not request.form.get('csrf_token') or request.form.get('csrf_token') != session.get('csrf_token'):
+    # CSRF enforcement
+    if session.get('csrf_token') != request.form.get('csrf_token'):
         return jsonify({'success': False, 'message': 'Invalid CSRF'}), 403
 
     msg_type = request.form.get('msg_type', 'announcement')
-    title = request.form.get('title', '').strip()
-    message = request.form.get('message', '').strip()
+    title = (request.form.get('title') or '').strip()
+    message = (request.form.get('message') or '').strip()
     pinned = 'pinned' in request.form
 
     if not message:
@@ -2174,24 +2212,23 @@ def manager_send_message():
             if target_role not in ['all', 'doctor', 'nurse', 'receptionist']:
                 return jsonify({'success': False, 'message': 'Invalid role'}), 400
 
-            c.execute('''
-                INSERT INTO announcements 
+            c.execute("""
+                INSERT INTO announcements
                 (title, message, author, target_role, pinned, category, timestamp)
                 VALUES (?, ?, ?, ?, ?, 'general', datetime('now'))
-            ''', (title or 'Announcement', message, session['username'], target_role, pinned))
-            
-            target_text = 'All Staff' if target_role == 'all' else f"{target_role.capitalize()}s"
+            """, (title or 'Announcement', message, session['username'], target_role, pinned))
+
+            target_text = "All Staff" if target_role == "all" else f"{target_role.capitalize()}s"
 
         else:  # direct message
             target_user = request.form.get('target_user')
             if not target_user:
                 return jsonify({'success': False, 'message': 'Select recipient'}), 400
 
-            c.execute('''
-                INSERT INTO direct_messages 
-                (sender_id, recipient_id, message, timestamp)
+            c.execute("""
+                INSERT INTO direct_messages (sender_id, recipient_id, message, timestamp)
                 VALUES (?, ?, ?, datetime('now'))
-            ''', (session['user_id'], target_user, message))
+            """, (session['user_id'], target_user, message))
 
             c.execute("SELECT first_name, last_name FROM employees WHERE staff_number = ?", (target_user,))
             user = c.fetchone()
@@ -2199,18 +2236,18 @@ def manager_send_message():
 
         conn.commit()
 
-        # Broadcast via SSE
-        msg_data = {
-            'title': title or 'Direct Message',
+        # Broadcast the notification to SSE clients
+        broadcast_message({
+            'title': title if title else ('Announcement' if msg_type == 'announcement' else 'Direct Message'),
             'message': message,
             'author': session['username'],
             'target_role': target_role if msg_type == 'announcement' else None,
             'target_user': target_user if msg_type == 'direct' else None,
             'target_text': target_text,
             'pinned': pinned and msg_type == 'announcement',
-            'category': 'general'
-        }
-        broadcast_message(msg_data)
+            'category': 'general',
+            'timestamp': datetime.now().isoformat()
+        })
 
         return jsonify({'success': True, 'message': 'Sent!'})
 
@@ -2218,28 +2255,51 @@ def manager_send_message():
         conn.rollback()
         app.logger.error(f"Send message error: {e}")
         return jsonify({'success': False, 'message': 'Failed'}), 500
+
     finally:
         conn.close()
 
+
+# ---------------- SSE MESSAGE STREAM ----------------
 clients = set()
 message_queue = deque()
 lock = threading.Lock()
 
+
 @app.route('/stream_messages')
 def stream_messages():
-    def event_stream():
-        client_id = request.remote_addr
-        with lock:
-            clients.add(client_id)
+    def event_stream(client_id):
+        last_ping = datetime.now()
         try:
             while True:
-                if message_queue:
-                    msg = message_queue.popleft()
-                    yield f"data: {json.dumps(msg)}\n\n"
+                # Send a ping every 15 seconds to keep connection alive
+                if (datetime.now() - last_ping).seconds >= 15:
+                    yield "data: ping\n\n"
+                    last_ping = datetime.now()
+
+                # Send any queued messages
+                with lock:
+                    while message_queue:
+                        msg = message_queue.popleft()
+                        yield f"data: {json.dumps(msg)}\n\n"
+
+                time.sleep(0.4)  # prevent busy-waiting CPU spikes
+
         except GeneratorExit:
+            # Client disconnected
             with lock:
                 clients.discard(client_id)
-    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+            print(f"Client {client_id} disconnected")
+
+    # Register client
+    client_id = request.remote_addr
+    with lock:
+        clients.add(client_id)
+        print(f"Client {client_id} connected")
+
+    return Response(stream_with_context(event_stream(client_id)),
+                    mimetype="text/event-stream")
+
 
 def broadcast_message(msg):
     with lock:
@@ -2260,6 +2320,7 @@ def download_guide():
 
 #--------------------------------------------------------------------------------------------------------
 
+# ---------------- CHANGE THEME ----------------
 @app.route('/change_theme', methods=['POST'])
 @login_required
 def change_theme():
@@ -2268,14 +2329,20 @@ def change_theme():
         session['theme'] = theme
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE employees SET theme = ? WHERE staff_number = ?", (theme, session['staff_number']))
+        cursor.execute(
+            "UPDATE employees SET theme = ? WHERE staff_number = ?",
+            (theme, session.get('staff_number'))
+        )
         conn.commit()
         conn.close()
-    return '', 204    
+    return '', 204
 
+
+# ---------------- DOCTOR REPORT ----------------
 @app.route('/doctor_report')
+@login_required
 def doctor_report():
-    if 'user_id' not in session or session.get('role') != 'doctor':
+    if session.get('role') != 'doctor':
         flash('Access denied.', 'error')
         return redirect(url_for('login_page'))
 
@@ -2287,8 +2354,8 @@ def doctor_report():
         if not employee:
             flash('Doctor not found.', 'error')
             return redirect(url_for('doctor_dashboard'))
-        employee_id = employee['id']
 
+        employee_id = employee['id']
         c.execute("""
             SELECT a.id, p.first_name, p.last_name, a.appointment_date, a.status, a.reason
             FROM appointments a
@@ -2296,7 +2363,7 @@ def doctor_report():
             WHERE a.helper_id = ? AND DATE(a.appointment_date) >= DATE('now', '-30 days')
             ORDER BY a.appointment_date DESC
         """, (employee_id,))
-        
+
         reports = [
             {
                 'id': row['id'],
@@ -2304,31 +2371,33 @@ def doctor_report():
                 'appointment_date': row['appointment_date'],
                 'status': row['status'],
                 'reason': row['reason'] or 'Not specified'
-            } for row in c.fetchall()
+            }
+            for row in c.fetchall()
         ]
-
         return render_template('doctor/doctor_report.html', reports=reports)
-    
+
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error fetching doctor report: {e}")
         flash('Database error.', 'error')
         return redirect(url_for('doctor_dashboard'))
     finally:
-        conn.close()      
+        conn.close()
 
+
+# ---------------- SYSTEM SETTINGS ----------------
 @app.route('/system_settings', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def system_settings():
-    # Load settings from file (or DB later)
     settings_file = os.path.join(app.instance_path, 'system_settings.json')
     system_settings = {}
-    
+
     if os.path.exists(settings_file):
         try:
             with open(settings_file, 'r') as f:
                 system_settings = json.load(f)
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to load system settings: {e}")
             system_settings = {}
 
     if request.method == 'POST':
@@ -2339,18 +2408,15 @@ def system_settings():
             username = data.get('add_user_username')
             role = data.get('add_user_role')
             if username and role:
-                # Add user logic here (e.g., insert into DB)
                 flash(f"User '{username}' added as {role}.", "success")
-        
+
         elif action == 'reset_password':
             flash("Password reset requested.", "info")
-        
+
         else:
-            # Save all settings
             save_keys = [
                 'clinic_name', 'clinic_address', 'clinic_contact', 'clinic_logo',
-                'branding_color', 'operating_hours', 'holiday_calendar',
-                'password_policy'
+                'branding_color', 'operating_hours', 'holiday_calendar', 'password_policy'
             ]
             updated = {k: data.get(k, '') for k in save_keys}
             system_settings.update(updated)
@@ -2358,22 +2424,21 @@ def system_settings():
             os.makedirs(app.instance_path, exist_ok=True)
             with open(settings_file, 'w') as f:
                 json.dump(system_settings, f, indent=2)
-            
             flash("System settings saved successfully.", "success")
 
         return redirect(url_for('system_settings'))
 
-    # Always pass system_settings to template
-    return render_template(
-        'admin/systemSettings.html',
-        system_settings=system_settings
-    )
+    return render_template('admin/systemSettings.html', system_settings=system_settings)
 
+
+# ---------------- ANNOUNCEMENTS ----------------
 @app.route('/announcements', methods=['GET', 'POST'])
+@login_required
 def announcements():
-    if 'username' not in session or session.get('role') != 'admin':
+    if session.get('role') != 'admin':
         flash('Please log in as an admin to manage announcements.', 'error')
         return redirect(url_for('login_page'))
+
     conn = None
     try:
         conn = get_db_connection()
@@ -2382,12 +2447,12 @@ def announcements():
         if not user_details:
             flash('User details not found. Please log in again.', 'error')
             return redirect(url_for('login_page'))
-        
+
         if request.method == 'POST':
-            title       = request.form.get('title', '').strip()
-            message     = request.form.get('message', '').strip()
-            category    = request.form.get('category', '').strip()
-            target_role = request.form.get('target_role', 'all').strip()  # New: 'all', 'doctor', 'nurse', 'receptionist'
+            title       = (request.form.get('title') or '').strip()
+            message     = (request.form.get('message') or '').strip()
+            category    = (request.form.get('category') or '').strip()
+            target_role = (request.form.get('target_role') or 'all').strip()
             pinned      = request.form.get('pinned') == 'on'
 
             if not title or not message or not category:
@@ -2402,14 +2467,16 @@ def announcements():
                 INSERT INTO announcements
                 (title, message, category, author, pinned, target_role)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (title, message, category,
-                  f"{user_details['first_name']} {user_details['last_name']}",
-                  pinned, target_role))
+            """, (
+                title, message, category,
+                f"{user_details['first_name']} {user_details['last_name']}",
+                pinned, target_role
+            ))
             conn.commit()
             flash('Announcement created successfully!', 'success')
             return redirect(url_for('announcements'))
-        
-        # GET: List all announcements (admin sees everything)
+
+        # GET: List all announcements
         c.execute("""
             SELECT id, title, message, category, author, timestamp, pinned, target_role
             FROM announcements
@@ -2424,43 +2491,67 @@ def announcements():
                 'author': row['author'],
                 'timestamp': row['timestamp'],
                 'pinned': row['pinned'],
-                'target_role': row['target_role'] or 'all'  # Safety
-            } for row in c.fetchall()
+                'target_role': row['target_role'] or 'all'
+            }
+            for row in c.fetchall()
         ]
-        return render_template('admin/announcement.html',
-                              announcements=announcements,
-                              user_details=user_details,
-                              username=session['username'])
+        return render_template('admin/announcement.html', announcements=announcements,
+                               user_details=user_details, username=session['username'])
+
     except sqlite3.Error as e:
         logger.error(f"Database error in announcements: {e}")
         flash('An error occurred while managing announcements.', 'error')
         return redirect(url_for('admin_dashboard'))
+
     finally:
         if conn:
             conn.close()
 
+# ---------------- TOGGLE AVAILABILITY ----------------
+def broadcast_message(msg):
+    """Send message to all connected clients (SSE)."""
+    with lock:
+        message_queue.append(msg)
+
 @app.route('/toggle_availability', methods=['POST'])
+@login_required
 def toggle_availability():
-    if 'username' not in session or session.get('role') not in ['doctor', 'nurse']:
+    if session.get('role') not in ['doctor', 'nurse']:
         return jsonify({'success': False, 'message': 'Unauthorized access.'}), 403
+
+    new_status = request.form.get('status')
+    if new_status not in ['available', 'unavailable']:
+        return jsonify({'success': False, 'message': 'Invalid status.'}), 400
+
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        new_status = request.form.get('status')
-        if new_status not in ['available', 'unavailable']:
-            return jsonify({'success': False, 'message': 'Invalid status.'}), 400
-        c.execute("UPDATE employees SET availability = ? WHERE staff_number = ?", (new_status, session['username']))
-        if c.rowcount > 0:
-            c.execute("SELECT first_name, last_name, role FROM employees WHERE staff_number = ?", (session['username'],))
-            user = c.fetchone()
-            notification = f"{user['first_name']} {user['last_name']} ({user['role']}) is now {new_status}."
-            c.execute("INSERT INTO messages (title, content, sender) VALUES (?, ?, ?)",
-                     (f"{user['role'].capitalize()} Status Update", notification, 'System'))
-            conn.commit()
-            return jsonify({'success': True, 'message': f'Availability set to {new_status}.'})
-        else:
+        c.execute("UPDATE employees SET availability = ? WHERE staff_number = ?",
+                  (new_status, session['username']))
+
+        if c.rowcount == 0:
             return jsonify({'success': False, 'message': 'User not found.'}), 404
+
+        # Notify system & managers
+        c.execute("SELECT first_name, last_name, role FROM employees WHERE staff_number = ?", 
+                  (session['username'],))
+        user = c.fetchone()
+        notification = f"{user['first_name']} {user['last_name']} ({user['role']}) is now {new_status}."
+        c.execute("INSERT INTO messages (title, content, sender) VALUES (?, ?, ?)",
+                  (f"{user['role'].capitalize()} Status Update", notification, 'System'))
+        conn.commit()
+
+        # Broadcast to SSE clients
+        broadcast_message({
+            'type': 'availability_update',
+            'staff': f"{user['first_name']} {user['last_name']}",
+            'role': user['role'],
+            'status': new_status
+        })
+
+        return jsonify({'success': True, 'message': f'Availability set to {new_status}.'})
+
     except sqlite3.Error as e:
         logger.error(f"Database error in toggle_availability: {e}")
         return jsonify({'success': False, 'message': 'Database error occurred.'}), 500
@@ -2468,28 +2559,41 @@ def toggle_availability():
         if conn:
             conn.close()
 
+# ---------------- EMERGENCY REQUEST ----------------
 @csrf.exempt
 @app.route('/emergency_request', methods=['POST'])
+@login_required
 def emergency_request():
-    if 'username' not in session:
-        return jsonify({'success': False, 'message': 'Please log in to submit an emergency request.'}), 403
+    patient_id = request.form.get('patient_id')
+    reason = (request.form.get('reason') or '').strip()
+    if not patient_id or not reason:
+        return jsonify({'success': False, 'message': 'Patient ID and reason are required.'}), 400
+
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        patient_id = request.form.get('patient_id')
-        reason = request.form.get('reason', '').strip()
-        if not patient_id or not reason:
-            return jsonify({'success': False, 'message': 'Patient ID and reason are required.'}), 400
         c.execute("SELECT id FROM patients WHERE id = ?", (patient_id,))
         if not c.fetchone():
             return jsonify({'success': False, 'message': 'Patient not found.'}), 404
+
+        # Insert request with audit: who submitted
         c.execute("""
-            INSERT INTO emergency_requests (patient_id, reason, request_time, status)
-            VALUES (?, ?, ?, ?)
-        """, (patient_id, reason, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'pending'))
+            INSERT INTO emergency_requests (patient_id, reason, request_time, status, submitted_by)
+            VALUES (?, ?, ?, ?, ?)
+        """, (patient_id, reason, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'pending', session['username']))
         conn.commit()
+
+        # Broadcast new emergency request
+        broadcast_message({
+            'type': 'emergency_request',
+            'patient_id': patient_id,
+            'reason': reason,
+            'submitted_by': session['username']
+        })
+
         return jsonify({'success': True, 'message': 'Emergency request submitted successfully!'})
+
     except sqlite3.Error as e:
         logger.error(f"Database error in emergency_request: {e}")
         return jsonify({'success': False, 'message': 'Database error occurred.'}), 500
@@ -2498,20 +2602,26 @@ def emergency_request():
             conn.close()
 
 
+# ---------------- VIEW EMERGENCY REQUESTS ----------------
 @app.route('/view_emergency_requests')
+@login_required
 def view_emergency_requests():
-    if 'username' not in session or session.get('role') not in ['doctor', 'nurse']:
+    if session.get('role') not in ['doctor', 'nurse']:
         flash('Please log in as a doctor or nurse to view emergency requests.', 'error')
         return redirect(url_for('login_page'))
+
     conn = None
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        user_details = get_user_details(conn, session['username'])
+        # Get user details
+        c.execute("SELECT * FROM employees WHERE staff_number = ?", (session['username'],))
+        user_details = c.fetchone()
         if not user_details:
             flash('User details not found. Please log in again.', 'error')
             return redirect(url_for('login_page'))
-        
+
+        # Fetch all emergency requests
         c.execute("""
             SELECT er.id, er.patient_id, p.first_name, p.last_name, er.reason, er.request_time, er.status
             FROM emergency_requests er
@@ -2529,10 +2639,12 @@ def view_emergency_requests():
                 'status': row['status']
             } for row in c.fetchall()
         ]
+
         return render_template('emergency_requests.html',
-                              emergency_requests=emergency_requests,
-                              user_details=user_details,
-                              username=session['username'])
+                               emergency_requests=emergency_requests,
+                               user_details=user_details,
+                               username=session['username'])
+
     except sqlite3.Error as e:
         logger.error(f"Database error in view_emergency_requests: {e}")
         flash('An error occurred while fetching emergency requests.', 'error')
@@ -2707,7 +2819,7 @@ def get_user_details(staff_number):
     return {'name': 'User', 'role': 'unknown', 'profile_pic': '/static/default.jpg'}
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=8000, debug=False)
 else:
     # When run via Gunicorn (Azure/Docker production)
     init_db()
