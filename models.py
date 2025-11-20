@@ -29,7 +29,6 @@ class Employee(db.Model):
 
     # Relationships
     patients = db.relationship('Patient', backref='doctor', lazy=True)
-
     assigned_appointments = db.relationship(
         'Appointment',
         back_populates='helper',
@@ -57,6 +56,7 @@ class Employee(db.Model):
     def __repr__(self):
         return f"<Employee {self.staff_number} - {self.role}>"
 
+
 # ========================================
 # 2. Patient
 # ========================================
@@ -81,7 +81,6 @@ class Patient(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), default='active')
 
-    # THIS LINE AUTOMATICALLY CREATES appointment.patient
     appointments = db.relationship('Appointment', backref='patient', lazy=True)
     prescriptions = db.relationship('Prescription', backref='patient', lazy=True)
     visits = db.relationship('Visit', backref='patient', lazy=True)
@@ -141,7 +140,7 @@ class Prescription(db.Model):
 
 
 # ========================================
-# 5–16. All other models — PERFECT AS-IS
+# 5. Visit
 # ========================================
 class Visit(db.Model):
     __tablename__ = 'visits'
@@ -151,6 +150,10 @@ class Visit(db.Model):
     notes = db.Column(db.Text)
     def __repr__(self): return f"<Visit {self.id}>"
 
+
+# ========================================
+# 6. EmergencyRequest
+# ========================================
 class EmergencyRequest(db.Model):
     __tablename__ = 'emergency_requests'
     id = db.Column(db.Integer, primary_key=True)
@@ -160,6 +163,10 @@ class EmergencyRequest(db.Model):
     status = db.Column(db.String(20), default='pending')
     def __repr__(self): return f"<Emergency {self.id} - {self.status}>"
 
+
+# ========================================
+# 7. Message
+# ========================================
 class Message(db.Model):
     __tablename__ = 'messages'
     id = db.Column(db.Integer, primary_key=True)
@@ -169,6 +176,10 @@ class Message(db.Model):
     sender = db.Column(db.String(50), nullable=False)
     def __repr__(self): return f"<Message {self.title}>"
 
+
+# ========================================
+# 8. SystemSetting
+# ========================================
 class SystemSetting(db.Model):
     __tablename__ = 'system_settings'
     id = db.Column(db.Integer, primary_key=True)
@@ -176,6 +187,10 @@ class SystemSetting(db.Model):
     value = db.Column(db.Text, nullable=True)
     def __repr__(self): return f"<SystemSetting {self.key}={self.value}>"
 
+
+# ========================================
+# 9. Preference
+# ========================================
 class Preference(db.Model):
     __tablename__ = 'preferences'
     id = db.Column(db.Integer, primary_key=True)
@@ -183,6 +198,10 @@ class Preference(db.Model):
     theme = db.Column(db.String(20), default='dark')
     def __repr__(self): return f"<Pref {self.staff_number}>"
 
+
+# ========================================
+# 10. Announcement
+# ========================================
 class Announcement(db.Model):
     __tablename__ = 'announcements'
     id = db.Column(db.Integer, primary_key=True)
@@ -195,6 +214,10 @@ class Announcement(db.Model):
     target_role = db.Column(db.String(20), default='all')
     def __repr__(self): return f"<Announcement {self.title}>"
 
+
+# ========================================
+# 11. Payment
+# ========================================
 class Payment(db.Model):
     __tablename__ = 'payments'
     id = db.Column(db.Integer, primary_key=True)
@@ -204,6 +227,10 @@ class Payment(db.Model):
     status = db.Column(db.String(20), default='pending')
     def __repr__(self): return f"<Payment R{self.amount}>"
 
+
+# ========================================
+# 12. Notification
+# ========================================
 class Notification(db.Model):
     __tablename__ = 'notifications'
     id = db.Column(db.Integer, primary_key=True)
@@ -212,6 +239,10 @@ class Notification(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     def __repr__(self): return f"<Notif {self.title}>"
 
+
+# ========================================
+# 13. HelpedPatient
+# ========================================
 class HelpedPatient(db.Model):
     __tablename__ = 'helped_patients'
     id = db.Column(db.Integer, primary_key=True)
@@ -224,6 +255,10 @@ class HelpedPatient(db.Model):
     nurse = db.relationship('Employee', backref='helped_patients', lazy=True)
     def __repr__(self): return f"<Helped {self.id}>"
 
+
+# ========================================
+# 14. SelfBookedAppointment
+# ========================================
 class SelfBookedAppointment(db.Model):
     __tablename__ = 'self_booked_appointments'
     id = db.Column(db.Integer, primary_key=True)
@@ -237,6 +272,10 @@ class SelfBookedAppointment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     def __repr__(self): return f"<SelfBook {self.patient_name}>"
 
+
+# ========================================
+# 15. WalkinQueue
+# ========================================
 class WalkinQueue(db.Model):
     __tablename__ = 'walkin_queue'
     id = db.Column(db.Integer, primary_key=True)
@@ -247,6 +286,10 @@ class WalkinQueue(db.Model):
     arrived_at = db.Column(db.String(50), nullable=False)
     def __repr__(self): return f"<Walkin {self.patient_name}>"
 
+
+# ========================================
+# 16. AuditLog
+# ========================================
 class AuditLog(db.Model):
     __tablename__ = 'audit_log'
     id = db.Column(db.Integer, primary_key=True)
@@ -256,10 +299,14 @@ class AuditLog(db.Model):
     details = db.Column(db.Text)
     timestamp = db.Column(db.String(50), nullable=False)
     def __repr__(self): return f"<Audit {self.action}>"
-    
+
+
 # ========================================
-# Inventory
+# 17–24. Missing classes from imports
+# Inventory, Billing, Task, Attendance, LeaveRequest,
+# Certification, PerformanceReview, TrainingSession
 # ========================================
+
 class Inventory(db.Model):
     __tablename__ = 'inventory'
     id = db.Column(db.Integer, primary_key=True)
@@ -271,9 +318,6 @@ class Inventory(db.Model):
     def __repr__(self):
         return f"<Inventory {self.item_name} qty={self.quantity}>"
 
-# ========================================
-# Billing
-# ========================================
 class Billing(db.Model):
     __tablename__ = 'billing'
     id = db.Column(db.Integer, primary_key=True)
@@ -285,9 +329,6 @@ class Billing(db.Model):
     def __repr__(self):
         return f"<Billing {self.id} - R{self.cost}>"
 
-# ========================================
-# Task
-# ========================================
 class Task(db.Model):
     __tablename__ = 'tasks'
     id = db.Column(db.Integer, primary_key=True)
@@ -299,9 +340,6 @@ class Task(db.Model):
     def __repr__(self):
         return f"<Task {self.title} - {self.status}>"
 
-# ========================================
-# Attendance
-# ========================================
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     id = db.Column(db.Integer, primary_key=True)
@@ -313,9 +351,6 @@ class Attendance(db.Model):
     def __repr__(self):
         return f"<Attendance {self.employee_id} - {self.date}>"
 
-# ========================================
-# LeaveRequest
-# ========================================
 class LeaveRequest(db.Model):
     __tablename__ = 'leave_requests'
     id = db.Column(db.Integer, primary_key=True)
@@ -328,9 +363,6 @@ class LeaveRequest(db.Model):
     def __repr__(self):
         return f"<LeaveRequest {self.employee_id} - {self.status}>"
 
-# ========================================
-# Certification
-# ========================================
 class Certification(db.Model):
     __tablename__ = 'certifications'
     id = db.Column(db.Integer, primary_key=True)
@@ -342,9 +374,6 @@ class Certification(db.Model):
     def __repr__(self):
         return f"<Certification {self.name} - {self.employee_id}>"
 
-# ========================================
-# PerformanceReview
-# ========================================
 class PerformanceReview(db.Model):
     __tablename__ = 'performance_reviews'
     id = db.Column(db.Integer, primary_key=True)
@@ -357,9 +386,6 @@ class PerformanceReview(db.Model):
     def __repr__(self):
         return f"<PerformanceReview {self.employee_id} - {self.score}>"
 
-# ========================================
-# TrainingSession
-# ========================================
 class TrainingSession(db.Model):
     __tablename__ = 'training_sessions'
     id = db.Column(db.Integer, primary_key=True)
@@ -367,7 +393,20 @@ class TrainingSession(db.Model):
     trainer = db.Column(db.String(100))
     date = db.Column(db.Date)
     duration_hours = db.Column(db.Float)
-    attendees = db.Column(db.Text)  # Could be a comma-separated list of staff_numbers
+    attendees = db.Column(db.Text)
     def __repr__(self):
         return f"<TrainingSession {self.topic} - {self.date}>"
-    
+
+# ========================================
+# 25. StaffSchedule (already defined)
+# ========================================
+class StaffSchedule(db.Model):
+    __tablename__ = 'staff_schedule'
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
+    shift_date = db.Column(db.Date)
+    shift_type = db.Column(db.String(20))
+    notes = db.Column(db.Text)
+    employee = db.relationship('Employee', backref='shifts', lazy=True)
+    def __repr__(self):
+        return f"<StaffSchedule {self.employee_id} - {self.shift_date}>"
