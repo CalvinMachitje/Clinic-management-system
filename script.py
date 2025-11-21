@@ -106,6 +106,43 @@ def jinja_strftime(value, format='%H:%M'):
 app.jinja_env.filters['strftime'] = jinja_strftime
 app.jinja_env.filters['nl2br'] = lambda v: Markup(v.replace('\n', '<br>\n')) if v else ''
 
+def create_default_admin():
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+
+    # Don't continue if variables missing
+    if not admin_email or not admin_password:
+        print("⚠️ Admin email or password missing in .env — skipping admin creation")
+        return
+
+    # Check if admin already exists
+    existing = Employee.query.filter_by(email=admin_email).first()
+    if existing:
+        print("ℹ Admin already exists — skipping setup")
+        return
+
+    # Create hashed password
+    hashed_pw = generate_password_hash(admin_password)
+
+    admin = Employee(
+        first_name=os.getenv("ADMIN_FIRST_NAME", "Admin"),
+        last_name=os.getenv("ADMIN_LAST_NAME", ""),
+        email=admin_email,
+        password=hashed_pw,
+        role=os.getenv("ADMIN_ROLE", "admin"),
+        staff_number=os.getenv("ADMIN_STAFF_NO", "ADM001"),
+        profile_image="default.jpg",
+        availability="available",
+        active=True
+    )
+
+    db.session.add(admin)
+    db.session.commit()
+    print("🚀 Default admin created successfully from .env!")
+
+with app.app_context():
+    create_default_admin()
+
 # Globals
 clients = set()
 message_queue = deque()
@@ -306,39 +343,71 @@ def nl2br_filter(value):
 def login_page():
     if current_user.is_authenticated:
         return redirect(url_for('default_page'))
-        
+
     form = LoginForm()
     if form.validate_on_submit():
         username_input = form.username.data.strip()
         password = form.password.data
 
-        # Search by staff_number OR email
+        # Lookup by staff number OR email
         user = Employee.query.filter(
-            (Employee.staff_number == username_input) | 
+            (Employee.staff_number == username_input) |
             (Employee.email == username_input)
         ).first()
 
-        if user and user.active and check_password_hash(user.password, password):
+        if not user:
+            flash("No account found.", "error")
+            return render_template("homepage/login_page.html", form=form)
+
+        # ────────────────────────────────────────────────────────────────
+        # SPECIAL CASE — allow default admin to log in WITHOUT hashed password
+        # Email: admin@mediassist.co.za  |  Password: Medi2025!
+        # ────────────────────────────────────────────────────────────────
+        if user.email.lower() == "admin@mediassist.co.za" and password == "Medi2025!":
             login_user(user, remember=form.remember.data)
-            
-            flash('Login successful!', 'success')
-            
-            # Redirect based on role
+            flash("Welcome Admin!", "success")
+            return redirect(url_for("admin_dashboard"))
+        # ────────────────────────────────────────────────────────────────
+
+        # Standard hashed password login
+        stored_hash = (user.password or "").strip()
+
+        if not stored_hash:
+            flash("This account has no password set. Contact admin.", "error")
+            return render_template("homepage/login_page.html", form=form)
+
+        if not user.active:
+            flash("Account is deactivated.", "error")
+            return render_template("homepage/login_page.html", form=form)
+
+        # Hash-based authentication (PBKDF2, bcrypt, scrypt, argon2…)
+        if stored_hash.startswith(("pbkdf2:", "$2", "$6", "$argon2")) and check_password_hash(stored_hash, password):
+            login_user(user, remember=form.remember.data)
+            flash("Login successful!", "success")
             redirect_map = {
-                'admin': 'admin_dashboard',
-                'doctor': 'doctor_dashboard',
-                'nurse': 'nurse_dashboard',
-                'receptionist': 'reception_dashboard',
-                'manager': 'manager_dashboard'
+                "admin": "admin_dashboard",
+                "doctor": "doctor_dashboard",
+                "nurse": "nurse_dashboard",
+                "receptionist": "reception_dashboard",
+                "manager": "manager_dashboard"
             }
-            return redirect(url_for(redirect_map.get(user.role, 'default_page')))
-        else:
-            flash('Invalid credentials or account inactive.', 'error')
-    
-    return render_template('homepage/login_page.html', form=form)
+            return redirect(url_for(redirect_map.get(user.role, "default_page")))
+
+        # Fallback — stored password is NOT hashed (old version)
+        if stored_hash == password:
+            flash("⚠ Security Warning: Password stored as plain text! You must update it.", "warning")
+            user.password = generate_password_hash(password)   # upgrade automatically
+            db.session.commit()
+            login_user(user, remember=True)
+            return redirect(url_for("change_password"))
+
+        # Nothing matched
+        flash("Invalid password.", "error")
+
+    return render_template("homepage/login_page.html", form=form)
 
 # --------------------------------------------------------------
-# POST: Create New User (Admin Only) – FIXED CSRF + Werkzeug
+# POST: Create New User (Admin Only) – FULLY FIXED & ROBUST
 # --------------------------------------------------------------
 @app.route('/create_user', methods=['POST'])
 @login_required
@@ -358,56 +427,55 @@ def create_user():
     if not all([first_name, last_name, email, role]):
         return jsonify({'success': False, 'message': 'All fields are required'}), 400
 
-    if role not in ['doctor', 'nurse', 'receptionist', 'manager']:
-        return jsonify({'success': False, 'message': 'Invalid role'}), 400
+    if role not in ['doctor', 'nurse', 'receptionist', 'manager', 'admin']:
+        return jsonify({'success': False, 'message': 'Invalid role selected'}), 400
 
-    # Check if email exists
-    if Employee.query.filter_by(email=email).first():
-        return jsonify({'success': False, 'message': 'Email already in use'}), 400
+    # Check duplicates
+    if Employee.query.filter(
+        (Employee.email == email) | 
+        (Employee.staff_number.ilike(email))
+    ).first():
+        return jsonify({'success': False, 'message': 'Email or staff number already in use'}), 400
 
     # Generate staff number
-    max_staff = db.session.query(Employee).order_by(Employee.id.desc()).first()
-    if max_staff:
-        last_num = int(max_staff.staff_number.replace('STAFF', '') or 0)
-    else:
-        last_num = 0
-    staff_number = f"STAFF{str(last_num + 1).zfill(3)}"
+    last = db.session.query(db.func.max(Employee.id)).scalar() or 0
+    staff_number = f"STAFF{str(last + 1).zfill(3)}"
 
-    # Generate temporary password
-    alphabet = string.ascii_letters + string.digits
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
-    hashed_password = generate_password_hash(temp_password)
+    # Generate strong temp password
+    temp_password = ''.join(secrets.choice(string.ascii_letters + string.digits + "!@#$%^&*") for _ in range(12))
+    hashed_password = generate_password_hash(temp_password, method='scrypt')  # Stronger than pbkdf2
 
-    # Create new user
+    # Create user
     new_user = Employee(
         staff_number=staff_number,
-        first_name=first_name,
-        last_name=last_name,
+        first_name=first_name.title(),
+        last_name=last_name.title(),
         email=email,
         password=hashed_password,
         role=role,
-        active=True
+        active=True,
+        created_at=datetime.utcnow()
     )
 
     try:
         db.session.add(new_user)
         db.session.commit()
 
-        # Optional: log creation
         logger.info(f"Admin {current_user.staff_number} created {role}: {staff_number}")
 
         return jsonify({
             'success': True,
             'staff_number': staff_number,
             'temp_password': temp_password,
-            'message': f'{role.capitalize()} created successfully! Password: {temp_password}'
+            'full_name': f"{first_name} {last_name}",
+            'message': f'{role.capitalize()} account created!'
         })
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Failed to create user: {e}")
-        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
-
+        logger.error(f"Create user failed: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error. Try again.'}), 500
+    
 # --------------------------------------------------------------
 # POST: Delete User – FIXED CSRF
 # --------------------------------------------------------------

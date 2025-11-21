@@ -48,6 +48,30 @@ INSERT INTO employees VALUES(96,'Sello','Mayors','sello.reception@clinic.ac.za',
 INSERT INTO employees VALUES(140,'Steven','MacTak','Steven.MacTak@clinic.ac.za','$2b$12$vjm932nrvIeXjArfSHZ2OOkEF20qn1rwTyrH3scDU.2L9ZDd0u.1W',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF097',NULL,NOW(),TRUE);
 INSERT INTO employees VALUES(141,'Mzilomba','MacTak','doctor@clinic.ac.za','$2b$12$L.P8vUP1vBECqPyYy0fmkutU9PyUiFBI8PPB7gNx5ET4pvUnVMBk.',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF141',NULL,NOW(),TRUE);
 INSERT INTO employees VALUES(142,'Oliver','Smiley','Oliver.Smiley@clinic.ac.za','$2b$12$JJ/7lNSWJb1W52/yDLNzvuzEnzAgD1Kl66H.bEh8kwuVNPldFmTg2',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF142',NULL,NOW(),TRUE);
+INSERT INTO employees (
+    id, first_name, last_name, email, password, role,
+    staff_number, profile_image, availability,
+    hire_date, specialization, phone, address,
+    created_at, active
+) VALUES (
+    999,
+    'Medi',
+    'Admin',
+    'admin@mediassist.co.za',
+    'Admin123',           -- ❗ plain password (NOT hashed)
+    'admin',
+    'MED001',
+    'default.jpg',
+    'available',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NOW(),
+    TRUE
+);
+
+
 
 -- ========================================
 -- REST OF YOUR ORIGINAL TABLES (unchanged, just copied)

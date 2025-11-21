@@ -9,6 +9,13 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_FIRST_NAME=${ADMIN_FIRST_NAME}
+      - ADMIN_LAST_NAME=${ADMIN_LAST_NAME}
+      - ADMIN_ROLE=${ADMIN_ROLE}
+      - ADMIN_STAFF_NO=${ADMIN_STAFF_NO}
     ports:
       - "8000:8000"
     depends_on:
