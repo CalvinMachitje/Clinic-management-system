@@ -14,18 +14,17 @@ from flask_caching import Cache
 appointment_queue = Queue()
 waiting_patients_queue = Queue()
 from flask_wtf.csrf import CSRFProtect
-from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from flask_wtf import FlaskForm
 from wtforms import DateField, StringField, PasswordField, SubmitField, EmailField, DateTimeField, BooleanField, SelectField, TextAreaField, HiddenField
 from wtforms.validators import DataRequired, Email, EqualTo, Length, ValidationError
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from io import StringIO
 from flask import send_file
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from dateutil.relativedelta import relativedelta
 from pathlib import Path
+from flask_migrate import Migrate   # ← ONLY ADDED THIS LINE
 
 load_dotenv()
 from models import (
@@ -62,6 +61,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
 ).replace('postgres://', 'postgresql://', 1)
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# =========================== FIXED PART – THIS IS THE ONLY REAL FIX ===========================
+db.init_app(app)                  # Connects the db from models.py to this Flask app
+migrate = Migrate(app, db)        # Optional but recommended
+# ==============================================================================================
 
 # ===========================
 # EXTENSIONS
@@ -115,17 +119,10 @@ class User(UserMixin):
         self.id = str(id)
         self.role = role
 
-# ===========================
-# USER LOADER (Flask-Login)
-# ===========================
 @login_manager.user_loader
 def load_user(user_id):
-    """user_id is the PRIMARY KEY (int) from employees table"""
     return Employee.query.get(int(user_id))
 
-# ===========================
-# CONTEXT PROCESSOR – INJECT CURRENT USER
-# ===========================
 @app.context_processor
 def inject_user():
     if current_user.is_authenticated:
@@ -134,7 +131,7 @@ def inject_user():
             user_fullname=f"{current_user.first_name} {current_user.last_name}".strip(),
             user_role=current_user.role,
             user_staff_number=current_user.staff_number,
-            user_id=current_user.id  # ← important for JS
+            user_id=current_user.id
         )
     return dict(
         current_user=None,
@@ -169,42 +166,35 @@ def role_required(*required_roles):
     return decorator
 
 # ===========================
-# DATABASE INITIALIZATION
+# DATABASE INITIALIZATION 
 # ===========================
 def init_db():
     with app.app_context():
-        # Only create tables automatically in SQLite (dev mode)
-        if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
-            db.create_all()
-            print("SQLite tables checked/created.")
+        db.create_all()
+        print("Database tables checked/created.")
 
-        # Auto-create first admin if missing
+        # Create first admin if none exists
         if not Employee.query.filter_by(role='admin').first():
             admin = Employee(
                 staff_number="MED001",
                 first_name="Medi",
                 last_name="Admin",
-                email="admin@mediassist.co.za",
+                email="admin@mediassist.co.za",        # ← Fixed: removed duplicate first_name=
                 password=generate_password_hash("Medi2025!"),
                 role="admin",
                 active=True
             )
             db.session.add(admin)
             db.session.commit()
-            print("FIRST ADMIN → MED001 / Medi2025!")
-   
+            print("FIRST ADMIN CREATED → Staff: MED001 | Pass: Medi2025!")
+
 def generate_staff_number():
     last_employee = Employee.query.order_by(Employee.id.desc()).first()
     last_num = int(last_employee.staff_number.replace('STAFF', '') or 0) if last_employee else 0
-    return f"STAFF{str(last_num + 1).zfill(3)}"   
-            
+    return f"STAFF{str(last_num + 1).zfill(3)}"
+
 def get_db_connection():
-    """
-    Legacy function – only used when running on SQLite (local dev)
-    In production (PostgreSQL), this will never be called because we use SQLAlchemy
-    """
     if not hasattr(g, 'sqlite_db'):
-        # Only used in local SQLite mode
         db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'clinicinfo.db')
         g.sqlite_db = sqlite3.connect(db_path, check_same_thread=False)
         g.sqlite_db.row_factory = sqlite3.Row

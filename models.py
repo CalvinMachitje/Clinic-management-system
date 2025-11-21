@@ -24,7 +24,8 @@ class Employee(db.Model):
     profile_image = db.Column(db.String(255), default='default.jpg')
     staff_number = db.Column(db.String(50), unique=True, nullable=False, default='TEMPSTAFF')
     specialization = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, server_default=db.func.now(), nullable=True)
+    active = db.Column(db.Boolean, default=True, server_default='true', nullable=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
 
     # Relationships
@@ -402,11 +403,39 @@ class TrainingSession(db.Model):
 # ========================================
 class StaffSchedule(db.Model):
     __tablename__ = 'staff_schedule'
+    
     id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'))
-    shift_date = db.Column(db.Date)
-    shift_type = db.Column(db.String(20))
+    employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    shift_date = db.Column(db.Date, nullable=False)
+    shift_type = db.Column(db.String(50), nullable=False)  # morning, afternoon, night
+    status = db.Column(db.String(20), default='scheduled')  # scheduled, completed, etc.
     notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
     employee = db.relationship('Employee', backref='shifts', lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('employee_id', 'shift_date', 'shift_type', name='uix_employee_shift'),
+    )
+
     def __repr__(self):
-        return f"<StaffSchedule {self.employee_id} - {self.shift_date}>"
+        return f"<StaffSchedule {self.employee_id} - {self.shift_type} on {self.shift_date}>"
+
+
+# ========================================
+# 26. ClinicReport
+# ========================================
+class ClinicReport(db.Model):
+    __tablename__ = 'clinic_reports'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    report_date = db.Column(db.Date, default=datetime.utcnow)
+    patients_seen = db.Column(db.Integer)
+    revenue = db.Column(db.Float)
+    expenses = db.Column(db.Float)
+    staff_on_duty = db.Column(db.Integer)
+    low_stock_items = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+
+    def __repr__(self):
+        return f"<ClinicReport {self.report_date} - Patients: {self.patients_seen}>"

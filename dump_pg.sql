@@ -7,17 +7,17 @@
 
 BEGIN;
 
--- Drop tables if they exist (clean start)
-DROP TABLE IF EXISTS appointments_new, appointments, patients, employees, prescriptions, visits, emergency_requests, messages, system_settings, preferences, announcements, payments, notifications, helped_patients, self_booked_appointments, walkin_queue, audit_log CASCADE;
+-- Clean start
+DROP TABLE IF EXISTS appointments_new, appointments, patients, employees, prescriptions, visits, emergency_requests, messages, system_settings, preferences, announcements, payments, notifications, helped_patients, self_booked_appointments, walkin_queue, audit_log, inventory, billing, tasks, attendance, leave_requests, certifications, performance_reviews, training_sessions, staff_schedule, clinic_reports CASCADE;
 
 -- ========================================
--- 1. EMPLOYEES
+-- 1. EMPLOYEES – NOW WITH created_at & active
 -- ========================================
 CREATE TABLE employees (
     id SERIAL PRIMARY KEY,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     phone TEXT,
     address TEXT,
@@ -25,29 +25,32 @@ CREATE TABLE employees (
     hire_date TEXT,
     availability TEXT DEFAULT 'available',
     profile_image TEXT DEFAULT 'default.jpg',
-    staff_number TEXT UNIQUE NOT NULL DEFAULT 'TEMPSTAFF',
-    specialization TEXT
+    staff_number TEXT UNIQUE NOT NULL,
+    specialization TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    active BOOLEAN DEFAULT TRUE
 );
 
-INSERT INTO employees VALUES(1,'Admin','User','admin@clinic.com','$2b$12$m5g/lQc4k8sIB.wf72e4uu9hxsLjO9TCqfyxdsFDpbrh0FURS7nu6',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF001',NULL);
-INSERT INTO employees VALUES(15,'Onke','Makuoa','Onke.doctor@clinic.ac.za','$2b$12$F2Nik0HlpMfkXm9IHiWmsuuaE40CTj49OOXemhdVgwLnyO2gJrUL2',NULL,NULL,'doctor',NULL,'available','default.jpg','STAFF002',NULL);
-INSERT INTO employees VALUES(23,'Joe','Molapo','Joe.nurse@clinic.ac.za','$2b$12$BD8Hmb3xWo8pk4Lfsdnw5uUBfKZpy0DmeYtQcabNbLC3OSN2YDOt.',NULL,NULL,'nurse',NULL,'available','default.jpg','STAFF016',NULL);
-INSERT INTO employees VALUES(24,'Commander','Morning','commander.reception@clinic.ac.za','$2b$12$N5fl53mr9GVJX93Xx9PL6OnWg.vNXF37eMsiV8QKvuGvHaTpyd3uq',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF024',NULL);
-INSERT INTO employees VALUES(33,'Calvin','Machitje','test36@gmail.com','$2b$12$UXnF325QeNSgG9EZdyp0MOXG.RLJ0V73zDgvSeW/2DR9jFRyqJ2he',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF025',NULL);
-INSERT INTO employees VALUES(34,'sam','mas','sam.mas@clinic.ac.za','$2b$12$z9XOonHXCjzpsOH.W7T7Meybcfcxyi5ydZlmizEVZwFb4e6BwGOIq',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF034',NULL);
-INSERT INTO employees VALUES(52,'Oupa','Makie','oupa.makie@clinic.ac.za','$2b$12$nDMkz2NizLniX3rzPIw6uO4kHuELE0Lkz4aft.B8my9ssabsyBMCO',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF035',NULL);
-INSERT INTO employees VALUES(53,'Lerato','Melane','lerato.melane@clinic.ac.za','$2b$12$haWuVgKJwp/dueugc3//ZOgGRnEn9GS2HuwJOaFhRsoRT7.qYzZja',NULL,NULL,'nurse',NULL,'unavailable','default.jpg','STAFF053',NULL);
-INSERT INTO employees VALUES(81,'Neo','Malema','neo.malema@clinic.ac.za','$2b$12$wakpo3sM0to38a6F7r2EduhChCIipmFjezpHAzdGlm0GzgrXtuAfu',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF054',NULL);
-INSERT INTO employees VALUES(93,'Siya','Dlamini','siya.admin@clinic.ac.za','$2b$12$IKvr6dY/QONzVXplbZH2Z.fmrZ7lfSEuo5UMQv9jYjcm8tXTa3ECy',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF082',NULL);
-INSERT INTO employees VALUES(94,'Colbert','Dhladlha','colbert.dladla@clinic.ac.za','$2b$12$mOlxeLPRxlbCyzyiUIkC1eFt2o7aGJL3Fav5h56E4eiHCJKGGwrSq',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF094',NULL);
-INSERT INTO employees VALUES(95,'Maki','Makhe','maki.nurse@clinic.ac.za','$2b$12$1iLAX/Xknjrek3Vbp63dEeHjCUbYmAh.QQ.1QwJadYzHS1i8sAFmK',NULL,NULL,'nurse',NULL,'unavailable','default.jpg','STAFF095',NULL);
-INSERT INTO employees VALUES(96,'Sello','Mayors','sello.reception@clinic.ac.za','$2b$12$EL/T9hiOutmIb3ODmIKx/umat.MaQOtyZQVKhtkuQkRh8HByUCnHu',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF096',NULL);
-INSERT INTO employees VALUES(140,'Steven','MacTak','Steven.MacTak@clinic.ac.za','$2b$12$vjm932nrvIeXjArfSHZ2OOkEF20qn1rwTyrH3scDU.2L9ZDd0u.1W',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF097',NULL);
-INSERT INTO employees VALUES(141,'Mzilomba','MacTak','doctor@clinic.ac.za','$2b$12$L.P8vUP1vBECqPyYy0fmkutU9PyUiFBI8PPB7gNx5ET4pvUnVMBk.',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF141',NULL);
-INSERT INTO employees VALUES(142,'Oliver','Smiley','Oliver.Smiley@clinic.ac.za','$2b$12$JJ/7lNSWJb1W52/yDLNzvuzEnzAgD1Kl66H.bEh8kwuVNPldFmTg2',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF142',NULL);
+-- All your real users (passwords preserved)
+INSERT INTO employees VALUES(1,'Admin','User','admin@clinic.com','$2b$12$m5g/lQc4k8sIB.wf72e4uu9hxsLjO9TCqfyxdsFDpbrh0FURS7nu6',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF001',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(15,'Onke','Makuoa','Onke.doctor@clinic.ac.za','$2b$12$F2Nik0HlpMfkXm9IHiWmsuuaE40CTj49OOXemhdVgwLnyO2gJrUL2',NULL,NULL,'doctor',NULL,'available','default.jpg','STAFF002',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(23,'Joe','Molapo','Joe.nurse@clinic.ac.za','$2b$12$BD8Hmb3xWo8pk4Lfsdnw5uUBfKZpy0DmeYtQcabNbLC3OSN2YDOt.',NULL,NULL,'nurse',NULL,'available','default.jpg','STAFF016',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(24,'Commander','Morning','commander.reception@clinic.ac.za','$2b$12$N5fl53mr9GVJX93Xx9PL6OnWg.vNXF37eMsiV8QKvuGvHaTpyd3uq',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF024',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(33,'Calvin','Machitje','test36@gmail.com','$2b$12$UXnF325QeNSgG9EZdyp0MOXG.RLJ0V73zDgvSeW/2DR9jFRyqJ2he',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF025',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(34,'sam','mas','sam.mas@clinic.ac.za','$2b$12$z9XOonHXCjzpsOH.W7T7Meybcfcxyi5ydZlmizEVZwFb4e6BwGOIq',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF034',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(52,'Oupa','Makie','oupa.makie@clinic.ac.za','$2b$12$nDMkz2NizLniX3rzPIw6uO4kHuELE0Lkz4aft.B8my9ssabsyBMCO',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF035',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(53,'Lerato','Melane','lerato.melane@clinic.ac.za','$2b$12$haWuVgKJwp/dueugc3//ZOgGRnEn9GS2HuwJOaFhRsoRT7.qYzZja',NULL,NULL,'nurse',NULL,'unavailable','default.jpg','STAFF053',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(81,'Neo','Malema','neo.malema@clinic.ac.za','$2b$12$wakpo3sM0to38a6F7r2EduhChCIipmFjezpHAzdGlm0GzgrXtuAfu',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF054',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(93,'Siya','Dlamini','siya.admin@clinic.ac.za','$2b$12$IKvr6dY/QONzVXplbZH2Z.fmrZ7lfSEuo5UMQv9jYjcm8tXTa3ECy',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF082',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(94,'Colbert','Dhladlha','colbert.dladla@clinic.ac.za','$2b$12$mOlxeLPRxlbCyzyiUIkC1eFt2o7aGJL3Fav5h56E4eiHCJKGGwrSq',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF094',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(95,'Maki','Makhe','maki.nurse@clinic.ac.za','$2b$12$1iLAX/Xknjrek3Vbp63dEeHjCUbYmAh.QQ.1QwJadYzHS1i8sAFmK',NULL,NULL,'nurse',NULL,'unavailable','default.jpg','STAFF095',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(96,'Sello','Mayors','sello.reception@clinic.ac.za','$2b$12$EL/T9hiOutmIb3ODmIKx/umat.MaQOtyZQVKhtkuQkRh8HByUCnHu',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF096',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(140,'Steven','MacTak','Steven.MacTak@clinic.ac.za','$2b$12$vjm932nrvIeXjArfSHZ2OOkEF20qn1rwTyrH3scDU.2L9ZDd0u.1W',NULL,NULL,'admin',NULL,'available','default.jpg','STAFF097',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(141,'Mzilomba','MacTak','doctor@clinic.ac.za','$2b$12$L.P8vUP1vBECqPyYy0fmkutU9PyUiFBI8PPB7gNx5ET4pvUnVMBk.',NULL,NULL,'doctor',NULL,'unavailable','default.jpg','STAFF141',NULL,NOW(),TRUE);
+INSERT INTO employees VALUES(142,'Oliver','Smiley','Oliver.Smiley@clinic.ac.za','$2b$12$JJ/7lNSWJb1W52/yDLNzvuzEnzAgD1Kl66H.bEh8kwuVNPldFmTg2',NULL,NULL,'receptionist',NULL,'available','default.jpg','STAFF142',NULL,NOW(),TRUE);
 
 -- ========================================
--- 2. PATIENTS
+-- REST OF YOUR ORIGINAL TABLES (unchanged, just copied)
 -- ========================================
 CREATE TABLE patients (
     id SERIAL PRIMARY KEY,
